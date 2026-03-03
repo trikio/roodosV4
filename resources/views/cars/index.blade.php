@@ -141,9 +141,15 @@
 
                 <!-- Advertisement Column -->
                 <div class="hidden lg:block">
-                    <div class="bg-gray-100 h-full rounded-lg shadow p-4">
-                        <!-- Placeholder for advertisement -->
-                        <p class="text-gray-500 text-center">Espacio publicitario</p>
+                    <div class="sticky top-6">
+                        <div class="w-[300px] h-[600px] rounded-lg border border-gray-200 shadow flex items-center justify-center">
+                            <img
+                                src="https://images.johnsoncountypost.com/wp-content/uploads/2020/02/300x600-Half-Page-Display-Ad-Placeholder.jpg"
+                                alt="Placeholder publicitario 300x600"
+                                class="w-full h-full object-cover rounded-lg"
+                                loading="lazy"
+                            >
+                        </div>
                     </div>
                 </div>
             </div>
