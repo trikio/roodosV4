@@ -1,6 +1,10 @@
+@php
+    $visibleFilterLimit = 12;
+@endphp
+
 <!-- Brand Filter -->
 @if($brands->isNotEmpty())
-<div class="pb-3 border-b border-gray-200">
+<div class="pb-3 border-b border-gray-200" data-filter-group>
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Marca</h3>
     <ul class="space-y-0.5">
         @foreach($brands as $brand)
@@ -12,7 +16,7 @@
                 ? request()->path() . '?' . http_build_query(array_filter($baseParams))
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['brand' => $brand['id']]));
         @endphp
-        <li>
+        <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $brand['name'] }}</span>
@@ -25,12 +29,21 @@
         </li>
         @endforeach
     </ul>
+    @if($brands->count() > $visibleFilterLimit)
+        <button
+            type="button"
+            class="toggle-filter-options mt-2 text-xs text-[#008bea] hover:underline"
+            data-open-text="Ver todos ({{ $brands->count() - $visibleFilterLimit }})"
+            data-close-text="Ver menos">
+            Ver todos ({{ $brands->count() - $visibleFilterLimit }})
+        </button>
+    @endif
 </div>
 @endif
 
 <!-- Model Filter -->
 @if($models->isNotEmpty())
-<div class="pb-3 border-b border-gray-200">
+<div class="pb-3 border-b border-gray-200" data-filter-group>
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Modelo</h3>
     <ul class="space-y-0.5">
         @foreach($models as $model)
@@ -42,7 +55,7 @@
                 ? request()->path() . '?' . http_build_query(array_filter($baseParams))
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['model' => $model['id']]));
         @endphp
-        <li>
+        <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $model['name'] }}</span>
@@ -55,6 +68,15 @@
         </li>
         @endforeach
     </ul>
+    @if($models->count() > $visibleFilterLimit)
+        <button
+            type="button"
+            class="toggle-filter-options mt-2 text-xs text-[#008bea] hover:underline"
+            data-open-text="Ver todos ({{ $models->count() - $visibleFilterLimit }})"
+            data-close-text="Ver menos">
+            Ver todos ({{ $models->count() - $visibleFilterLimit }})
+        </button>
+    @endif
 </div>
 @endif
 
@@ -138,7 +160,7 @@
 
 <!-- Location Filter -->
 @if($locations->isNotEmpty())
-<div class="pb-3 border-b border-gray-200">
+<div class="pb-3 border-b border-gray-200" data-filter-group>
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Región</h3>
     <ul class="space-y-0.5">
         @foreach($locations as $location)
@@ -150,7 +172,7 @@
                 ? request()->path() . '?' . http_build_query(array_filter($baseParams))
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['location' => $location['id']]));
         @endphp
-        <li>
+        <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $location['name'] }}</span>
@@ -163,12 +185,21 @@
         </li>
         @endforeach
     </ul>
+    @if($locations->count() > $visibleFilterLimit)
+        <button
+            type="button"
+            class="toggle-filter-options mt-2 text-xs text-[#008bea] hover:underline"
+            data-open-text="Ver todos ({{ $locations->count() - $visibleFilterLimit }})"
+            data-close-text="Ver menos">
+            Ver todos ({{ $locations->count() - $visibleFilterLimit }})
+        </button>
+    @endif
 </div>
 @endif
 
 <!-- City Filter -->
 @if($cities->isNotEmpty())
-<div class="pb-3 border-b border-gray-200">
+<div class="pb-3 border-b border-gray-200" data-filter-group>
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Ciudad</h3>
     <ul class="space-y-0.5">
         @foreach($cities as $city)
@@ -180,7 +211,7 @@
                 ? request()->path() . '?' . http_build_query(array_filter($baseParams))
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['city' => $city['id']]));
         @endphp
-        <li>
+        <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $city['name'] }}</span>
@@ -193,5 +224,14 @@
         </li>
         @endforeach
     </ul>
+    @if($cities->count() > $visibleFilterLimit)
+        <button
+            type="button"
+            class="toggle-filter-options mt-2 text-xs text-[#008bea] hover:underline"
+            data-open-text="Ver todos ({{ $cities->count() - $visibleFilterLimit }})"
+            data-close-text="Ver menos">
+            Ver todos ({{ $cities->count() - $visibleFilterLimit }})
+        </button>
+    @endif
 </div>
 @endif

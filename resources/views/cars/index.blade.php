@@ -321,6 +321,25 @@
                         : '{{ url()->current() }}';
                 });
             });
+
+            // Expand/collapse long filter lists (desktop sidebar and mobile modal).
+            document.querySelectorAll('.toggle-filter-options').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const group = button.closest('[data-filter-group]');
+                    if (!group) {
+                        return;
+                    }
+
+                    const extraItems = group.querySelectorAll('.filter-extra-option');
+                    const isExpanded = button.dataset.expanded === 'true';
+
+                    extraItems.forEach((item) => item.classList.toggle('hidden', isExpanded));
+                    button.dataset.expanded = isExpanded ? 'false' : 'true';
+                    button.textContent = isExpanded
+                        ? button.dataset.openText
+                        : button.dataset.closeText;
+                });
+            });
         });
     </script>
 </div>
