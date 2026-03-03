@@ -40,14 +40,3 @@ sudo cp /app/server-conf/service_systemd/manticore.service /etc/systemd/system/m
 
 sudo systemctl daemon-reload
 sudo systemctl enable manticore
-
-
-# sudo apt update -y
-# sudo apt install -y software-properties-common
-# sudo add-apt-repository ppa:openswoole/ppa -y
-# choose one PHP version:
-#apt install -y php7.4-openswoole
-#apt install -y php8.0-openswoole
-
-
-sudo pecl install openswoole-25.2.0

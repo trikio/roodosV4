@@ -1,11 +1,1 @@
 0 * * * * sudo indexer --rotate --all
-0 2 * * * /usr/bin/php /app/nexo/doomos_mx.php > /dev/null 2>&1
-0 4 * * * /usr/bin/php /app/nexo/doomos_cl.php > /dev/null 2>&1
-0 5 * * * /usr/bin/php /app/nexo/doomos_ec.php > /dev/null 2>&1
-0 1 * * * /usr/bin/php /app/nexo/doomos_pe.php > /dev/null 2>&1
-0 1 * * * /usr/bin/php /app/nexo/ML_ar_v3.php > /dev/null 2>&1
-0 2 * * * /usr/bin/php /app/nexo/ML_cl_v3.php > /dev/null 2>&1
-0 3 * * * /usr/bin/php /app/nexo/ML_co_v3.php > /dev/null 2>&1
-0 4 * * * /usr/bin/php /app/nexo/ML_ec_v3.php > /dev/null 2>&1
-0 5 * * * /usr/bin/php /app/nexo/ML_mx_v3.php > /dev/null 2>&1
-0 6 * * * /usr/bin/php /app/nexo/ML_pe_v3.php > /dev/null 2>&1
