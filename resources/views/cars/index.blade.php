@@ -110,8 +110,17 @@
                                 <p class="text-2xl font-bold text-gray-900 mb-3">
                                     ${{ number_format($car->price, 0, ',', '.') }}
                                 </p>
+                                @php
+                                    $carPrimaryLabel = trim(implode(' ', array_filter([$car->brand, $car->model])));
+                                    $carMetaParts = array_values(array_filter([
+                                        $carPrimaryLabel,
+                                        $car->location,
+                                        $car->year,
+                                        $car->transmission,
+                                    ], fn ($value) => filled($value)));
+                                @endphp
                                 <p class="text-sm text-gray-600 mb-4 line-clamp-2">
-                                    {{ $car->brand }} {{ $car->model }} - {{ $car->location }} - {{ $car->year }} - {{ $car->transmission }}
+                                    {{ implode(' - ', $carMetaParts) }}
                                 </p>
                                 <p class="text-xs text-gray-500">
                                     {{ $car->kilometers }} kilómetros · Condición: {{ ucfirst($car->condition) }}
