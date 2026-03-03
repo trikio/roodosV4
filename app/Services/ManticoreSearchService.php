@@ -118,6 +118,29 @@ class ManticoreSearchService
         }
     }
 
+    public function getLandingBySlug(string $countryCode, string $slug): ?array
+    {
+        $indexName = 'car_landings_' . $countryCode;
+
+        try {
+            $result = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from($indexName)
+                ->where('slug', $slug)
+                ->limit(0, 1)
+                ->execute();
+
+            if (empty($result)) {
+                return null;
+            }
+
+            return $result[0];
+        } catch (Exception $e) {
+            // If index does not exist or query fails, treat it as "not found" for landing routing.
+            return null;
+        }
+    }
+
     protected function enqueueFacet($query, $searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias)
     {
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')

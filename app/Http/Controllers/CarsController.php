@@ -207,21 +207,30 @@ class CarsController extends Controller
     {
         // Extract type from subdomain (autos.roodos.* -> 'autos')
         $type = 'autos';
+        $countryCode = $country ?: $this->resolveCountryFromHost($request);
+        $countryCode = $countryCode ?: 'lab';
+
+        $landing = $this->manticore->getLandingBySlug($countryCode, (string) $slug);
+
+        if (!$landing || empty($landing['title'])) {
+            abort(404);
+        }
+
+        $searchQuery = trim((string) $landing['title']);
+        $slugData = [
+            'original' => $slug,
+            'title' => $landing['title'],
+        ];
 
         // DEBUG - Check what parameters are being received
         \Log::info('[LANDING] Method called', [
             'type' => $type,
-            'country' => $country,
+            'country' => $countryCode,
             'slug' => $slug,
+            'landing_title' => $landing['title'],
             'url' => $request->url(),
             'path' => $request->path()
         ]);
-
-        // Parse slug para extraer información (chevrolet-aveo-quito)
-        $slugData = $this->parseSlug($slug);
-
-        // Build search query from slug
-        $searchQuery = trim($slugData['brand'] . ' ' . $slugData['model']);
 
         // Build search options from request and slug
         $options = [
@@ -350,7 +359,18 @@ class CarsController extends Controller
                 return ['id' => $item['id_city'], 'name' => $item['name'], 'total' => $item['total']];
             });
 
+        $country = $countryCode;
         return view('cars.index', compact('cars', 'brands', 'models', 'locations', 'cities', 'slugData', 'type', 'country', 'searchQuery'));
+    }
+
+    private function resolveCountryFromHost(Request $request): ?string
+    {
+        $host = $request->getHost();
+        if (preg_match('/^autos\.roodos\.([^.]+)$/', $host, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     private function parseSlug($slug)
