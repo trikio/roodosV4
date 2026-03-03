@@ -1,0 +1,20 @@
+sudo ssh-keygen -t rsa -b 4096 -C "sk8unk@gmail.com"
+sudo cat /root/.ssh/id_rsa.pub
+# se lleva a github y se agrega a las llaves ssh
+
+cd /
+
+sudo git clone git@github.com:trikio/roodos.git
+
+sudo mv roodos app
+
+sudo mkdir /app/public/images
+sudo chmod -R 777 /app/public/images
+
+cd app/server-conf/deploy/
+
+sudo chmod +x deploy_server.sh
+
+sudo ./deploy_server.sh
+
+# se debe montar el hdd

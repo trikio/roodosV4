@@ -1,0 +1,28 @@
+[Unit]
+Description=Manticore Search Engine
+After=network.target remote-fs.target nss-lookup.target
+Documentation=https://manual.manticoresearch.com/, man:searchd(1)
+
+[Service]
+Type=forking
+User=root
+Group=root
+RuntimeDirectory=manticore
+
+ExecStart=/usr/bin/searchd
+ExecStop=/usr/bin/searchd --stop
+KillMode=process
+KillSignal=SIGTERM
+SendSIGKILL=no
+LimitNOFILE=65536
+LimitCORE=infinity
+LimitMEMLOCK=infinity
+Restart=always
+TimeoutStartSec=infinity
+PIDFile=/var/run/manticore/searchd.pid
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target
+Alias=manticore.service
+Alias=searchd.service
