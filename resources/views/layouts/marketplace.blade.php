@@ -7,6 +7,16 @@
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
+@php
+    $countryCode = request()->route('country');
+    if (empty($countryCode)) {
+        $host = request()->getHost();
+        if (preg_match('/^(?:autos|casas)\.roodos\.([^.]+)$/', $host, $matches)) {
+            $countryCode = $matches[1];
+        }
+    }
+    $countryCode = $countryCode ?: 'lab';
+@endphp
 <body class="bg-gray-50">
     <!-- Header -->
     <header class="bg-white border-b border-gray-200">
@@ -39,8 +49,8 @@
 
                 <!-- Links -->
                 <div class="hidden md:flex items-center gap-4">
-                    <a href="{{ url('http://casas.roodos.' . request()->route('country', 'local') . ':8000') }}" class="text-[#008bea] hover:underline">Casas</a>
-                    <a href="{{ url('http://autos.roodos.' . request()->route('country', 'local') . ':8000') }}" class="text-[#008bea] hover:underline">Autos</a>
+                    <a href="{{ url('http://casas.roodos.' . $countryCode) }}" class="text-[#008bea] hover:underline">Casas</a>
+                    <a href="{{ url('http://autos.roodos.' . $countryCode) }}" class="text-[#008bea] hover:underline">Autos</a>
                 </div>
 
                 <!-- Mobile Menu Button -->
@@ -59,8 +69,8 @@
     <div id="mobile-menu" class="hidden fixed top-16 right-0 bg-white w-48 p-4 rounded-lg shadow-lg z-50">
         <button id="close-menu-btn" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">&times;</button>
         <nav class="space-y-4">
-            <a href="{{ url('http://casas.roodos.' . request()->route('country', 'local') . ':8000') }}" class="block text-[#008bea] hover:underline text-lg">Casas</a>
-            <a href="{{ url('http://autos.roodos.' . request()->route('country', 'local') . ':8000') }}" class="block text-[#008bea] hover:underline text-lg">Autos</a>
+            <a href="{{ url('http://casas.roodos.' . $countryCode) }}" class="block text-[#008bea] hover:underline text-lg">Casas</a>
+            <a href="{{ url('http://autos.roodos.' . $countryCode) }}" class="block text-[#008bea] hover:underline text-lg">Autos</a>
         </nav>
     </div>
 

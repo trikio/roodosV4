@@ -15,14 +15,6 @@ class CarsController extends Controller
         $this->manticore = $manticore;
     }
 
-    /**
-     * Normalize country parameter - convert 'local' to 'ec' for development
-     */
-    private function normalizeCountry($country)
-    {
-        return $country === 'local' ? 'ec' : $country;
-    }
-
     private function normalizeOrder(Request $request): string
     {
         $order = (string) $request->get('order', '');
@@ -42,9 +34,6 @@ class CarsController extends Controller
     {
         // Extract type from subdomain (autos.roodos.* -> 'autos')
         $type = 'autos';
-
-        // Normalize country parameter (convert 'local' to 'ec' for development)
-        $country = $this->normalizeCountry($country);
 
         // Get total cars count
         $options = [
@@ -219,9 +208,6 @@ class CarsController extends Controller
         // Extract type from subdomain (autos.roodos.* -> 'autos')
         $type = 'autos';
 
-        // Normalize country parameter (convert 'local' to 'ec' for development)
-        $country = $this->normalizeCountry($country);
-
         // DEBUG - Check what parameters are being received
         \Log::info('[LANDING] Method called', [
             'type' => $type,
@@ -383,7 +369,6 @@ class CarsController extends Controller
 
     public function show($country = null, $id = null)
     {
-        $country = $this->normalizeCountry($country);
         $carId = (int) $id;
 
         if ($carId <= 0) {
