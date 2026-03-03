@@ -76,7 +76,26 @@
                             <!-- Image -->
                             <div class="flex-shrink-0 w-36 h-36 max-w-[150px] max-h-[150px] bg-gray-200 overflow-hidden rounded-lg">
                                 @if($car->image_url)
-                                    <img src="{{ $car->image_url }}" alt="{{ $car->title }}" class="w-full h-full object-cover" {{ $loop->first ? '' : 'loading="lazy"' }}>
+                                    @if($loop->first)
+                                        <img
+                                            src="{{ $car->image_url }}"
+                                            alt="{{ $car->title }}"
+                                            class="w-full h-full object-cover"
+                                            loading="eager"
+                                            decoding="async"
+                                            fetchpriority="high"
+                                        >
+                                    @else
+                                        <img
+                                            src="data:image/gif;base64,R0lGODlhAQABAAAAACw="
+                                            data-src="{{ $car->image_url }}"
+                                            alt="{{ $car->title }}"
+                                            class="w-full h-full object-cover lazy-car-image"
+                                            loading="lazy"
+                                            decoding="async"
+                                            fetchpriority="low"
+                                        >
+                                    @endif
                                 @else
                                     <div class="w-full h-full flex items-center justify-center bg-gray-300">
                                         <svg class="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -243,6 +262,42 @@
                     });
                 }
             });
+
+            // Lazy load robusto con IntersectionObserver.
+            const lazyImages = document.querySelectorAll('img.lazy-car-image[data-src]');
+            if ('IntersectionObserver' in window) {
+                const observer = new IntersectionObserver((entries, obs) => {
+                    entries.forEach((entry) => {
+                        if (!entry.isIntersecting) {
+                            return;
+                        }
+
+                        const img = entry.target;
+                        const dataSrc = img.getAttribute('data-src');
+                        if (dataSrc) {
+                            img.setAttribute('src', dataSrc);
+                            img.removeAttribute('data-src');
+                        }
+                        img.classList.remove('lazy-car-image');
+                        obs.unobserve(img);
+                    });
+                }, {
+                    rootMargin: '250px 0px',
+                    threshold: 0.01
+                });
+
+                lazyImages.forEach((img) => observer.observe(img));
+            } else {
+                // Fallback para navegadores sin IntersectionObserver.
+                lazyImages.forEach((img) => {
+                    const dataSrc = img.getAttribute('data-src');
+                    if (dataSrc) {
+                        img.setAttribute('src', dataSrc);
+                        img.removeAttribute('data-src');
+                    }
+                    img.classList.remove('lazy-car-image');
+                });
+            }
 
             // Handle sorting while preserving current filters.
             document.querySelectorAll('.sort-order-select').forEach(select => {
