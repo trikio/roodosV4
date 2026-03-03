@@ -67,21 +67,13 @@
     <!-- Footer -->
     <footer class="bg-gray-900 text-gray-300 py-12 mt-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-4 gap-8 mb-8">
+            <div class="grid grid-cols-3 gap-8 mb-8">
                 <div>
                     <h3 class="text-white font-bold mb-4">Sobre Roodos</h3>
                     <ul class="space-y-2 text-sm">
                         <li><a href="#" class="hover:text-white transition">Acerca de nosotros</a></li>
                         <li><a href="#" class="hover:text-white transition">Blog</a></li>
                         <li><a href="#" class="hover:text-white transition">Prensa</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="text-white font-bold mb-4">Comunidad</h3>
-                    <ul class="space-y-2 text-sm">
-                        <li><a href="#" class="hover:text-white transition">Foro</a></li>
-                        <li><a href="#" class="hover:text-white transition">Testimonios</a></li>
-                        <li><a href="#" class="hover:text-white transition">Eventos</a></li>
                     </ul>
                 </div>
                 <div>
