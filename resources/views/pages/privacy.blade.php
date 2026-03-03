@@ -5,13 +5,23 @@
     <div class="bg-white rounded-xl shadow p-8">
         <h1 class="text-3xl font-bold text-gray-900 mb-4">Política de privacidad</h1>
         <p class="text-gray-700 mb-4">
-            Roodos prioriza el uso de información pública para indexación y descubrimiento. No reclamamos propiedad sobre contenidos originales de terceros.
+            En Roodos respetamos su privacidad y protegemos sus datos personales.
         </p>
+
+        <h2 class="text-xl font-semibold text-gray-900 mb-3 mt-8">Información recopilada</h2>
+        <ul class="list-disc pl-6 text-gray-700 space-y-2 mb-4">
+            <li>Dirección IP</li>
+            <li>Datos de navegación</li>
+            <li>Información enviada a través de formularios</li>
+            <li>Cookies y tecnologías similares</li>
+        </ul>
+
+        <h2 class="text-xl font-semibold text-gray-900 mb-3 mt-8">Finalidad del uso</h2>
         <p class="text-gray-700 mb-4">
-            Cuando interactúas con resultados, podemos registrar datos técnicos básicos para analítica, rendimiento y seguridad del servicio.
+            Utilizamos la información para mejorar la experiencia de búsqueda, analizar el comportamiento de navegación y responder consultas.
         </p>
         <p class="text-gray-700">
-            Los contactos comerciales se derivan a la fuente original del anuncio, donde aplican las políticas de privacidad del sitio de destino.
+            No vendemos datos personales a terceros.
         </p>
     </div>
 </div>
