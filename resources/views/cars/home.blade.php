@@ -5,13 +5,13 @@
 <div class="bg-gradient-to-b from-blue-50 to-white py-16">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">48.152 Autos</h1>
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">{{ number_format($totalCars, 0, ',', '.') }} Autos</h1>
             <p class="text-lg text-gray-600">Encuentra el auto perfecto para ti</p>
         </div>
 
         <!-- Search Bar -->
         <div class="max-w-3xl mx-auto">
-            <form action="{{ route('cars.landing', 'buscar') }}" method="GET" class="relative">
+            <form action="/search" method="GET" class="relative">
                 <input
                     type="text"
                     name="q"

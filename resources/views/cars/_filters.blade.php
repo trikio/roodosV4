@@ -1,34 +1,62 @@
 <!-- Brand Filter -->
+@if($brands->isNotEmpty())
 <div class="pb-3 border-b border-gray-200">
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Marca</h3>
     <ul class="space-y-0.5">
         @foreach($brands as $brand)
+        @php
+            $isActive = request('brand') == $brand['id'];
+            // Don't include 'q' in landing pages (slug already contains search info)
+            $baseParams = request()->except(['brand', 'q']);
+            $uri = $isActive
+                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
+                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['brand' => $brand['id']]));
+        @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-[#008bea] hover:underline text-sm cursor-pointer {{ request('brand') == $brand ? 'font-semibold' : '' }}"
-               data-uri="{{ url()->current() }}?{{ http_build_query(array_merge(request()->except('brand'), ['brand' => $brand])) }}">
-                <span>{{ $brand }}</span>
-                <span class="badge-light text-xs text-gray-500">{{ $brandCounts[$brand] ?? 0 }}</span>
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+               data-uri="{{ $uri }}">
+                <span>{{ $brand['name'] }}</span>
+                @if($isActive)
+                    <span class="text-white font-bold text-base">×</span>
+                @else
+                    <span class="text-xs text-gray-500">{{ $brand['total'] }}</span>
+                @endif
             </p>
         </li>
         @endforeach
     </ul>
 </div>
+@endif
 
 <!-- Model Filter -->
+@if($models->isNotEmpty())
 <div class="pb-3 border-b border-gray-200">
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Modelo</h3>
     <ul class="space-y-0.5">
         @foreach($models as $model)
+        @php
+            $isActive = request('model') == $model['id'];
+            // Don't include 'q' in landing pages (slug already contains search info)
+            $baseParams = request()->except(['model', 'q']);
+            $uri = $isActive
+                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
+                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['model' => $model['id']]));
+        @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-[#008bea] hover:underline text-sm cursor-pointer {{ request('model') == $model ? 'font-semibold' : '' }}"
-               data-uri="{{ url()->current() }}?{{ http_build_query(array_merge(request()->except('model'), ['model' => $model])) }}">
-                <span>{{ $model }}</span>
-                <span class="badge-light text-xs text-gray-500">{{ $modelCounts[$model] ?? 0 }}</span>
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+               data-uri="{{ $uri }}">
+                <span>{{ $model['name'] }}</span>
+                @if($isActive)
+                    <span class="text-white font-bold text-base">×</span>
+                @else
+                    <span class="text-xs text-gray-500">{{ $model['total'] }}</span>
+                @endif
             </p>
         </li>
         @endforeach
     </ul>
 </div>
+@endif
 
 <!-- Price Filter -->
 <div class="pb-3 border-b border-gray-200">
@@ -36,22 +64,22 @@
     <div class="space-y-2">
         <div>
             <label class="text-xs text-gray-600">Mínimo</label>
-            <select name="price_min" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+            <select name="min_price" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">Cualquiera</option>
-                <option value="1000000" {{ request('price_min') == '1000000' ? 'selected' : '' }}>$1.000.000</option>
-                <option value="5000000" {{ request('price_min') == '5000000' ? 'selected' : '' }}>$5.000.000</option>
-                <option value="10000000" {{ request('price_min') == '10000000' ? 'selected' : '' }}>$10.000.000</option>
-                <option value="20000000" {{ request('price_min') == '20000000' ? 'selected' : '' }}>$20.000.000</option>
+                <option value="1000000" {{ request('min_price') == '1000000' ? 'selected' : '' }}>$1.000.000</option>
+                <option value="5000000" {{ request('min_price') == '5000000' ? 'selected' : '' }}>$5.000.000</option>
+                <option value="10000000" {{ request('min_price') == '10000000' ? 'selected' : '' }}>$10.000.000</option>
+                <option value="20000000" {{ request('min_price') == '20000000' ? 'selected' : '' }}>$20.000.000</option>
             </select>
         </div>
         <div>
             <label class="text-xs text-gray-600">Máximo</label>
-            <select name="price_max" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+            <select name="max_price" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">Cualquiera</option>
-                <option value="5000000" {{ request('price_max') == '5000000' ? 'selected' : '' }}>$5.000.000</option>
-                <option value="10000000" {{ request('price_max') == '10000000' ? 'selected' : '' }}>$10.000.000</option>
-                <option value="20000000" {{ request('price_max') == '20000000' ? 'selected' : '' }}>$20.000.000</option>
-                <option value="50000000" {{ request('price_max') == '50000000' ? 'selected' : '' }}>$50.000.000</option>
+                <option value="5000000" {{ request('max_price') == '5000000' ? 'selected' : '' }}>$5.000.000</option>
+                <option value="10000000" {{ request('max_price') == '10000000' ? 'selected' : '' }}>$10.000.000</option>
+                <option value="20000000" {{ request('max_price') == '20000000' ? 'selected' : '' }}>$20.000.000</option>
+                <option value="50000000" {{ request('max_price') == '50000000' ? 'selected' : '' }}>$50.000.000</option>
             </select>
         </div>
     </div>
@@ -63,22 +91,20 @@
     <div class="space-y-2">
         <div>
             <label class="text-xs text-gray-600">Mínimo</label>
-            <select name="year_min" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+            <select name="min_year" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">Cualquiera</option>
-                <option value="2015" {{ request('year_min') == '2015' ? 'selected' : '' }}>2015</option>
-                <option value="2018" {{ request('year_min') == '2018' ? 'selected' : '' }}>2018</option>
-                <option value="2020" {{ request('year_min') == '2020' ? 'selected' : '' }}>2020</option>
-                <option value="2023" {{ request('year_min') == '2023' ? 'selected' : '' }}>2023</option>
+                @for($year = 1990; $year <= date('Y'); $year++)
+                    <option value="{{ $year }}" {{ request('min_year') == $year ? 'selected' : '' }}>{{ $year }}</option>
+                @endfor
             </select>
         </div>
         <div>
             <label class="text-xs text-gray-600">Máximo</label>
-            <select name="year_max" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+            <select name="max_year" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">Cualquiera</option>
-                <option value="2020" {{ request('year_max') == '2020' ? 'selected' : '' }}>2020</option>
-                <option value="2023" {{ request('year_max') == '2023' ? 'selected' : '' }}>2023</option>
-                <option value="2025" {{ request('year_max') == '2025' ? 'selected' : '' }}>2025</option>
-                <option value="2026" {{ request('year_max') == '2026' ? 'selected' : '' }}>2026</option>
+                @for($year = 1990; $year <= date('Y'); $year++)
+                    <option value="{{ $year }}" {{ request('max_year') == $year ? 'selected' : '' }}>{{ $year }}</option>
+                @endfor
             </select>
         </div>
     </div>
@@ -90,54 +116,82 @@
     <div class="space-y-2">
         <div>
             <label class="text-xs text-gray-600">Mínimo</label>
-            <select name="km_min" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+            <select name="min_km" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">Cualquiera</option>
-                <option value="0" {{ request('km_min') == '0' ? 'selected' : '' }}>0</option>
-                <option value="50000" {{ request('km_min') == '50000' ? 'selected' : '' }}>50.000</option>
-                <option value="100000" {{ request('km_min') == '100000' ? 'selected' : '' }}>100.000</option>
-                <option value="200000" {{ request('km_min') == '200000' ? 'selected' : '' }}>200.000</option>
+                <option value="0" {{ request('min_km') == '0' ? 'selected' : '' }}>0</option>
+                <option value="50000" {{ request('min_km') == '50000' ? 'selected' : '' }}>50.000</option>
+                <option value="100000" {{ request('min_km') == '100000' ? 'selected' : '' }}>100.000</option>
+                <option value="200000" {{ request('min_km') == '200000' ? 'selected' : '' }}>200.000</option>
             </select>
         </div>
         <div>
             <label class="text-xs text-gray-600">Máximo</label>
-            <select name="km_max" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
+            <select name="max_km" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
                 <option value="">Cualquiera</option>
-                <option value="100000" {{ request('km_max') == '100000' ? 'selected' : '' }}>100.000</option>
-                <option value="200000" {{ request('km_max') == '200000' ? 'selected' : '' }}>200.000</option>
-                <option value="500000" {{ request('km_max') == '500000' ? 'selected' : '' }}>500.000</option>
+                <option value="100000" {{ request('max_km') == '100000' ? 'selected' : '' }}>100.000</option>
+                <option value="200000" {{ request('max_km') == '200000' ? 'selected' : '' }}>200.000</option>
+                <option value="500000" {{ request('max_km') == '500000' ? 'selected' : '' }}>500.000</option>
             </select>
         </div>
     </div>
 </div>
 
 <!-- Location Filter -->
+@if($locations->isNotEmpty())
 <div class="pb-3 border-b border-gray-200">
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Región</h3>
     <ul class="space-y-0.5">
         @foreach($locations as $location)
+        @php
+            $isActive = request('location') == $location['id'];
+            // Don't include 'q' in landing pages (slug already contains search info)
+            $baseParams = request()->except(['location', 'q']);
+            $uri = $isActive
+                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
+                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['location' => $location['id']]));
+        @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-[#008bea] hover:underline text-sm cursor-pointer {{ request('location') == $location ? 'font-semibold' : '' }}"
-               data-uri="{{ url()->current() }}?{{ http_build_query(array_merge(request()->except('location'), ['location' => $location])) }}">
-                <span>{{ $location }}</span>
-                <span class="badge-light text-xs text-gray-500">{{ $locationCounts[$location] ?? 0 }}</span>
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+               data-uri="{{ $uri }}">
+                <span>{{ $location['name'] }}</span>
+                @if($isActive)
+                    <span class="text-white font-bold text-base">×</span>
+                @else
+                    <span class="text-xs text-gray-500">{{ $location['total'] }}</span>
+                @endif
             </p>
         </li>
         @endforeach
     </ul>
 </div>
+@endif
 
 <!-- City Filter -->
+@if($cities->isNotEmpty())
 <div class="pb-3 border-b border-gray-200">
     <h3 class="font-bold text-gray-900 mb-2 text-sm">Ciudad</h3>
     <ul class="space-y-0.5">
         @foreach($cities as $city)
+        @php
+            $isActive = request('city') == $city['id'];
+            // Don't include 'q' in landing pages (slug already contains search info)
+            $baseParams = request()->except(['city', 'q']);
+            $uri = $isActive
+                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
+                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['city' => $city['id']]));
+        @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-[#008bea] hover:underline text-sm cursor-pointer {{ request('city') == $city ? 'font-semibold' : '' }}"
-               data-uri="{{ url()->current() }}?{{ http_build_query(array_merge(request()->except('city'), ['city' => $city])) }}">
-                <span>{{ $city }}</span>
-                <span class="badge-light text-xs text-gray-500">{{ $cityCounts[$city] ?? 0 }}</span>
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+               data-uri="{{ $uri }}">
+                <span>{{ $city['name'] }}</span>
+                @if($isActive)
+                    <span class="text-white font-bold text-base">×</span>
+                @else
+                    <span class="text-xs text-gray-500">{{ $city['total'] }}</span>
+                @endif
             </p>
         </li>
         @endforeach
     </ul>
 </div>
+@endif
