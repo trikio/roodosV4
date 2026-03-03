@@ -80,37 +80,18 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-gray-900 text-gray-300 py-12 mt-16">
+    <footer class="bg-gray-200 border-t border-gray-300 py-6 mt-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-3 gap-8 mb-8">
-                <div>
-                    <h3 class="text-white font-bold mb-4">Sobre Roodos</h3>
-                    <ul class="space-y-2 text-sm">
-                        <li><a href="#" class="hover:text-white transition">Acerca de nosotros</a></li>
-                        <li><a href="#" class="hover:text-white transition">Blog</a></li>
-                        <li><a href="#" class="hover:text-white transition">Prensa</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="text-white font-bold mb-4">Soporte</h3>
-                    <ul class="space-y-2 text-sm">
-                        <li><a href="#" class="hover:text-white transition">Centro de ayuda</a></li>
-                        <li><a href="#" class="hover:text-white transition">Contacto</a></li>
-                        <li><a href="#" class="hover:text-white transition">Seguridad</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="text-white font-bold mb-4">Legal</h3>
-                    <ul class="space-y-2 text-sm">
-                        <li><a href="#" class="hover:text-white transition">Términos</a></li>
-                        <li><a href="#" class="hover:text-white transition">Privacidad</a></li>
-                        <li><a href="#" class="hover:text-white transition">Cookies</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="border-t border-gray-800 pt-8 text-center">
-                <p>&copy; 2026 Roodos. Todos los derechos reservados.</p>
-            </div>
+            <nav class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-gray-700">
+                <a href="/" class="hover:text-gray-900">Home</a>
+                <a href="/envie-su-sitio" class="hover:text-gray-900">Envíe su sitio</a>
+                <a href="/sobre-nosotros" class="hover:text-gray-900">Sobre nosotros</a>
+                <a href="/terminos-de-uso" class="hover:text-gray-900">Terminos de uso</a>
+                <a href="/politica-de-privacidad" class="hover:text-gray-900">Política de privacidad</a>
+                <a href="/politica-de-cookies" class="hover:text-gray-900">Política de cookies</a>
+                <a href="/nuestras-redes" class="hover:text-gray-900">Nuestras Redes</a>
+                <a href="/contacta-con-nosotros" class="hover:text-gray-900">Contacta con nosotros</a>
+            </nav>
         </div>
     </footer>
 
