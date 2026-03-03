@@ -98,6 +98,26 @@ class ManticoreSearchService
         }
     }
 
+    public function getCarById($searchIndex, int $id): ?array
+    {
+        try {
+            $result = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from($searchIndex)
+                ->where('id', $id)
+                ->limit(0, 1)
+                ->execute();
+
+            if (empty($result)) {
+                return null;
+            }
+
+            return $result[0];
+        } catch (Exception $e) {
+            throw new Exception("Error fetching car by id: " . $e->getMessage());
+        }
+    }
+
     protected function enqueueFacet($query, $searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias)
     {
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')

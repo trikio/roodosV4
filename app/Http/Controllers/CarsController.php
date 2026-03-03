@@ -383,28 +383,22 @@ class CarsController extends Controller
 
     public function show($country = null, $id = null)
     {
-        // Extract type from subdomain (autos.roodos.* -> 'autos')
-        $type = 'autos';
-
-        // Normalize country parameter (convert 'local' to 'ec' for development)
         $country = $this->normalizeCountry($country);
+        $carId = (int) $id;
 
-        // Dato mock para diseño
-        $car = (object)[
-            'id' => $id,
-            'title' => 'Honda CR-V 2023 Automático',
-            'brand' => 'Honda',
-            'model' => 'CR-V',
-            'price' => 18500000,
-            'year' => 2023,
-            'kilometers' => 15000,
-            'location' => 'Región Metropolitana',
-            'city' => 'Vitacura',
-            'transmission' => 'Automático',
-            'condition' => 'usado',
-            'image_url' => 'https://via.placeholder.com/150'
-        ];
+        if ($carId <= 0) {
+            abort(404);
+        }
 
-        return view('cars.show', compact('car', 'type', 'country'));
+        $car = $this->manticore->getCarById('car_ec', $carId);
+
+        if (!$car || empty($car['url'])) {
+            abort(404);
+        }
+
+        $targetUrl = (string) $car['url'];
+        $source = (string) ($car['nexo_id'] ?? 'fuente externa');
+
+        return view('cars.show', compact('targetUrl', 'source', 'country'));
     }
 }
