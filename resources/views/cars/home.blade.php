@@ -15,6 +15,7 @@
                 <input
                     type="text"
                     name="q"
+                    value="{{ request('q') }}"
                     placeholder="Buscar por marca, modelo, año..."
                     class="w-full px-6 py-4 pr-32 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-[#008bea] text-lg shadow-sm"
                 >

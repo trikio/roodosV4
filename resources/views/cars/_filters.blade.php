@@ -13,7 +13,7 @@
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['brand' => $brand['id']]));
         @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $brand['name'] }}</span>
                 @if($isActive)
@@ -43,7 +43,7 @@
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['model' => $model['id']]));
         @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $model['name'] }}</span>
                 @if($isActive)
@@ -151,7 +151,7 @@
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['location' => $location['id']]));
         @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $location['name'] }}</span>
                 @if($isActive)
@@ -181,7 +181,7 @@
                 : request()->path() . '?' . http_build_query(array_merge($baseParams, ['city' => $city['id']]));
         @endphp
         <li>
-            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 py-1 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
+            <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
                data-uri="{{ $uri }}">
                 <span>{{ $city['name'] }}</span>
                 @if($isActive)

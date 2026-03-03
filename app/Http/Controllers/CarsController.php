@@ -23,6 +23,21 @@ class CarsController extends Controller
         return $country === 'local' ? 'ec' : $country;
     }
 
+    private function normalizeOrder(Request $request): string
+    {
+        $order = (string) $request->get('order', '');
+        if ($order !== '') {
+            return $order;
+        }
+
+        // Backward compatibility with legacy "sort" query param used in views.
+        return match ($request->get('sort')) {
+            'price_low' => 'priceasc',
+            'price_high' => 'pricedesc',
+            default => '',
+        };
+    }
+
     public function home($country = null)
     {
         // Extract type from subdomain (autos.roodos.* -> 'autos')
@@ -86,7 +101,7 @@ class CarsController extends Controller
             'max_year' => $request->get('max_year', ''),
             'min_km' => $request->get('min_km', ''),
             'max_km' => $request->get('max_km', ''),
-            'order' => $request->get('order', ''),
+            'order' => $this->normalizeOrder($request),
         ];
 
         // Search using ManticoreSearch
@@ -146,6 +161,7 @@ class CarsController extends Controller
                 'image_url' => $item['image'] ?? 'https://via.placeholder.com/150',
                 'url' => $item['url'] ?? '#',
                 'slug' => $item['slug'] ?? '',
+                'nexo_id' => $item['nexo_id'] ?? '',
             ];
         });
 
@@ -238,7 +254,7 @@ class CarsController extends Controller
             'max_year' => $request->get('max_year', ''),
             'min_km' => $request->get('min_km', ''),
             'max_km' => $request->get('max_km', ''),
-            'order' => $request->get('order', ''),
+            'order' => $this->normalizeOrder($request),
         ];
 
         // Search using ManticoreSearch
@@ -299,6 +315,7 @@ class CarsController extends Controller
                 'image_url' => $item['image'] ?? 'https://via.placeholder.com/150',
                 'url' => $item['url'] ?? '#',
                 'slug' => $item['slug'] ?? '',
+                'nexo_id' => $item['nexo_id'] ?? '',
             ];
         });
 

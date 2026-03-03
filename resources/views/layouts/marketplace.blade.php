@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Roodos - Marketplace de Autos</title>
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-gray-50">
@@ -17,25 +18,29 @@
                 </a>
 
                 <!-- Search Bar -->
+                @if(!request()->is('/'))
                 <div class="flex-1 max-w-md">
-                    <div class="relative">
-                        <input 
-                            type="text" 
-                            placeholder="Buscar autos..." 
+                    <form action="/search" method="GET" class="relative">
+                        <input
+                            type="text"
+                            name="q"
+                            value="{{ request('q') }}"
+                            placeholder="Buscar autos..."
                             class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#008bea]"
                         >
-                        <button class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <button type="submit" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
                         </button>
-                    </div>
+                    </form>
                 </div>
+                @endif
 
                 <!-- Links -->
                 <div class="hidden md:flex items-center gap-4">
-                    <a href="/casas" class="text-[#008bea] hover:underline">Casas</a>
-                    <a href="/autos" class="text-[#008bea] hover:underline">Autos</a>
+                    <a href="{{ url('http://casas.roodos.' . request()->route('country', 'local') . ':8000') }}" class="text-[#008bea] hover:underline">Casas</a>
+                    <a href="{{ url('http://autos.roodos.' . request()->route('country', 'local') . ':8000') }}" class="text-[#008bea] hover:underline">Autos</a>
                 </div>
 
                 <!-- Mobile Menu Button -->
@@ -54,8 +59,8 @@
     <div id="mobile-menu" class="hidden fixed top-16 right-0 bg-white w-48 p-4 rounded-lg shadow-lg z-50">
         <button id="close-menu-btn" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700">&times;</button>
         <nav class="space-y-4">
-            <a href="/casas" class="block text-[#008bea] hover:underline text-lg">Casas</a>
-            <a href="/autos" class="block text-[#008bea] hover:underline text-lg">Autos</a>
+            <a href="{{ url('http://casas.roodos.' . request()->route('country', 'local') . ':8000') }}" class="block text-[#008bea] hover:underline text-lg">Casas</a>
+            <a href="{{ url('http://autos.roodos.' . request()->route('country', 'local') . ':8000') }}" class="block text-[#008bea] hover:underline text-lg">Autos</a>
         </nav>
     </div>
 

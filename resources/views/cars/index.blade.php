@@ -1,6 +1,16 @@
 @extends('layouts.marketplace')
 
 @section('content')
+@php
+    $currentOrder = request('order');
+    if (empty($currentOrder)) {
+        $currentOrder = match (request('sort')) {
+            'price_low' => 'priceasc',
+            'price_high' => 'pricedesc',
+            default => '',
+        };
+    }
+@endphp
 <!-- Sticky Mobile Bar -->
 <div class="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
@@ -12,10 +22,10 @@
             </svg>
             Filtros
         </button>
-        <select name="sort" onchange="window.location.href='{{ url()->current() }}?sort=' + this.value" class="px-2 py-1.5 border border-gray-300 rounded-lg text-gray-700 text-xs">
-            <option value="newest" {{ request('sort') == 'newest' ? 'selected' : '' }}>Más recientes</option>
-            <option value="price_low" {{ request('sort') == 'price_low' ? 'selected' : '' }}>Precio: menor a mayor</option>
-            <option value="price_high" {{ request('sort') == 'price_high' ? 'selected' : '' }}>Precio: mayor a menor</option>
+        <select name="order" class="sort-order-select px-2 py-1.5 border border-gray-300 rounded-lg text-gray-700 text-xs">
+            <option value="" {{ $currentOrder === '' ? 'selected' : '' }}>Más recientes</option>
+            <option value="priceasc" {{ $currentOrder === 'priceasc' ? 'selected' : '' }}>Precio: menor a mayor</option>
+            <option value="pricedesc" {{ $currentOrder === 'pricedesc' ? 'selected' : '' }}>Precio: mayor a menor</option>
         </select>
     </div>
 </div>
@@ -45,10 +55,10 @@
                     <p class="text-gray-600 mt-1">{{ $cars->total() }} resultados encontrados</p>
                 </div>
                 <div class="hidden lg:block">
-                    <select name="sort" onchange="window.location.href='{{ url()->current() }}?sort=' + this.value" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">
-                        <option value="newest" {{ request('sort') == 'newest' ? 'selected' : '' }}>Más recientes</option>
-                        <option value="price_low" {{ request('sort') == 'price_low' ? 'selected' : '' }}>Precio: menor a mayor</option>
-                        <option value="price_high" {{ request('sort') == 'price_high' ? 'selected' : '' }}>Precio: mayor a menor</option>
+                    <select name="order" class="sort-order-select px-4 py-2 border border-gray-300 rounded-lg text-gray-700">
+                        <option value="" {{ $currentOrder === '' ? 'selected' : '' }}>Más recientes</option>
+                        <option value="priceasc" {{ $currentOrder === 'priceasc' ? 'selected' : '' }}>Precio: menor a mayor</option>
+                        <option value="pricedesc" {{ $currentOrder === 'pricedesc' ? 'selected' : '' }}>Precio: mayor a menor</option>
                     </select>
                 </div>
             </div>
@@ -87,6 +97,11 @@
                                 <p class="text-xs text-gray-500">
                                     {{ $car->kilometers }} kilómetros · Condición: {{ ucfirst($car->condition) }}
                                 </p>
+                                @if(!empty($car->nexo_id))
+                                <p class="text-xs text-gray-400 mt-2">
+                                    Fuente: {{ $car->nexo_id }}
+                                </p>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -227,6 +242,29 @@
                         form.submit();
                     });
                 }
+            });
+
+            // Handle sorting while preserving current filters.
+            document.querySelectorAll('.sort-order-select').forEach(select => {
+                select.addEventListener('change', () => {
+                    const params = new URLSearchParams(window.location.search);
+                    const value = select.value;
+
+                    if (value) {
+                        params.set('order', value);
+                    } else {
+                        params.delete('order');
+                    }
+
+                    // Remove legacy sort param and reset pagination on new ordering.
+                    params.delete('sort');
+                    params.delete('page');
+
+                    const query = params.toString();
+                    window.location.href = query
+                        ? '{{ url()->current() }}?' + query
+                        : '{{ url()->current() }}';
+                });
             });
         });
     </script>
