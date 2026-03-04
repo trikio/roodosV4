@@ -40,3 +40,9 @@ sudo cp /app/server-conf/service_systemd/manticore.service /etc/systemd/system/m
 
 sudo systemctl daemon-reload
 sudo systemctl enable manticore
+
+sudo adduser manticore sudo;
+sudo mkdir /var/run/manticore;
+sudo chown -R manticore:manticore /var/lib/manticore/;
+sudo chown -R manticore:manticore /var/run/manticore/;
+sudo chown -R manticore:manticore /var/log/manticore/;
