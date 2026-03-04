@@ -11,12 +11,13 @@
         }
         $countryCode = $countryCode ?: 'lab';
         $countryForTitle = strtoupper($countryCode);
+        $countryName = config('countries.names.' . $countryForTitle, $countryForTitle);
 
         $pageTitle = trim($__env->yieldContent('page_title'));
         if ($pageTitle === '') {
             $pageTitle = 'Roodos - Marketplace de Autos';
         }
-        $htmlTitle = $pageTitle . ' - Roodos Autos ' . $countryForTitle;
+        $htmlTitle = $pageTitle . ' - Roodos Autos ' . $countryName;
 
         $metaDescription = trim($__env->yieldContent('meta_description'));
         if ($metaDescription === '') {
