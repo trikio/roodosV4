@@ -1,0 +1,32 @@
+{
+    "name": "foolz/sphinxql-query-builder",
+    "replace": {"foolz/sphinxql": "self.version"},
+    "type": "library",
+    "description": "A PHP query builder for SphinxQL and ManticoreQL with MySQLi and PDO drivers.",
+    "keywords": ["database", "sphinxql", "sphinx", "search", "SQL", "query builder"],
+    "homepage": "https://github.com/FoolCode/SphinxQL-Query-Builder",
+    "license": "Apache-2.0",
+    "authors": [{"name": "foolz", "email": "support@foolz.us"}],
+    "support": {
+        "issues": "https://github.com/FoolCode/SphinxQL-Query-Builder/issues",
+        "source": "https://github.com/FoolCode/SphinxQL-Query-Builder",
+        "docs": "https://github.com/FoolCode/SphinxQL-Query-Builder/tree/master/docs"
+    },
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^1.12",
+        "phpunit/phpunit": "^7 || ^8 || ^9"
+    },
+    "autoload": {
+        "psr-4": {
+            "Foolz\\SphinxQL\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Foolz\\SphinxQL\\Tests\\": "tests/SphinxQL"
+        }
+    }
+}

@@ -1,0 +1,236 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }} / ${{ matrix.driver }} / ${{ matrix.search_build }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
+        driver: [mysqli, pdo]
+        search_build: [SPHINX2, SPHINX3, MANTICORE]
+    env:
+      DRIVER: ${{ matrix.driver }}
+      SEARCH_BUILD: ${{ matrix.search_build }}
+      COVERAGE_LANE: ${{ matrix.php == '8.3' && matrix.driver == 'pdo' && matrix.search_build == 'MANTICORE' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        if: env.COVERAGE_LANE != 'true'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: mysqli, pdo_mysql, mbstring
+          tools: composer:v2
+
+      - name: Setup PHP (coverage lane)
+        if: env.COVERAGE_LANE == 'true'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: xdebug
+          extensions: mysqli, pdo_mysql, mbstring
+          tools: composer:v2
+
+      - name: Resolve search image and group exclusions
+        id: vars
+        run: |
+          EXCLUDE_GROUP=""
+          SEARCH_IMAGE=""
+          SEARCH_DOCKERFILE=""
+          case "$SEARCH_BUILD" in
+            SPHINX2)
+              SEARCH_IMAGE="ghcr.io/foolcode/sphinxql-query-builder-search-sphinx2:sphinx2-latest"
+              SEARCH_DOCKERFILE="docker/search/sphinx2/Dockerfile"
+              EXCLUDE_GROUP="--exclude-group=Manticore"
+              ;;
+            SPHINX3)
+              SEARCH_IMAGE="ghcr.io/foolcode/sphinxql-query-builder-search-sphinx3:sphinx3-latest"
+              SEARCH_DOCKERFILE="docker/search/sphinx3/Dockerfile"
+              EXCLUDE_GROUP="--exclude-group=Manticore"
+              ;;
+            MANTICORE)
+              SEARCH_IMAGE="ghcr.io/foolcode/sphinxql-query-builder-search-manticore:manticore-latest"
+              SEARCH_DOCKERFILE="docker/search/manticore/Dockerfile"
+              ;;
+            *)
+              echo "Unknown SEARCH_BUILD: $SEARCH_BUILD"
+              exit 1
+              ;;
+          esac
+          {
+            echo "search_image=$SEARCH_IMAGE"
+            echo "search_dockerfile=$SEARCH_DOCKERFILE"
+            echo "exclude_group=$EXCLUDE_GROUP"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Fetch search image
+        run: |
+          if ! docker pull "${{ steps.vars.outputs.search_image }}"; then
+            echo "Unable to pull image, building from repository Dockerfile fallback."
+            docker build -f "${{ steps.vars.outputs.search_dockerfile }}" -t "${{ steps.vars.outputs.search_image }}" .
+          fi
+
+      - name: Start search daemon container
+        run: |
+          docker run -d --name searchd \
+            -p 9307:9307 \
+            -p 9312:9312 \
+            "${{ steps.vars.outputs.search_image }}"
+
+      - name: Wait for searchd
+        run: |
+          n=0
+          while [ "$n" -lt 60 ]; do
+            if php -r '
+              try {
+                $pdo = new PDO("mysql:host=127.0.0.1;port=9307", "", "");
+                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                $pdo->query("SHOW TABLES");
+                exit(0);
+              } catch (Throwable $exception) {
+                exit(1);
+              }
+            ' >/dev/null 2>&1; then
+              exit 0
+            fi
+            n=$((n + 1))
+            sleep 1
+          done
+          echo "searchd did not become SQL-ready on 127.0.0.1:9307"
+          docker logs searchd || true
+          exit 1
+
+      - name: Validate composer metadata
+        run: composer validate --strict --no-check-publish
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare autoload
+        run: composer dump-autoload
+
+      - name: Run PHPStan
+        if: env.COVERAGE_LANE == 'true'
+        run: |
+          set -o pipefail
+          mkdir -p static-analysis
+          ./vendor/bin/phpstan analyse --configuration phpstan.neon.dist --memory-limit=1G --no-progress --error-format=raw 2>&1 | tee static-analysis/phpstan.txt
+
+      - name: Run tests
+        run: |
+          if [ "${COVERAGE_LANE}" = "true" ]; then
+            mkdir -p coverage
+            ./vendor/bin/phpunit --configuration "tests/travis/${DRIVER}.phpunit.xml" --coverage-text --coverage-clover coverage/clover.xml ${{ steps.vars.outputs.exclude_group }}
+          else
+            ./vendor/bin/phpunit --configuration "tests/travis/${DRIVER}.phpunit.xml" --coverage-text ${{ steps.vars.outputs.exclude_group }}
+          fi
+
+      - name: Build changed-line coverage artifact
+        if: always() && env.COVERAGE_LANE == 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p coverage-artifact
+
+          BASE_SHA=""
+          BASE_LABEL=""
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            BASE_LABEL="PR base (${BASE_SHA})"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            BASE_LABEL="push before (${BASE_SHA})"
+          fi
+
+          if [ -z "${BASE_SHA}" ] \
+            || [ "${BASE_SHA}" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+            if git show-ref --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}"; then
+              BASE_SHA="$(git merge-base "origin/${DEFAULT_BRANCH}" HEAD)"
+              BASE_LABEL="merge-base (origin/${DEFAULT_BRANCH})"
+            elif git cat-file -e "HEAD~1^{commit}" 2>/dev/null; then
+              BASE_SHA="$(git rev-parse HEAD~1)"
+              BASE_LABEL="fallback (HEAD~1)"
+            else
+              BASE_SHA="$(git rev-parse HEAD)"
+              BASE_LABEL="fallback (HEAD)"
+            fi
+          fi
+
+          git diff --unified=0 "${BASE_SHA}"...HEAD > coverage-artifact/changed-lines.patch || true
+          git diff --name-only "${BASE_SHA}"...HEAD > coverage-artifact/changed-files.txt || true
+
+          ADDED_LINES="$(git diff --numstat "${BASE_SHA}"...HEAD | awk '{a+=$1} END {print a+0}')"
+          REMOVED_LINES="$(git diff --numstat "${BASE_SHA}"...HEAD | awk '{d+=$2} END {print d+0}')"
+          CHANGED_FILES="$(wc -l < coverage-artifact/changed-files.txt | tr -d ' ')"
+
+          {
+            echo "Changed-line coverage artifact summary"
+            echo "Event: ${{ github.event_name }}"
+            echo "Base: ${BASE_LABEL}"
+            echo "Head: $(git rev-parse HEAD)"
+            echo "Changed files: ${CHANGED_FILES}"
+            echo "Added lines: ${ADDED_LINES}"
+            echo "Removed lines: ${REMOVED_LINES}"
+            if [ -f coverage/clover.xml ]; then
+              echo "Clover XML: coverage/clover.xml"
+            else
+              echo "Clover XML: missing"
+            fi
+          } > coverage-artifact/summary.txt
+
+      - name: Upload changed-line coverage artifact
+        if: always() && env.COVERAGE_LANE == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: changed-line-coverage-php${{ matrix.php }}-${{ matrix.driver }}-${{ matrix.search_build }}
+          if-no-files-found: warn
+          path: |
+            coverage/clover.xml
+            static-analysis/phpstan.txt
+            coverage-artifact/summary.txt
+            coverage-artifact/changed-lines.patch
+            coverage-artifact/changed-files.txt
+
+      - name: Upload debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-debug-php${{ matrix.php }}-${{ matrix.driver }}-${{ matrix.search_build }}
+          if-no-files-found: ignore
+          path: |
+            tests/searchd.log
+            tests/searchd.pid
+            tests/data/*
+
+      - name: Show searchd logs
+        if: always()
+        run: docker logs searchd || true
+
+      - name: Stop searchd container
+        if: always()
+        run: docker rm -f searchd || true

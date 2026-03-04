@@ -1,0 +1,23 @@
+FROM php:8.3-cli
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        gcc \
+        git \
+        libonig-dev \
+        unzip \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN docker-php-ext-install mysqli pdo_mysql mbstring
+
+RUN php -r "copy('https://composer.github.io/installer.sig', 'composer.sig');" \
+    && php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+    && php -r "if (trim(file_get_contents('composer.sig')) !== hash_file('sha384', 'composer-setup.php')) { fwrite(STDERR, 'Invalid Composer installer checksum'.PHP_EOL); exit(1); }" \
+    && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+    && php -r "unlink('composer-setup.php'); unlink('composer.sig');"
+
+WORKDIR /work
+
+ENV COMPOSER_ALLOW_SUPERUSER=1
