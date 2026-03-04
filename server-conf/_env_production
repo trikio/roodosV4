@@ -1,6 +1,6 @@
 APP_NAME=Roodos
 APP_ENV=production
-APP_KEY=base64:qN/PXjJWqQq4bV8/tu8HHhFKFhqm9tYo/8Mr3belfzA=
+APP_KEY=APP_ROODOS_KEY
 APP_DEBUG=false
 APP_URL=https://roodos.cl
 
