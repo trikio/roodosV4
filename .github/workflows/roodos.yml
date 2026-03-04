@@ -34,6 +34,7 @@ jobs:
 
             sudo sed -i 's/DB_PASSWORD/${{ secrets.DB_PASS }}/g' ./server-conf/manticoresearch/manticore.conf
 
+            sudo sed -i 's/APP_ROODOS_KEY/${{ secrets.APP_ROODOS_KEY }}/g' ./server-conf/_env_production
 
             sudo cp ./server-conf/_env_production /app/.env
             sudo cp ./server-conf/manticoresearch/manticore.conf /etc/manticoresearch/manticore.conf
