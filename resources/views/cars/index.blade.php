@@ -151,13 +151,13 @@
                 <!-- Advertisement Column -->
                 <div class="hidden lg:block">
                     <div class="sticky top-6">
-                        <div class="w-[300px] h-[600px] rounded-lg border border-gray-200 shadow flex items-center justify-center">
-                            <img
-                                src="https://images.johnsoncountypost.com/wp-content/uploads/2020/02/300x600-Half-Page-Display-Ad-Placeholder.jpg"
-                                alt="Placeholder publicitario 300x600"
-                                class="w-full h-full object-cover rounded-lg"
-                                loading="lazy"
-                            >
+                        <div class="w-[300px] h-[600px] rounded-lg border border-gray-200 shadow overflow-hidden bg-white flex items-center justify-center">
+                            <ins
+                                class="adsbygoogle js-lazy-adsense"
+                                style="display:inline-block;width:300px;height:600px"
+                                data-ad-client="ca-pub-4474623749606512"
+                                data-ad-slot="4621188394"
+                            ></ins>
                         </div>
                     </div>
                 </div>
