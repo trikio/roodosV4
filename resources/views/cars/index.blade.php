@@ -80,7 +80,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 mb-8">
                 <div>
                     @forelse($cars as $car)
-                    <a href="/auto/{{ $car->id }}" target="_blank" rel="noopener noreferrer" class="block mb-4">
+                    <a href="/auto/{{ $car->id }}" class="block mb-4 js-result-link">
                     <div class="flex flex-col bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition p-4">
                         <!-- Title -->
                         <h3 class="font-bold text-lg text-gray-900 mb-2 w-full line-clamp-2">{{ $car->title }}</h3>
@@ -213,6 +213,24 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const isDesktopViewport = () => window.matchMedia('(min-width: 1024px)').matches;
+
+            const syncResultLinksTarget = () => {
+                document.querySelectorAll('.js-result-link').forEach((link) => {
+                    if (isDesktopViewport()) {
+                        link.setAttribute('target', '_blank');
+                        link.setAttribute('rel', 'noopener noreferrer');
+                    } else {
+                        link.removeAttribute('target');
+                        link.removeAttribute('rel');
+                    }
+                });
+            };
+
+            syncResultLinksTarget();
+            window.addEventListener('resize', syncResultLinksTarget);
+            window.addEventListener('orientationchange', syncResultLinksTarget);
+
             const filtersBtn = document.getElementById('mobile-filters-btn');
             const filtersModal = document.getElementById('mobile-filters-modal');
             const closeFiltersBtn = document.getElementById('close-filters-btn');
