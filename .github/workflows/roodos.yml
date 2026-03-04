@@ -26,7 +26,7 @@ jobs:
             sudo git clone git@github.com:trikio/roodosV4.git
             cd roodosV4
 
-            sudo cp ./server-conf/php/cli/php.ini /etc/php/8.4/cli/php.ini
+
             sudo cp ./server-conf/nginx/nginx.conf /etc/nginx/nginx.conf
             sudo cp ./server-conf/nginx/default /etc/nginx/sites-available/default
             sudo cp ./server-conf/manticoresearch/manticore /etc/default/manticore
