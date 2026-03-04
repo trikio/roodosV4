@@ -25,17 +25,12 @@ function loadScript(src, { async = true, defer = false, attrs = {} } = {}) {
 }
 
 function loadMixpanel() {
-  if (!mixpanelToken || window.mixpanel) return;
-
-  window.mixpanel = window.mixpanel || [];
-  window.mixpanel._i = window.mixpanel._i || [];
-  window.mixpanel.init = window.mixpanel.init || function () {};
-  window.mixpanel.track = window.mixpanel.track || function () {};
-  window.mixpanel.page = window.mixpanel.page || function () {};
+  if (!mixpanelToken) return;
+  if (window.mixpanel && typeof window.mixpanel.init === "function") return;
 
   loadScript("https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js")
     .then(() => {
-      if (window.mixpanel?.init) {
+      if (window.mixpanel && typeof window.mixpanel.init === "function") {
         window.mixpanel.init(mixpanelToken, { persistence: "localStorage" });
       }
     })
