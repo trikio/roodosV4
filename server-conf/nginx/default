@@ -1,5 +1,5 @@
 server {
-        server_name roodos.cl roodos.ec roodos.pe roodos.mx roodos.com.ar roodos.com.co;
+        server_name roodos.cl roodos.ec roodos.pe roodos.mx;
         listen 80;
         root /app/public;
         index index.php index.html index.htm index.nginx-debian.html;
@@ -21,7 +21,7 @@ server {
             fastcgi_buffers 4 256k;
             fastcgi_busy_buffers_size 256k;
 
-            fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+            fastcgi_pass unix:/run/php/php8.4-fpm.sock;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
             fastcgi_param SCRIPT_NAME $fastcgi_script_name;
             include /etc/nginx/fastcgi_params;
