@@ -32,9 +32,13 @@ jobs:
             sudo cp ./server-conf/manticoresearch/stop_words_es.txt /etc/manticoresearch/stop_words_es.txt
 
 
-            sudo sed -i 's/DB_PASSWORD/${{ secrets.DB_PASS }}/g' ./server-conf/manticoresearch/manticore.conf
+            DB_PASS_ESCAPED=$(printf '%s' '${{ secrets.DB_PASS }}' | sed 's/[\\/&]/\\&/g')
+            sudo sed -i "s|DB_PASSWORD|$DB_PASS_ESCAPED|g" ./server-conf/manticoresearch/manticore.conf
 
-            sudo sed -i 's/APP_ROODOS_KEY/${{ secrets.APP_ROODOS_KEY }}/g' ./server-conf/_env_production
+
+            APP_KEY_ESCAPED=$(printf '%s' "${{ secrets.APP_ROODOS_KEY }}" | sed 's/[\\/&]/\\&/g')
+            sudo sed -i "s/APP_ROODOS_KEY/$APP_KEY_ESCAPED/g" ./server-conf/_env_production
+
 
             sudo cp ./server-conf/_env_production /app/.env
             sudo cp ./server-conf/manticoresearch/manticore.conf /etc/manticoresearch/manticore.conf
