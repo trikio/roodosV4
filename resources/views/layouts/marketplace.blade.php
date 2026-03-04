@@ -2,10 +2,22 @@
 <html lang="es">
 <head>
     @php
+        $countryCode = request()->route('country');
+        if (empty($countryCode)) {
+            $host = request()->getHost();
+            if (preg_match('/^(?:autos|casas)\.roodos\.([^.]+)$/', $host, $matches)) {
+                $countryCode = $matches[1];
+            }
+        }
+        $countryCode = $countryCode ?: 'lab';
+        $countryForTitle = strtoupper($countryCode);
+
         $pageTitle = trim($__env->yieldContent('page_title'));
         if ($pageTitle === '') {
             $pageTitle = 'Roodos - Marketplace de Autos';
         }
+        $htmlTitle = $pageTitle . ' - Roodos Autos ' . $countryForTitle;
+
         $metaDescription = trim($__env->yieldContent('meta_description'));
         if ($metaDescription === '') {
             $metaDescription = $pageTitle;
@@ -13,22 +25,12 @@
     @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $pageTitle }}</title>
+    <title>{{ $htmlTitle }}</title>
     <meta name="title" content="{{ $pageTitle }}">
     <meta name="description" content="{{ $metaDescription }}">
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-@php
-    $countryCode = request()->route('country');
-    if (empty($countryCode)) {
-        $host = request()->getHost();
-        if (preg_match('/^(?:autos|casas)\.roodos\.([^.]+)$/', $host, $matches)) {
-            $countryCode = $matches[1];
-        }
-    }
-    $countryCode = $countryCode ?: 'lab';
-@endphp
 <body class="bg-gray-50">
     <!-- Header -->
     <header class="bg-white border-b border-gray-200">
