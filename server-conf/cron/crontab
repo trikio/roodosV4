@@ -1,1 +1,2 @@
-0 * * * * sudo indexer --rotate --all
+0 * * * * sudo indexer --rotate car_ec
+0 3 * * * sudo indexer --rotate car_landings_ec
