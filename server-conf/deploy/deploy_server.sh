@@ -15,17 +15,17 @@ sudo apt-get install -y software-properties-common apt-transport-https cron vim 
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update -y
 
-# Instalar PHP 8.3 y extensiones necesarias
-sudo apt-get install -yq php8.3 php8.3-cli php8.3-common php8.3-curl php8.3-fpm php-json php8.3-mysql php8.3-readline php8.3-xml php8.3-gd php8.3-intl php8.3-bz2 php8.3-bcmath php8.3-imap php8.3-mbstring php8.3-pgsql php8.3-xmlrpc php8.3-zip php8.3-odbc php8.3-snmp php8.3-interbase php8.3-ldap php8.3-tidy php8.3-memcached php-tcpdf php-redis php-imagick php-mongodb php-pear php-dev
+# Instalar PHP 8.4 y extensiones necesarias
+sudo apt-get install -yq php8.4 php8.4-cli php8.4-common php8.4-curl php8.4-fpm php-json php8.4-mysql php8.4-readline php8.4-xml php8.4-gd php8.4-intl php8.4-bz2 php8.4-bcmath php8.4-imap php8.4-mbstring php8.4-pgsql php8.4-xmlrpc php8.4-zip php8.4-odbc php8.4-snmp php8.4-interbase php8.4-ldap php8.4-tidy php8.4-memcached php-tcpdf php-redis php-imagick php-mongodb php-pear php-dev
 
 sudo apt install -y libmysqlclient-dev
 
-# Establecer PHP 8.3 como predeterminado
-sudo update-alternatives --set php /usr/bin/php8.3
+# Establecer PHP 8.4 como predeterminado
+sudo update-alternatives --set php /usr/bin/php8.4
 
 # Instalar OpenSwoole
 # apt install -y software-properties-common && add-apt-repository ppa:openswoole/ppa -y
-# apt install -y php8.3-openswoole
+# apt install -y php8.4-openswoole
 
 # Instalar Manticore Search
 sudo wget https://repo.manticoresearch.com/manticore-repo.noarch.deb

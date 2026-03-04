@@ -4,9 +4,9 @@ sudo cat /root/.ssh/id_rsa.pub
 
 cd /
 
-sudo git clone git@github.com:trikio/roodos.git
+sudo git clone git@github.com:trikio/roodosV4.git
 
-sudo mv roodos app
+sudo mv roodosV4 app
 
 sudo mkdir /app/public/images
 sudo chmod -R 777 /app/public/images

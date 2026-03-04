@@ -13,9 +13,9 @@ searchd {
     listen = 127.0.0.1:9312
     listen = 127.0.0.1:9306:mysql
     listen = 127.0.0.1:9308:http
-    log = /var/log/manticore/searchd.log
-    query_log = /var/log/manticore/query.log
-    pid_file = /var/run/manticore/searchd.pid
+    log = /opt/homebrew/var/log/manticore/searchd.log
+    query_log = /opt/homebrew/var/log/manticore/query.log
+    pid_file = /opt/homebrew/var/run/manticore/searchd.pid
 }
 
 #PARA DEVELOPER!!!
@@ -65,7 +65,7 @@ index car_lab
 {
         source                  = car_lab
         type                    = plain
-        path                    = /var/lib/manticore/car_lab
+        path                    = /opt/homebrew/var/lib/manticore/car_lab
 
         min_word_len = 1
         min_prefix_len = 3
@@ -137,7 +137,7 @@ index car_landings_lab
 {
 	source			= car_landings_lab
 	type			= plain
-	path			= /var/lib/manticore/car_landings_lab
+	path			= /opt/homebrew/var/lib/manticore/car_landings_lab
 
         min_word_len = 1
         min_prefix_len = 3
@@ -227,7 +227,7 @@ index car_ec
 {
         source                  = car_ec
         type                    = plain
-        path                    = /var/lib/manticore/car_ec
+        path                    = /opt/homebrew/var/lib/manticore/car_ec
 
         min_word_len = 1
         min_prefix_len = 3
@@ -299,7 +299,7 @@ index car_landings_ec
 {
 	source			= car_landings_ec
 	type			= plain
-	path			= /var/lib/manticore/car_landings_ec
+	path			= /opt/homebrew/var/lib/manticore/car_landings_ec
 
         min_word_len = 1
         min_prefix_len = 3
