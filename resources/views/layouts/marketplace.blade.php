@@ -1,9 +1,21 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    @php
+        $pageTitle = trim($__env->yieldContent('page_title'));
+        if ($pageTitle === '') {
+            $pageTitle = 'Roodos - Marketplace de Autos';
+        }
+        $metaDescription = trim($__env->yieldContent('meta_description'));
+        if ($metaDescription === '') {
+            $metaDescription = $pageTitle;
+        }
+    @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roodos - Marketplace de Autos</title>
+    <title>{{ $pageTitle }}</title>
+    <meta name="title" content="{{ $pageTitle }}">
+    <meta name="description" content="{{ $metaDescription }}">
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>

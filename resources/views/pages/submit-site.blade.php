@@ -1,9 +1,11 @@
 @extends('layouts.marketplace')
 
+@section('page_title', 'Envíe su sitio')
+
 @section('content')
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <div class="bg-white rounded-xl shadow p-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-4">Envíe su sitio</h1>
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">@yield('page_title')</h1>
         <p class="text-gray-700 mb-4">
             Si administra un portal de venta de vehículos, concesionaria o automotora, puede integrar su inventario en Roodos y aumentar su visibilidad frente a compradores activos.
         </p>

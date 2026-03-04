@@ -1,11 +1,13 @@
 @extends('layouts.marketplace')
 
+@section('page_title', '25.486 Casas')
+
 @section('content')
 <!-- Hero Section -->
 <div class="bg-gradient-to-b from-blue-50 to-white py-16">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">25.486 Casas</h1>
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">@yield('page_title')</h1>
             <p class="text-lg text-gray-600">Encuentra la casa perfecta para ti</p>
         </div>
 

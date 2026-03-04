@@ -1,5 +1,7 @@
 @extends('layouts.marketplace')
 
+@section('page_title', $house->title)
+
 @section('content')
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
     <!-- Breadcrumb -->
@@ -27,7 +29,7 @@
 
             <!-- Details -->
             <div class="bg-white rounded-lg shadow p-6">
-                <h1 class="text-3xl font-bold text-gray-900 mb-4">{{ $house->title }}</h1>
+                <h1 class="text-3xl font-bold text-gray-900 mb-4">@yield('page_title')</h1>
 
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div>

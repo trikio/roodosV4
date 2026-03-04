@@ -1,9 +1,11 @@
 @extends('layouts.marketplace')
 
+@section('page_title', 'Términos y condiciones')
+
 @section('content')
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <div class="bg-white rounded-xl shadow p-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-4">Términos y condiciones</h1>
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">@yield('page_title')</h1>
         <p class="text-gray-700 mb-4">
             Al acceder y utilizar el sitio web Roodos, usted acepta los siguientes términos y condiciones:
         </p>

@@ -1,9 +1,11 @@
 @extends('layouts.marketplace')
 
+@section('page_title', 'Sobre nosotros')
+
 @section('content')
 <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <div class="bg-white rounded-xl shadow p-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-4">Sobre nosotros</h1>
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">@yield('page_title')</h1>
         <p class="text-gray-700 mb-4">
             Roodos es un metabuscador especializado en vehículos que nació en 2010, con el objetivo de simplificar la forma en que las personas buscan y comparan autos en internet.
         </p>

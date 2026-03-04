@@ -1,7 +1,15 @@
 @extends('layouts.marketplace')
 
-@section('content')
 @php
+    $pageTitle = isset($slugData) ? $slugData['title'] : (!empty($searchQuery) ? ucfirst($searchQuery) : 'Autos');
+    $metaDescription = $pageTitle;
+    if (isset($slugData)) {
+        $sampleTitles = $cars->take(3)->pluck('title')->filter()->implode(', ');
+        $metaDescription = $cars->total() . ' anuncios para ' . $pageTitle . '.';
+        if ($sampleTitles !== '') {
+            $metaDescription .= ' ' . $sampleTitles;
+        }
+    }
     $currentOrder = request('order');
     if (empty($currentOrder)) {
         $currentOrder = match (request('sort')) {
@@ -11,6 +19,11 @@
         };
     }
 @endphp
+
+@section('page_title', $pageTitle)
+@section('meta_description', $metaDescription)
+
+@section('content')
 <!-- Sticky Mobile Bar -->
 <div class="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
@@ -35,7 +48,7 @@
     <div class="flex items-center gap-2 text-sm text-gray-600 mb-6">
         <a href="/" class="hover:text-gray-900">Inicio</a>
         <span>></span>
-        <span>{{ isset($slugData) ? $slugData['title'] : (!empty($searchQuery) ? ucfirst($searchQuery) : 'Autos') }}</span>
+        <span>{{ $pageTitle }}</span>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
@@ -51,7 +64,7 @@
             <!-- Header Section -->
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900">{{ isset($slugData) ? $slugData['title'] : (!empty($searchQuery) ? ucfirst($searchQuery) : 'Autos') }}</h1>
+                    <h1 class="text-3xl font-bold text-gray-900">{{ $pageTitle }}</h1>
                     <p class="text-gray-600 mt-1">{{ $cars->total() }} resultados encontrados</p>
                 </div>
                 <div class="hidden lg:block">
