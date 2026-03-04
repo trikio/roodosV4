@@ -65,7 +65,7 @@ jobs:
             sudo npm ci
             sudo npm run build
 
-            sudo php8.4 artisan octane:stop || true
+            sudo php8.4 artisan octane:stop --server=swoole || true
             sudo nohup php8.4 artisan octane:start --server=swoole --host=0.0.0.0 --port=8000 >/var/log/octane.log 2>&1 &
             
             sudo service nginx restart
