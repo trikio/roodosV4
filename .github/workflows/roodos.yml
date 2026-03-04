@@ -29,7 +29,6 @@ jobs:
 
             sudo cp ./server-conf/nginx/nginx.conf /etc/nginx/nginx.conf
             sudo cp ./server-conf/nginx/default_swoole /etc/nginx/sites-available/default
-            sudo cp ./server-conf/manticoresearch/manticore /etc/default/manticore
             sudo cp ./server-conf/manticoresearch/stop_words_es.txt /etc/manticoresearch/stop_words_es.txt
 
 
@@ -50,21 +49,20 @@ jobs:
 
             cd /app/
             
-            sudo git fetch origin master
-            sudo git reset --hard origin/master
+            sudo git fetch origin main
+            sudo git reset --hard origin/main
             sudo git clean -fd
 
             if [ -f composer.json ]; then
               sudo composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
             fi
 
-            sudo npm install  
             sudo npm ci
             sudo npm run build
 
             sudo php8.4 artisan octane:stop || true
-            sudo nohup php8.4 artisan octane:start --server=swoole --host=0.0.0.0 --port=80 >/var/log/octane.log 2>&1 &
-            sudo php8.4 artisan octane:reload || true
+            sudo nohup php8.4 artisan octane:start --server=swoole --host=0.0.0.0 --port=8000 >/var/log/octane.log 2>&1 &
+            
             sudo service nginx restart
 
             exit
