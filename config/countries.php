@@ -6,12 +6,14 @@ return [
         'CL' => 'Chile',
         'PE' => 'Peru',
         'MX' => 'Mexico',
+        'LAB' => 'Laboratorio',
     ],
     'currency' => [
         'EC' => '$',
         'CL' => '$',
         'PE' => 'S/.',
         'MX' => '$',
+        'LAB' => '$',
     ],
     'autos_home' => [
         'locations' => [
@@ -19,6 +21,7 @@ return [
             'PE' => ['Lima', 'Arequipa', 'Trujillo', 'Chiclayo', 'Piura', 'Cusco', 'Huancayo', 'Iquitos', 'Tacna', 'Juliaca', 'Chimbote', 'Pucallpa'],
             'CL' => ['Santiago', 'Valparaiso', 'Vina del Mar', 'Concepcion', 'La Serena', 'Antofagasta', 'Temuco', 'Rancagua', 'Talca', 'Arica', 'Iquique', 'Puerto Montt'],
             'MX' => ['Ciudad de Mexico', 'Guadalajara', 'Monterrey', 'Puebla', 'Tijuana', 'Leon', 'Merida', 'Queretaro', 'Cancun', 'Toluca', 'Chihuahua', 'Aguascalientes'],
+            'LAB' => ['Quito', 'Guayaquil', 'Cuenca', 'Ambato', 'Manta', 'Santo Domingo', 'Portoviejo', 'Machala', 'Loja', 'Ibarra', 'Riobamba', 'Esmeraldas'],
         ],
         'recent_searches' => [
             'EC' => [
@@ -64,6 +67,17 @@ return [
                 'Toyota Yaris en Merida',
                 'Honda City en Queretaro',
                 'Hyundai Grand i10 en Cancun',
+            ],
+            'LAB' => [
+                'Toyota Corolla en Quito',
+                'Chevrolet Aveo en Guayaquil',
+                'Honda Civic en Cuenca',
+                'Ford Ranger en Quito',
+                'Mazda 3 en Guayaquil',
+                'Toyota RAV4 en Quito',
+                'Nissan Sentra en Quito',
+                'Hyundai Tucson en Cuenca',
+                'Chevrolet Spark en Guayaquil',
             ],
         ],
     ],
