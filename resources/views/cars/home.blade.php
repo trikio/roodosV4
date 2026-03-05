@@ -2,6 +2,8 @@
 
 @php
     $pageTitle = number_format($totalCars, 0, ',', '.') . ' Autos';
+    $countryCode = strtoupper((string) ($country ?: request()->route('country') ?: 'EC'));
+    $homeLocations = config('countries.autos_home.locations.' . $countryCode, config('countries.autos_home.locations.EC', []));
 @endphp
 
 @section('page_title', $pageTitle)
@@ -68,27 +70,9 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Buscar por Ubicación</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        @foreach(['Quito', 'Guayaquil', 'Cuenca', 'Ambato', 'Manta', 'Santo Domingo', 'Portoviejo', 'Machala', 'Loja', 'Ibarra', 'Riobamba', 'Esmeraldas'] as $city)
+        @foreach($homeLocations as $city)
         <a href="/autos-{{ strtolower($city) }}" class="text-[#008bea] hover:underline">{{ $city }}</a>
         @endforeach
-    </div>
-</div>
-
-<!-- Recent Popular Searches -->
-<div class="bg-gray-50 py-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6">Búsquedas Recientes Populares</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <a href="/toyota-corolla-quito" class="text-[#008bea] hover:underline">Toyota Corolla en Quito</a>
-            <a href="/chevrolet-aveo-guayaquil" class="text-[#008bea] hover:underline">Chevrolet Aveo en Guayaquil</a>
-            <a href="/honda-civic-cuenca" class="text-[#008bea] hover:underline">Honda Civic en Cuenca</a>
-            <a href="/ford-ranger-quito" class="text-[#008bea] hover:underline">Ford Ranger en Quito</a>
-            <a href="/mazda-3-guayaquil" class="text-[#008bea] hover:underline">Mazda 3 en Guayaquil</a>
-            <a href="/nissan-sentra-quito" class="text-[#008bea] hover:underline">Nissan Sentra en Quito</a>
-            <a href="/hyundai-tucson-cuenca" class="text-[#008bea] hover:underline">Hyundai Tucson en Cuenca</a>
-            <a href="/toyota-rav4-quito" class="text-[#008bea] hover:underline">Toyota RAV4 en Quito</a>
-            <a href="/chevrolet-spark-guayaquil" class="text-[#008bea] hover:underline">Chevrolet Spark en Guayaquil</a>
-        </div>
     </div>
 </div>
 

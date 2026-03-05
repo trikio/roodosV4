@@ -30,10 +30,12 @@ class CarsController extends Controller
         };
     }
 
-    public function home($country = null)
+    public function home(Request $request, $country = null)
     {
         // Extract type from subdomain (autos.roodos.* -> 'autos')
         $type = 'autos';
+        $countryCode = $this->resolveCountryCode($request, $country);
+        $searchIndex = $this->getCarsIndexName($countryCode);
 
         // Get total cars count
         $options = [
@@ -55,7 +57,7 @@ class CarsController extends Controller
             'order' => '',
         ];
 
-        $results = $this->manticore->carSearch('car_ec', $options);
+        $results = $this->manticore->carSearch($searchIndex, $options);
 
         // Get total from meta
         $totalCars = 0;
@@ -68,11 +70,15 @@ class CarsController extends Controller
             }
         }
 
+        $country = $countryCode;
         return view('cars.home', compact('type', 'country', 'totalCars'));
     }
 
     public function index(Request $request)
     {
+        $countryCode = $this->resolveCountryCode($request);
+        $searchIndex = $this->getCarsIndexName($countryCode);
+
         // Build search options from request
         $options = [
             'page' => $request->get('page', 1),
@@ -94,7 +100,7 @@ class CarsController extends Controller
         ];
 
         // Search using ManticoreSearch
-        $results = $this->manticore->carSearch('car_ec', $options);
+        $results = $this->manticore->carSearch($searchIndex, $options);
 
         // DEBUG
         \Log::info('[INDEX] ManticoreSearch Results', [
@@ -207,8 +213,8 @@ class CarsController extends Controller
     {
         // Extract type from subdomain (autos.roodos.* -> 'autos')
         $type = 'autos';
-        $countryCode = $country ?: $this->resolveCountryFromHost($request);
-        $countryCode = $countryCode ?: 'lab';
+        $countryCode = $this->resolveCountryCode($request, $country);
+        $searchIndex = $this->getCarsIndexName($countryCode);
 
         $landing = $this->manticore->getLandingBySlug($countryCode, (string) $slug);
 
@@ -253,7 +259,7 @@ class CarsController extends Controller
         ];
 
         // Search using ManticoreSearch
-        $results = $this->manticore->carSearch('car_ec', $options);
+        $results = $this->manticore->carSearch($searchIndex, $options);
 
         // DEBUG
         \Log::info('[LANDING] ManticoreSearch Results', [
@@ -389,13 +395,16 @@ class CarsController extends Controller
 
     public function show($country = null, $id = null)
     {
+        $request = request();
+        $countryCode = $this->resolveCountryCode($request, $country);
+        $searchIndex = $this->getCarsIndexName($countryCode);
         $carId = (int) $id;
 
         if ($carId <= 0) {
             abort(404);
         }
 
-        $car = $this->manticore->getCarById('car_ec', $carId);
+        $car = $this->manticore->getCarById($searchIndex, $carId);
 
         if (!$car || empty($car['url'])) {
             abort(404);
@@ -404,6 +413,23 @@ class CarsController extends Controller
         $targetUrl = (string) $car['url'];
         $source = (string) ($car['nexo_id'] ?? 'fuente externa');
 
+        $country = $countryCode;
         return view('cars.show', compact('targetUrl', 'source', 'country'));
+    }
+
+    private function resolveCountryCode(Request $request, ?string $country = null): string
+    {
+        $countryCode = strtolower((string) ($country ?: $this->resolveCountryFromHost($request) ?: 'lab'));
+
+        if (!preg_match('/^[a-z]{2,5}$/', $countryCode)) {
+            return 'lab';
+        }
+
+        return $countryCode;
+    }
+
+    private function getCarsIndexName(string $countryCode): string
+    {
+        return 'car_' . strtolower($countryCode);
     }
 }

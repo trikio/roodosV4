@@ -2,6 +2,14 @@
 
 @php
     $pageTitle = isset($slugData) ? $slugData['title'] : (!empty($searchQuery) ? ucfirst($searchQuery) : 'Autos');
+    $countryCodeForCurrency = strtoupper((string) (request()->route('country') ?: ($country ?? '')));
+    if ($countryCodeForCurrency === '') {
+        $host = request()->getHost();
+        if (preg_match('/^autos\.roodos\.([^.]+)$/', $host, $matches)) {
+            $countryCodeForCurrency = strtoupper($matches[1]);
+        }
+    }
+    $currencySymbol = config('countries.currency.' . $countryCodeForCurrency, '$');
     $metaDescription = $pageTitle;
     if (isset($slugData)) {
         $sampleTitles = $cars->take(3)->pluck('title')->filter()->implode(', ');
@@ -83,7 +91,7 @@
                     <a href="/auto/{{ $car->id }}" class="block mb-4 js-result-link">
                     <div class="flex flex-col bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition p-4">
                         <!-- Title -->
-                        <h3 class="font-bold text-lg text-gray-900 mb-2 w-full line-clamp-2">{{ $car->title }}</h3>
+                        <h2 class="font-bold text-lg text-gray-900 mb-2 w-full line-clamp-2">{{ $car->title }}</h2>
 
                         <div class="flex">
                             <!-- Image -->
@@ -121,7 +129,7 @@
                             <!-- Content -->
                             <div class="ml-4 flex-1">
                                 <p class="text-2xl font-bold text-gray-900 mb-3">
-                                    ${{ number_format($car->price, 0, ',', '.') }}
+                                    {{ $currencySymbol }} {{ number_format($car->price, 0, ',', '.') }}
                                 </p>
                                 @php
                                     $carPrimaryLabel = trim(implode(' ', array_filter([$car->brand, $car->model])));
@@ -185,7 +193,7 @@
         <div class="bg-white w-full max-w-md rounded-t-2xl shadow-lg flex flex-col max-h-[90vh]">
             <!-- Header fijo -->
             <div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-200 flex-shrink-0">
-                <h2 class="text-lg font-bold">Filtros</h2>
+                <span class="text-lg font-bold">Filtros</span>
                 <button
                     id="close-filters-btn"
                     class="text-gray-400 hover:text-gray-700 text-3xl leading-none">
