@@ -43,7 +43,7 @@ jobs:
             sudo cp ./server-conf/_env_production /app/.env
             sudo cp ./server-conf/manticoresearch/manticore.conf /etc/manticoresearch/manticore.conf
 
-            sudo crontab /app/server-conf/cron/crontab
+            sudo crontab ./server-conf/cron/crontab
             sudo /etc/init.d/cron start 
 
             sudo rm -R /app/release_temp
