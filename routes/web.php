@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CarsController;
+use App\Http\Controllers\HousesController;
 
 $infoPages = [
     'envie-su-sitio' => 'pages.submit-site',
@@ -64,10 +65,13 @@ Route::domain('autos.roodos.{country}')->group(function () use ($infoPages) {
 // Rutas con dominio específico para casas
 Route::domain('casas.roodos.{country}')->group(function () use ($infoPages) {
     // Home page
-    Route::get('/', [\App\Http\Controllers\HousesController::class, 'home'])->name('houses.home');
+    Route::get('/', [HousesController::class, 'home'])->name('houses.home');
+
+    // Search/Index page
+    Route::get('/search', [HousesController::class, 'index'])->name('houses.index');
 
     // Ruta para detalle de casa
-    Route::get('/casa/{id}', [\App\Http\Controllers\HousesController::class, 'show'])->name('houses.show');
+    Route::get('/casa/{id}', [HousesController::class, 'show'])->name('houses.show');
 
     // Páginas informativas
     foreach ($infoPages as $slug => $view) {
@@ -75,5 +79,5 @@ Route::domain('casas.roodos.{country}')->group(function () use ($infoPages) {
     }
 
     // Ruta catch-all para landing pages con slug
-    Route::get('/{slug}', [\App\Http\Controllers\HousesController::class, 'landing'])->where('slug', '.*')->name('houses.landing');
+    Route::get('/{slug}', [HousesController::class, 'landing'])->where('slug', '.*')->name('houses.landing');
 });

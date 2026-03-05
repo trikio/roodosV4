@@ -118,6 +118,72 @@ class ManticoreSearchService
         }
     }
 
+    public function houseSearch($searchIndex, $options)
+    {
+        try {
+            $page = $options['page'] ?? 1;
+            $searchQuery = $options['q'] ?? '';
+
+            $columns = ['title', 'details', 'house_operation_name', 'house_type_name', 'city_name', 'state_name'];
+
+            $query = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from($searchIndex);
+
+            if (!empty($searchQuery)) {
+                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
+            }
+
+            $query = $this->applyHouseFilters($query, $options);
+            $query->limit(((int)$page - 1) * self::RESULTS_PER_PAGE, self::RESULTS_PER_PAGE);
+
+            $query = $this->applyHouseOrdering($query, $options['order'] ?? '');
+            $query->option('max_matches', 500000);
+            $query->option('cutoff', 0);
+
+            $query = $query->enqueue((new Helper($this->connection))->showMeta());
+            $query = $query->enqueue();
+
+            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_house_operation', 'house_operation_name', 'name');
+            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_house_type', 'house_type_name', 'name');
+            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_state', 'state_name', 'name');
+            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_city', 'city_name', 'name');
+
+            $sphinxRes = $query->executeBatch();
+
+            return [
+                'items' => $sphinxRes->getNext()->fetchAllAssoc(),
+                'info' => $sphinxRes->getNext()->fetchAllAssoc(),
+                'operation' => $sphinxRes->getNext()->fetchAllAssoc(),
+                'type' => $sphinxRes->getNext()->fetchAllAssoc(),
+                'state' => $sphinxRes->getNext()->fetchAllAssoc(),
+                'city' => $sphinxRes->getNext()->fetchAllAssoc(),
+            ];
+        } catch (Exception $e) {
+            throw new Exception("Error searching houses: " . $e->getMessage());
+        }
+    }
+
+    public function getHouseById($searchIndex, int $id): ?array
+    {
+        try {
+            $result = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from($searchIndex)
+                ->where('id', $id)
+                ->limit(0, 1)
+                ->execute();
+
+            if (empty($result)) {
+                return null;
+            }
+
+            return $result[0];
+        } catch (Exception $e) {
+            throw new Exception("Error fetching house by id: " . $e->getMessage());
+        }
+    }
+
     public function getLandingBySlug(string $countryCode, string $slug): ?array
     {
         $indexName = 'car_landings_' . $countryCode;
@@ -141,6 +207,28 @@ class ManticoreSearchService
         }
     }
 
+    public function getHouseLandingBySlug(string $countryCode, string $slug): ?array
+    {
+        $indexName = 'house_landings_' . $countryCode;
+
+        try {
+            $result = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from($indexName)
+                ->where('slug', $slug)
+                ->limit(0, 1)
+                ->execute();
+
+            if (empty($result)) {
+                return null;
+            }
+
+            return $result[0];
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
     protected function enqueueFacet($query, $searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias)
     {
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
@@ -151,6 +239,23 @@ class ManticoreSearchService
         }
 
         $query = $this->applyCarFilters($query, $options);
+        $query->groupBy($idField)
+            ->orderBy('total', 'DESC')
+            ->limit(0, 50);
+
+        return $query->enqueue();
+    }
+
+    protected function enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias)
+    {
+        $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
+            ->from($searchIndex);
+
+        if (!empty($searchQuery)) {
+            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
+        }
+
+        $query = $this->applyHouseFilters($query, $options);
         $query->groupBy($idField)
             ->orderBy('total', 'DESC')
             ->limit(0, 50);
@@ -212,6 +317,47 @@ class ManticoreSearchService
         return $query;
     }
 
+    protected function applyHouseFilters($query, $options)
+    {
+        if (!empty($options['operation'])) {
+            $query->where('id_house_operation', (int)$options['operation']);
+        }
+        if (!empty($options['type'])) {
+            $query->where('id_house_type', (int)$options['type']);
+        }
+        if (!empty($options['state'])) {
+            $query->where('id_state', (int)$options['state']);
+        }
+        if (!empty($options['city'])) {
+            $query->where('id_city', (int)$options['city']);
+        }
+
+        if (!empty($options['min_price']) && !empty($options['max_price'])) {
+            $query->where('price', 'BETWEEN', [(int)$options['min_price'], (int)$options['max_price']]);
+        } elseif (!empty($options['min_price'])) {
+            $query->where('price', '>=', (int)$options['min_price']);
+        } elseif (!empty($options['max_price'])) {
+            $query->where('price', '<=', (int)$options['max_price']);
+        }
+
+        if (!empty($options['rooms'])) {
+            $query->where('rooms', '>=', (int)$options['rooms']);
+        }
+        if (!empty($options['bath'])) {
+            $query->where('bath', '>=', (int)$options['bath']);
+        }
+
+        if (!empty($options['min_size']) && !empty($options['max_size'])) {
+            $query->where('size', 'BETWEEN', [(int)$options['min_size'], (int)$options['max_size']]);
+        } elseif (!empty($options['min_size'])) {
+            $query->where('size', '>=', (int)$options['min_size']);
+        } elseif (!empty($options['max_size'])) {
+            $query->where('size', '<=', (int)$options['max_size']);
+        }
+
+        return $query;
+    }
+
     protected function applyOrdering($query, $order)
     {
         switch ($order) {
@@ -234,6 +380,26 @@ class ManticoreSearchService
                 $query->orderBy('km', 'DESC');
                 break;
         }
+        return $query;
+    }
+
+    protected function applyHouseOrdering($query, $order)
+    {
+        switch ($order) {
+            case 'priceasc':
+                $query->orderBy('price', 'ASC');
+                break;
+            case 'pricedesc':
+                $query->orderBy('price', 'DESC');
+                break;
+            case 'sizeasc':
+                $query->orderBy('size', 'ASC');
+                break;
+            case 'sizedesc':
+                $query->orderBy('size', 'DESC');
+                break;
+        }
+
         return $query;
     }
 

@@ -2,229 +2,230 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ManticoreSearchService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class HousesController extends Controller
 {
-    public function home($type = null, $country = null)
+    protected ManticoreSearchService $manticore;
+
+    public function __construct(ManticoreSearchService $manticore)
     {
-        return view('houses.home', compact('type', 'country'));
+        $this->manticore = $manticore;
+    }
+
+    private function normalizeOrder(Request $request): string
+    {
+        $order = (string) $request->get('order', '');
+        if ($order !== '') {
+            return $order;
+        }
+
+        return match ($request->get('sort')) {
+            'price_low' => 'priceasc',
+            'price_high' => 'pricedesc',
+            default => '',
+        };
+    }
+
+    public function home(Request $request, $country = null)
+    {
+        $type = 'casas';
+        $countryCode = $this->resolveCountryCode($request, $country);
+        $searchIndex = $this->getHousesIndexName($countryCode);
+
+        $options = [
+            'page' => 1,
+            'q' => '',
+            'operation' => '',
+            'type' => '',
+            'state' => '',
+            'city' => '',
+            'min_price' => '',
+            'max_price' => '',
+            'rooms' => '',
+            'bath' => '',
+            'min_size' => '',
+            'max_size' => '',
+            'order' => '',
+        ];
+
+        $results = $this->manticore->houseSearch($searchIndex, $options);
+        $totalHouses = $this->extractTotalFromMeta($results['info'] ?? []);
+
+        $country = $countryCode;
+        return view('houses.home', compact('type', 'country', 'totalHouses'));
     }
 
     public function index(Request $request)
     {
-        // Datos mock para diseño
-        $mockHouses = collect([
-            (object)[
-                'id' => 1,
-                'title' => 'Casa moderna 3 habitaciones en Quito',
-                'type' => 'Casa',
-                'bedrooms' => 3,
-                'bathrooms' => 2,
-                'price' => 150000,
-                'area' => 120,
-                'location' => 'Pichincha',
-                'city' => 'Quito',
-                'condition' => 'nueva',
-                'image_url' => 'https://via.placeholder.com/150'
-            ],
-            (object)[
-                'id' => 2,
-                'title' => 'Departamento 2 dormitorios con vista',
-                'type' => 'Departamento',
-                'bedrooms' => 2,
-                'bathrooms' => 1,
-                'price' => 85000,
-                'area' => 65,
-                'location' => 'Guayas',
-                'city' => 'Guayaquil',
-                'condition' => 'usado',
-                'image_url' => 'https://via.placeholder.com/150'
-            ],
-            (object)[
-                'id' => 3,
-                'title' => 'Villa 4 habitaciones con jardín',
-                'type' => 'Villa',
-                'bedrooms' => 4,
-                'bathrooms' => 3,
-                'price' => 250000,
-                'area' => 200,
-                'location' => 'Azuay',
-                'city' => 'Cuenca',
-                'condition' => 'nueva',
-                'image_url' => 'https://via.placeholder.com/150'
-            ],
-        ]);
-
-        // Simular paginación
-        $perPage = 12;
-        $currentPage = $request->get('page', 1);
-        $houses = new LengthAwarePaginator(
-            $mockHouses,
-            $mockHouses->count(),
-            $perPage,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        // Datos mock para filtros
-        $types = collect(['Casa', 'Departamento', 'Villa', 'Terreno']);
-        $locations = collect(['Pichincha', 'Guayas', 'Azuay', 'Manabí']);
-        $cities = collect(['Quito', 'Guayaquil', 'Cuenca', 'Manta', 'Ambato', 'Santo Domingo', 'Portoviejo', 'Machala']);
-
-        // Conteos mock
-        $typeCounts = [
-            'Casa' => 15,
-            'Departamento' => 12,
-            'Villa' => 8,
-            'Terreno' => 5
-        ];
-
-        $locationCounts = [
-            'Pichincha' => 20,
-            'Guayas' => 15,
-            'Azuay' => 10,
-            'Manabí' => 8
-        ];
-
-        $cityCounts = [
-            'Quito' => 12,
-            'Guayaquil' => 10,
-            'Cuenca' => 8,
-            'Manta' => 5,
-            'Ambato' => 4,
-            'Santo Domingo' => 3,
-            'Portoviejo' => 2,
-            'Machala' => 2
-        ];
-
-        return view('houses.index', compact('houses', 'types', 'locations', 'cities', 'typeCounts', 'locationCounts', 'cityCounts'));
+        return $this->renderResults($request, null, null);
     }
 
-    public function landing(Request $request, $type = null, $country = null, $slug = null)
+    public function landing(Request $request, $country = null, $slug = null)
     {
-        // Parse slug para extraer información
-        $slugData = $this->parseSlug($slug);
+        $type = 'casas';
+        $countryCode = $this->resolveCountryCode($request, $country);
 
-        // Datos mock para diseño
-        $mockHouses = collect([
-            (object)[
-                'id' => 1,
-                'title' => 'Casa moderna 3 habitaciones en Quito',
-                'type' => 'Casa',
-                'bedrooms' => 3,
-                'bathrooms' => 2,
-                'price' => 150000,
-                'area' => 120,
-                'location' => 'Pichincha',
-                'city' => 'Quito',
-                'condition' => 'nueva',
-                'image_url' => 'https://via.placeholder.com/150'
-            ],
-            (object)[
-                'id' => 2,
-                'title' => 'Departamento 2 dormitorios con vista',
-                'type' => 'Departamento',
-                'bedrooms' => 2,
-                'bathrooms' => 1,
-                'price' => 85000,
-                'area' => 65,
-                'location' => 'Guayas',
-                'city' => 'Guayaquil',
-                'condition' => 'usado',
-                'image_url' => 'https://via.placeholder.com/150'
-            ],
-            (object)[
-                'id' => 3,
-                'title' => 'Villa 4 habitaciones con jardín',
-                'type' => 'Villa',
-                'bedrooms' => 4,
-                'bathrooms' => 3,
-                'price' => 250000,
-                'area' => 200,
-                'location' => 'Azuay',
-                'city' => 'Cuenca',
-                'condition' => 'nueva',
-                'image_url' => 'https://via.placeholder.com/150'
-            ],
-        ]);
+        $landing = $this->manticore->getHouseLandingBySlug($countryCode, (string) $slug);
+        $searchQuery = trim((string) ($landing['title'] ?? ''));
 
-        // Simular paginación
-        $perPage = 12;
-        $currentPage = $request->get('page', 1);
-        $houses = new LengthAwarePaginator(
-            $mockHouses,
-            $mockHouses->count(),
-            $perPage,
-            $currentPage,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-
-        // Datos mock para filtros
-        $types = collect(['Casa', 'Departamento', 'Villa', 'Terreno']);
-        $locations = collect(['Pichincha', 'Guayas', 'Azuay', 'Manabí']);
-        $cities = collect(['Quito', 'Guayaquil', 'Cuenca', 'Manta', 'Ambato', 'Santo Domingo', 'Portoviejo', 'Machala']);
-
-        // Conteos mock
-        $typeCounts = [
-            'Casa' => 15,
-            'Departamento' => 12,
-            'Villa' => 8,
-            'Terreno' => 5
-        ];
-
-        $locationCounts = [
-            'Pichincha' => 20,
-            'Guayas' => 15,
-            'Azuay' => 10,
-            'Manabí' => 8
-        ];
-
-        $cityCounts = [
-            'Quito' => 12,
-            'Guayaquil' => 10,
-            'Cuenca' => 8,
-            'Manta' => 5,
-            'Ambato' => 4,
-            'Santo Domingo' => 3,
-            'Portoviejo' => 2,
-            'Machala' => 2
-        ];
-
-        return view('houses.index', compact('houses', 'types', 'locations', 'cities', 'typeCounts', 'locationCounts', 'cityCounts', 'slugData', 'type', 'country'));
-    }
-
-    private function parseSlug($slug)
-    {
-        // Parse slug: casa-quito, departamento-guayaquil
-        $parts = explode('-', $slug);
-
-        return [
+        $slugData = [
             'original' => $slug,
-            'type' => $parts[0] ?? null,
-            'city' => $parts[1] ?? null,
-            'title' => ucwords(str_replace('-', ' ', $slug))
+            'title' => $searchQuery !== '' ? $searchQuery : ucwords(str_replace('-', ' ', (string) $slug)),
         ];
+
+        return $this->renderResults($request, $slugData, $type, $countryCode);
     }
 
-    public function show($type = null, $country = null, $id = null)
+    public function show($country = null, $id = null)
     {
-        // Dato mock para diseño
-        $house = (object)[
-            'id' => $id,
-            'title' => 'Casa moderna 3 habitaciones en Quito',
-            'type' => 'Casa',
-            'bedrooms' => 3,
-            'bathrooms' => 2,
-            'price' => 150000,
-            'area' => 120,
-            'location' => 'Pichincha',
-            'city' => 'Quito',
-            'condition' => 'nueva',
-            'image_url' => 'https://via.placeholder.com/150'
+        $request = request();
+        $countryCode = $this->resolveCountryCode($request, $country);
+        $searchIndex = $this->getHousesIndexName($countryCode);
+        $houseId = (int) $id;
+
+        if ($houseId <= 0) {
+            abort(404);
+        }
+
+        $house = $this->manticore->getHouseById($searchIndex, $houseId);
+
+        if (!$house || empty($house['url'])) {
+            abort(404);
+        }
+
+        $targetUrl = (string) $house['url'];
+        $source = (string) ($house['house_operation_name'] ?? 'fuente externa');
+
+        $country = $countryCode;
+        return view('houses.show', compact('targetUrl', 'source', 'country'));
+    }
+
+    private function renderResults(Request $request, ?array $slugData = null, ?string $type = null, ?string $countryCode = null)
+    {
+        $countryCode = $countryCode ?: $this->resolveCountryCode($request);
+        $searchIndex = $this->getHousesIndexName($countryCode);
+
+        $options = [
+            'page' => $request->get('page', 1),
+            'q' => $slugData ? ($slugData['title'] ?? '') : $request->get('q', ''),
+            'operation' => $request->get('operation', ''),
+            'type' => $request->get('type', ''),
+            'state' => $request->get('location', ''),
+            'city' => $request->get('city', ''),
+            'min_price' => $request->get('min_price', ''),
+            'max_price' => $request->get('max_price', ''),
+            'rooms' => $request->get('rooms', ''),
+            'bath' => $request->get('bath', ''),
+            'min_size' => $request->get('min_size', ''),
+            'max_size' => $request->get('max_size', ''),
+            'order' => $this->normalizeOrder($request),
         ];
 
-        return view('houses.show', compact('house', 'type', 'country'));
+        $results = $this->manticore->houseSearch($searchIndex, $options);
+        $total = $this->extractTotalFromMeta($results['info'] ?? []);
+
+        $maxPage = $total > 0 ? (int) ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1;
+        if ((int) $options['page'] > $maxPage) {
+            $query = $request->query();
+            $query['page'] = $maxPage;
+            return redirect()->to($request->path() . '?' . http_build_query($query));
+        }
+
+        $housesCollection = collect($results['items'] ?? [])->map(function ($item) {
+            return (object) [
+                'id' => $item['id'],
+                'title' => $item['title'] ?? '',
+                'operation' => $item['house_operation_name'] ?? '',
+                'type' => $item['house_type_name'] ?? '',
+                'price' => $item['price'] ?? 0,
+                'rooms' => $item['rooms'] ?? 0,
+                'bath' => $item['bath'] ?? 0,
+                'size' => $item['size'] ?? 0,
+                'location' => $item['state_name'] ?? '',
+                'city' => $item['city_name'] ?? '',
+                'image_url' => $item['image'] ?? 'https://via.placeholder.com/150',
+                'url' => $item['url'] ?? '#',
+                'slug' => $item['slug'] ?? '',
+            ];
+        });
+
+        $houses = new LengthAwarePaginator(
+            $housesCollection,
+            $total,
+            ManticoreSearchService::RESULTS_PER_PAGE,
+            (int) $options['page'],
+            ['path' => $slugData ? $request->path() : '/search', 'query' => $request->query()]
+        );
+
+        $operations = collect($results['operation'] ?? [])
+            ->filter(fn ($item) => !empty($item['name']))
+            ->map(fn ($item) => ['id' => $item['id_house_operation'], 'name' => $item['name'], 'total' => $item['total']]);
+
+        $types = collect($results['type'] ?? [])
+            ->filter(fn ($item) => !empty($item['name']))
+            ->map(fn ($item) => ['id' => $item['id_house_type'], 'name' => $item['name'], 'total' => $item['total']]);
+
+        $locations = collect($results['state'] ?? [])
+            ->filter(fn ($item) => !empty($item['name']))
+            ->map(fn ($item) => ['id' => $item['id_state'], 'name' => $item['name'], 'total' => $item['total']]);
+
+        $cities = collect($results['city'] ?? [])
+            ->filter(fn ($item) => !empty($item['name']))
+            ->map(fn ($item) => ['id' => $item['id_city'], 'name' => $item['name'], 'total' => $item['total']]);
+
+        $searchQuery = $options['q'];
+        $country = $countryCode;
+
+        return view('houses.index', compact(
+            'houses',
+            'operations',
+            'types',
+            'locations',
+            'cities',
+            'searchQuery',
+            'slugData',
+            'type',
+            'country'
+        ));
+    }
+
+    private function extractTotalFromMeta(array $metaRows): int
+    {
+        foreach ($metaRows as $meta) {
+            if (($meta['Variable_name'] ?? null) === 'total_found') {
+                return (int) $meta['Value'];
+            }
+        }
+
+        return 0;
+    }
+
+    private function resolveCountryFromHost(Request $request): ?string
+    {
+        $host = $request->getHost();
+        if (preg_match('/^casas\.roodos\.([^.]+)$/', $host, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    private function resolveCountryCode(Request $request, ?string $country = null): string
+    {
+        $countryCode = strtolower((string) ($country ?: $this->resolveCountryFromHost($request) ?: 'lab'));
+
+        if (!preg_match('/^[a-z]{2,5}$/', $countryCode)) {
+            return 'lab';
+        }
+
+        return $countryCode;
+    }
+
+    private function getHousesIndexName(string $countryCode): string
+    {
+        return 'house_' . strtolower($countryCode);
     }
 }

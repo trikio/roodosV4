@@ -12,6 +12,7 @@
         $countryCode = $countryCode ?: 'lab';
         $countryForTitle = strtoupper($countryCode);
         $countryName = config('countries.names.' . $countryForTitle, $countryForTitle);
+        $marketplaceType = str_starts_with(request()->getHost(), 'casas.') ? 'casas' : 'autos';
 
         $pageTitle = trim($__env->yieldContent('page_title'));
         if ($pageTitle === '') {
@@ -50,7 +51,7 @@
                             type="text"
                             name="q"
                             value="{{ request('q') }}"
-                            placeholder="Buscar autos..."
+                            placeholder="{{ $marketplaceType === 'casas' ? 'Buscar casas...' : 'Buscar autos...' }}"
                             class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#008bea]"
                         >
                         <button type="submit" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">

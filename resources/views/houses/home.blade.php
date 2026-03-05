@@ -1,22 +1,27 @@
 @extends('layouts.marketplace')
 
-@section('page_title', '25.486 Casas')
+@php
+    $pageTitle = number_format($totalHouses ?? 0, 0, ',', '.') . ' Casas';
+@endphp
+
+@section('page_title', $pageTitle)
 
 @section('content')
 <!-- Hero Section -->
 <div class="bg-gradient-to-b from-blue-50 to-white py-16">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">@yield('page_title')</h1>
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">{{ $pageTitle }}</h1>
             <p class="text-lg text-gray-600">Encuentra la casa perfecta para ti</p>
         </div>
 
         <!-- Search Bar -->
         <div class="max-w-3xl mx-auto">
-            <form action="{{ route('houses.landing', 'buscar') }}" method="GET" class="relative">
+            <form action="/search" method="GET" class="relative">
                 <input
                     type="text"
                     name="q"
+                    value="{{ request('q') }}"
                     placeholder="Buscar por tipo, ubicación, precio..."
                     class="w-full px-6 py-4 pr-32 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-[#008bea] text-lg shadow-sm"
                 >
