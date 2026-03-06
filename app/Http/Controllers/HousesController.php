@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Services\ManticoreSearchService;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
 
 class HousesController extends Controller
 {
@@ -51,7 +53,7 @@ class HousesController extends Controller
             'order' => '',
         ];
 
-        $results = $this->manticore->houseSearch($searchIndex, $options);
+        $results = $this->safeHouseSearch($searchIndex, $options);
         $totalHouses = $this->extractTotalFromMeta($results['info'] ?? []);
 
         $country = $countryCode;
@@ -124,7 +126,7 @@ class HousesController extends Controller
             'order' => $this->normalizeOrder($request),
         ];
 
-        $results = $this->manticore->houseSearch($searchIndex, $options);
+        $results = $this->safeHouseSearch($searchIndex, $options);
         $total = $this->extractTotalFromMeta($results['info'] ?? []);
 
         $maxPage = $total > 0 ? (int) ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1;
@@ -227,5 +229,27 @@ class HousesController extends Controller
     private function getHousesIndexName(string $countryCode): string
     {
         return 'house_' . strtolower($countryCode);
+    }
+
+    private function safeHouseSearch(string $searchIndex, array $options): array
+    {
+        try {
+            return $this->manticore->houseSearch($searchIndex, $options);
+        } catch (Exception $e) {
+            Log::warning('[HOUSES] Falling back to empty search result set', [
+                'search_index' => $searchIndex,
+                'query' => $options['q'] ?? '',
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'items' => [],
+                'info' => [],
+                'operation' => [],
+                'type' => [],
+                'state' => [],
+                'city' => [],
+            ];
+        }
     }
 }

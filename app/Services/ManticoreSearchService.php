@@ -55,7 +55,7 @@ class ManticoreSearchService
                 ->from($searchIndex);
 
             if (!empty($searchQuery)) {
-                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
+                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
             }
 
             $query = $this->applyCarFilters($query, $options);
@@ -120,6 +120,31 @@ class ManticoreSearchService
 
     public function houseSearch($searchIndex, $options)
     {
+        $attempts = 0;
+        $maxAttempts = 3;
+        $lastException = null;
+
+        while ($attempts < $maxAttempts) {
+            try {
+                return $this->runHouseSearch($searchIndex, $options);
+            } catch (Exception $e) {
+                $lastException = $e;
+                $attempts++;
+
+                if (!str_contains($e->getMessage(), '[2006]') || $attempts >= $maxAttempts) {
+                    throw $e;
+                }
+
+                $this->connect();
+                usleep(120000);
+            }
+        }
+
+        throw $lastException ?? new Exception('Unknown houses search error');
+    }
+
+    protected function runHouseSearch($searchIndex, $options)
+    {
         try {
             $page = $options['page'] ?? 1;
             $searchQuery = $options['q'] ?? '';
@@ -131,7 +156,7 @@ class ManticoreSearchService
                 ->from($searchIndex);
 
             if (!empty($searchQuery)) {
-                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
+                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
             }
 
             $query = $this->applyHouseFilters($query, $options);
@@ -141,23 +166,22 @@ class ManticoreSearchService
             $query->option('max_matches', 500000);
             $query->option('cutoff', 0);
 
-            $query = $query->enqueue((new Helper($this->connection))->showMeta());
-            $query = $query->enqueue();
+            // Houses queries are executed separately to avoid multi-query disconnects.
+            $itemsResult = $query->execute();
+            $metaResult = (new Helper($this->connection))->showMeta()->execute();
 
-            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_house_operation', 'house_operation_name', 'name');
-            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_house_type', 'house_type_name', 'name');
-            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_state', 'state_name', 'name');
-            $query = $this->enqueueHouseFacet($query, $searchIndex, $columns, $searchQuery, $options, 'id_city', 'city_name', 'name');
-
-            $sphinxRes = $query->executeBatch();
+            $operationResult = $this->fetchHouseFacet($searchIndex, $columns, $searchQuery, $options, 'id_house_operation', 'house_operation_name', 'name');
+            $typeResult = $this->fetchHouseFacet($searchIndex, $columns, $searchQuery, $options, 'id_house_type', 'house_type_name', 'name');
+            $stateResult = $this->fetchHouseFacet($searchIndex, $columns, $searchQuery, $options, 'id_state', 'state_name', 'name');
+            $cityResult = $this->fetchHouseFacet($searchIndex, $columns, $searchQuery, $options, 'id_city', 'city_name', 'name');
 
             return [
-                'items' => $sphinxRes->getNext()->fetchAllAssoc(),
-                'info' => $sphinxRes->getNext()->fetchAllAssoc(),
-                'operation' => $sphinxRes->getNext()->fetchAllAssoc(),
-                'type' => $sphinxRes->getNext()->fetchAllAssoc(),
-                'state' => $sphinxRes->getNext()->fetchAllAssoc(),
-                'city' => $sphinxRes->getNext()->fetchAllAssoc(),
+                'items' => is_iterable($itemsResult) ? iterator_to_array($itemsResult) : (array) $itemsResult,
+                'info' => is_iterable($metaResult) ? iterator_to_array($metaResult) : (array) $metaResult,
+                'operation' => $operationResult,
+                'type' => $typeResult,
+                'state' => $stateResult,
+                'city' => $cityResult,
             ];
         } catch (Exception $e) {
             throw new Exception("Error searching houses: " . $e->getMessage());
@@ -235,7 +259,7 @@ class ManticoreSearchService
             ->from($searchIndex);
 
         if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
+            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
         }
 
         $query = $this->applyCarFilters($query, $options);
@@ -252,7 +276,7 @@ class ManticoreSearchService
             ->from($searchIndex);
 
         if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
+            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
         }
 
         $query = $this->applyHouseFilters($query, $options);
@@ -261,6 +285,26 @@ class ManticoreSearchService
             ->limit(0, 50);
 
         return $query->enqueue();
+    }
+
+    protected function fetchHouseFacet($searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias): array
+    {
+        $query = (new SphinxQL($this->connection))
+            ->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
+            ->from($searchIndex);
+
+        if (!empty($searchQuery)) {
+            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
+        }
+
+        $query = $this->applyHouseFilters($query, $options);
+        $query->groupBy($idField)
+            ->orderBy('total', 'DESC')
+            ->limit(0, 50);
+
+        $result = $query->execute();
+
+        return is_iterable($result) ? iterator_to_array($result) : (array) $result;
     }
 
     protected function applyCarFilters($query, $options)
