@@ -2,6 +2,9 @@
 
 @php
     $pageTitle = number_format($totalHouses ?? 0, 0, ',', '.') . ' Casas';
+    $countryCode = strtoupper((string) ($country ?? request()->route('country') ?? 'CL'));
+    $homeLocations = config('countries.houses_home.locations.' . $countryCode, config('countries.houses_home.locations.CL', []));
+    $homePopularSearches = config('countries.houses_home.popular_searches.' . $countryCode, config('countries.houses_home.popular_searches.CL', []));
 @endphp
 
 @section('page_title', $pageTitle)
@@ -39,12 +42,11 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Búsquedas Populares</h2>
     <div class="flex flex-wrap gap-3">
-        <a href="/casa-quito" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Casas en Quito</a>
-        <a href="/departamento-guayaquil" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Departamentos en Guayaquil</a>
-        <a href="/villa-cuenca" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Villas en Cuenca</a>
-        <a href="/casa-manta" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Casas en Manta</a>
-        <a href="/departamento-ambato" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Departamentos en Ambato</a>
-        <a href="/terreno-santo-domingo" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Terrenos en Santo Domingo</a>
+        @foreach($homePopularSearches as $popularSearch)
+        <a href="/{{ $popularSearch['slug'] }}" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">
+            {{ $popularSearch['label'] }}
+        </a>
+        @endforeach
     </div>
 </div>
 
@@ -66,8 +68,8 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Buscar por Ubicación</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        @foreach(['Quito', 'Guayaquil', 'Cuenca', 'Ambato', 'Manta', 'Santo Domingo', 'Portoviejo', 'Machala', 'Loja', 'Ibarra', 'Riobamba', 'Esmeraldas'] as $city)
-        <a href="/casas-{{ strtolower($city) }}" class="text-[#008bea] hover:underline">{{ $city }}</a>
+        @foreach($homeLocations as $city)
+        <a href="/casa-{{ \Illuminate\Support\Str::slug($city) }}" class="text-[#008bea] hover:underline">{{ $city }}</a>
         @endforeach
     </div>
 </div>
@@ -77,15 +79,9 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Búsquedas Recientes Populares</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <a href="/casa-quito" class="text-[#008bea] hover:underline">Casa en Quito</a>
-            <a href="/departamento-guayaquil" class="text-[#008bea] hover:underline">Departamento en Guayaquil</a>
-            <a href="/villa-cuenca" class="text-[#008bea] hover:underline">Villa en Cuenca</a>
-            <a href="/casa-manta" class="text-[#008bea] hover:underline">Casa en Manta</a>
-            <a href="/departamento-ambato" class="text-[#008bea] hover:underline">Departamento en Ambato</a>
-            <a href="/terreno-santo-domingo" class="text-[#008bea] hover:underline">Terreno en Santo Domingo</a>
-            <a href="/casa-portoviejo" class="text-[#008bea] hover:underline">Casa en Portoviejo</a>
-            <a href="/villa-machala" class="text-[#008bea] hover:underline">Villa en Machala</a>
-            <a href="/departamento-loja" class="text-[#008bea] hover:underline">Departamento en Loja</a>
+            @foreach($homePopularSearches as $popularSearch)
+            <a href="/{{ $popularSearch['slug'] }}" class="text-[#008bea] hover:underline">{{ $popularSearch['label'] }}</a>
+            @endforeach
         </div>
     </div>
 </div>
