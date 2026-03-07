@@ -1,4 +1,10 @@
 server {
+        server_name www.roodos.com;
+        listen 80;
+
+        return 301 https://roodos.com$request_uri;
+}
+server {
         server_name roodos.com roodos.cl roodos.ec roodos.pe roodos.mx;
         listen 80;
         root /app/public;
@@ -40,9 +46,3 @@ server {
         }
 }
 
-server {
-        server_name www.roodos.com;
-        listen 80;
-
-        return 301 https://roodos.com$request_uri;
-}
