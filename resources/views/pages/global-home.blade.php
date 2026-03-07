@@ -47,10 +47,10 @@
                         >
                             <div class="flex items-center gap-3 mb-2">
                                 <img
-                                    src="{{ asset('assets/img/houses_logo.png') }}"
+                                    src="https://casas.roodos.cl/assets/img/houses_logo.png"
                                     alt="Casas Roodos"
                                     class="w-10 h-10 object-contain"
-                                    onerror="this.onerror=null;this.src='https://casas.roodos.cl/assets/img/houses_logo.png';"
+                                    onerror="this.onerror=null;this.src='{{ asset('assets/img/houses_logo.png') }}';"
                                 >
                                 <span class="font-bold text-slate-900">Casas</span>
                             </div>
@@ -63,10 +63,10 @@
                         >
                             <div class="flex items-center gap-3 mb-2">
                                 <img
-                                    src="{{ asset('assets/img/cars_logo.png') }}"
+                                    src="https://autos.roodos.cl/assets/img/cars_logo.png"
                                     alt="Autos Roodos"
                                     class="w-10 h-10 object-contain"
-                                    onerror="this.onerror=null;this.src='https://autos.roodos.cl/assets/img/cars_logo.png';"
+                                    onerror="this.onerror=null;this.src='{{ asset('assets/img/cars_logo.png') }}';"
                                 >
                                 <span class="font-bold text-slate-900">Autos</span>
                             </div>

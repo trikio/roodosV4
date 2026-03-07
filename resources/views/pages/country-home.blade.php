@@ -31,10 +31,10 @@
                 >
                     <div class="flex items-start justify-between gap-4 mb-5">
                         <img
-                            src="{{ asset('assets/img/houses_logo.png') }}"
+                            src="https://casas.roodos.cl/assets/img/houses_logo.png"
                             alt="Casas Roodos"
                             class="w-16 h-16 sm:w-20 sm:h-20 object-contain"
-                            onerror="this.onerror=null;this.src='https://casas.roodos.cl/assets/img/houses_logo.png';"
+                            onerror="this.onerror=null;this.src='{{ asset('assets/img/houses_logo.png') }}';"
                         >
                         <span class="inline-flex rounded-full bg-[#008bea]/10 text-[#008bea] px-3 py-1 text-xs font-bold uppercase tracking-wide">
                             Inmuebles
@@ -54,10 +54,10 @@
                 >
                     <div class="flex items-start justify-between gap-4 mb-5">
                         <img
-                            src="{{ asset('assets/img/cars_logo.png') }}"
+                            src="https://autos.roodos.cl/assets/img/cars_logo.png"
                             alt="Autos Roodos"
                             class="w-16 h-16 sm:w-20 sm:h-20 object-contain"
-                            onerror="this.onerror=null;this.src='https://autos.roodos.cl/assets/img/cars_logo.png';"
+                            onerror="this.onerror=null;this.src='{{ asset('assets/img/cars_logo.png') }}';"
                         >
                         <span class="inline-flex rounded-full bg-[#008bea]/10 text-[#008bea] px-3 py-1 text-xs font-bold uppercase tracking-wide">
                             Vehiculos
