@@ -6,6 +6,7 @@
     <title>Roodos {{ $countryName }} - Busca tu auto y tu casa</title>
     <meta name="title" content="Roodos {{ $countryName }}">
     <meta name="description" content="Bienvenido a Roodos {{ $countryName }}. Elige entre autos y casas.">
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen bg-gradient-to-b from-sky-100 via-cyan-50 to-blue-100 text-slate-900 flex flex-col">
@@ -31,10 +32,10 @@
                 >
                     <div class="flex items-start justify-between gap-4 mb-5">
                         <img
-                            src="https://casas.roodos.cl/assets/img/houses_logo.png"
+                            src="https://casas.roodos.cl/assets/img/houses_logo_v2.png"
                             alt="Casas Roodos"
                             class="w-16 h-16 sm:w-20 sm:h-20 object-contain"
-                            onerror="this.onerror=null;this.src='{{ asset('assets/img/houses_logo.png') }}';"
+                            onerror="this.onerror=null;this.src='{{ asset('assets/img/houses_logo_v2.png') }}';"
                         >
                         <span class="inline-flex rounded-full bg-[#008bea]/10 text-[#008bea] px-3 py-1 text-xs font-bold uppercase tracking-wide">
                             Inmuebles
@@ -54,10 +55,10 @@
                 >
                     <div class="flex items-start justify-between gap-4 mb-5">
                         <img
-                            src="https://autos.roodos.cl/assets/img/cars_logo.png"
+                            src="https://autos.roodos.cl/assets/img/cars_logo_v2.png"
                             alt="Autos Roodos"
                             class="w-16 h-16 sm:w-20 sm:h-20 object-contain"
-                            onerror="this.onerror=null;this.src='{{ asset('assets/img/cars_logo.png') }}';"
+                            onerror="this.onerror=null;this.src='{{ asset('assets/img/cars_logo_v2.png') }}';"
                         >
                         <span class="inline-flex rounded-full bg-[#008bea]/10 text-[#008bea] px-3 py-1 text-xs font-bold uppercase tracking-wide">
                             Vehiculos

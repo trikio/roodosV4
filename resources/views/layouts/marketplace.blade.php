@@ -30,7 +30,7 @@
     <title>{{ $htmlTitle }}</title>
     <meta name="title" content="{{ $pageTitle }}">
     <meta name="description" content="{{ $metaDescription }}">
-    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-gray-50">

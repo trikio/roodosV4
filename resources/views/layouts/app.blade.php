@@ -11,6 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $pageTitle }}</title>
     <meta name="title" content="{{ $pageTitle }}">
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-gray-50">

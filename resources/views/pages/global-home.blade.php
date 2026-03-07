@@ -6,6 +6,7 @@
     <title>Roodos - Autos y Casas en Chile, Ecuador, Peru y Mexico</title>
     <meta name="title" content="Roodos Global">
     <meta name="description" content="Accede a los portales de autos y casas de Chile, Ecuador, Peru y Mexico.">
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen bg-gradient-to-b from-sky-100 via-cyan-50 to-blue-100 text-slate-900 flex flex-col">

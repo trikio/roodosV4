@@ -120,10 +120,10 @@
                                 @else
                                     <div class="w-full h-full flex items-center justify-center bg-gray-100">
                                         <img
-                                            src="https://autos.roodos.cl/assets/img/cars_logo.png"
+                                            src="https://autos.roodos.cl/assets/img/cars_logo_v2.png"
                                             alt="Autos Roodos"
                                             class="w-16 h-16 object-contain grayscale opacity-35"
-                                            onerror="this.onerror=null;this.src='{{ asset('assets/img/cars_logo.png') }}';"
+                                            onerror="this.onerror=null;this.src='{{ asset('assets/img/cars_logo_v2.png') }}';"
                                         >
                                     </div>
                                 @endif

@@ -116,10 +116,10 @@
                                 @else
                                     <div class="w-full h-full flex items-center justify-center bg-gray-100">
                                         <img
-                                            src="https://casas.roodos.cl/assets/img/houses_logo.png"
+                                            src="https://casas.roodos.cl/assets/img/houses_logo_v2.png"
                                             alt="Casas Roodos"
                                             class="w-16 h-16 object-contain grayscale opacity-35"
-                                            onerror="this.onerror=null;this.src='{{ asset('assets/img/houses_logo.png') }}';"
+                                            onerror="this.onerror=null;this.src='{{ asset('assets/img/houses_logo_v2.png') }}';"
                                         >
                                     </div>
                                 @endif

@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $pageTitle }}</title>
     <meta name="title" content="{{ $pageTitle }}">
+    <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen bg-gradient-to-b from-slate-100 to-white text-slate-900">
