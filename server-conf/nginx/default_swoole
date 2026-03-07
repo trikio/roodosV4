@@ -1,5 +1,5 @@
 server {
-        server_name roodos.cl roodos.ec roodos.pe roodos.mx;
+        server_name roodos.com roodos.cl roodos.ec roodos.pe roodos.mx;
         listen 80;
         root /app/public;
         index index.php index.html index.htm index.nginx-debian.html;
