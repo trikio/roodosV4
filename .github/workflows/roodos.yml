@@ -48,9 +48,9 @@ jobs:
 
             sudo rm -R /app/release_temp
   
-            if command -v indexer >/dev/null 2>&1; then
-              sudo indexer --all --rotate || true
-            fi
+            # if command -v indexer >/dev/null 2>&1; then
+            #   sudo indexer --all --rotate || true
+            # fi
 
             cd /app/
             
