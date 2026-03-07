@@ -15,6 +15,32 @@ $infoPages = [
     'contacta-con-nosotros' => 'pages.contact',
 ];
 
+// Dominio principal global (solo estático)
+Route::domain('roodos.com')->group(function () use ($infoPages) {
+    Route::view('/', 'pages.global-home')->name('global.home');
+
+    foreach ($infoPages as $slug => $view) {
+        Route::view('/' . $slug, $view);
+    }
+});
+
+Route::domain('www.roodos.com')->group(function () {
+    Route::get('/{path?}', function (Request $request, ?string $path = null) {
+        $target = 'https://roodos.com';
+
+        if (!empty($path)) {
+            $target .= '/' . ltrim($path, '/');
+        }
+
+        $query = $request->getQueryString();
+        if (!empty($query)) {
+            $target .= '?' . $query;
+        }
+
+        return redirect()->away($target, 301);
+    })->where('path', '.*');
+});
+
 Route::domain('roodos.{country}')->group(function () {
     Route::get('/', function (string $country) {
         $countryCode = strtoupper($country);

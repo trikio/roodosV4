@@ -9,9 +9,6 @@
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen bg-gradient-to-b from-sky-100 via-cyan-50 to-blue-100 text-slate-900 flex flex-col">
-    @php
-        $infoBaseUrl = 'https://autos.roodos.' . $country;
-    @endphp
     <main class="relative overflow-hidden flex-1 flex items-center">
         <div class="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-sky-300/30 blur-3xl"></div>
         <div class="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-cyan-300/30 blur-3xl"></div>
@@ -80,14 +77,14 @@
     <footer class="bg-gray-200 border-t border-gray-300 py-6">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-gray-700">
-                <a href="/" class="hover:text-gray-900">Home</a>
-                <a href="{{ $infoBaseUrl }}/envie-su-sitio" class="hover:text-gray-900">Envíe su sitio</a>
-                <a href="{{ $infoBaseUrl }}/sobre-nosotros" class="hover:text-gray-900">Sobre nosotros</a>
-                <a href="{{ $infoBaseUrl }}/terminos-de-uso" class="hover:text-gray-900">Terminos de uso</a>
-                <a href="{{ $infoBaseUrl }}/politica-de-privacidad" class="hover:text-gray-900">Política de privacidad</a>
-                <a href="{{ $infoBaseUrl }}/politica-de-cookies" class="hover:text-gray-900">Política de cookies</a>
-                <a href="{{ $infoBaseUrl }}/nuestras-redes" class="hover:text-gray-900">Nuestras Redes</a>
-                <a href="{{ $infoBaseUrl }}/contacta-con-nosotros" class="hover:text-gray-900">Contacta con nosotros</a>
+                <a href="https://roodos.com" class="hover:text-gray-900">Home</a>
+                <a href="https://roodos.com/envie-su-sitio" class="hover:text-gray-900">Envíe su sitio</a>
+                <a href="https://roodos.com/sobre-nosotros" class="hover:text-gray-900">Sobre nosotros</a>
+                <a href="https://roodos.com/terminos-de-uso" class="hover:text-gray-900">Terminos de uso</a>
+                <a href="https://roodos.com/politica-de-privacidad" class="hover:text-gray-900">Política de privacidad</a>
+                <a href="https://roodos.com/politica-de-cookies" class="hover:text-gray-900">Política de cookies</a>
+                <a href="https://roodos.com/nuestras-redes" class="hover:text-gray-900">Nuestras Redes</a>
+                <a href="https://roodos.com/contacta-con-nosotros" class="hover:text-gray-900">Contacta con nosotros</a>
             </nav>
         </div>
     </footer>

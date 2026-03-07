@@ -99,14 +99,14 @@
     <footer class="bg-gray-200 border-t border-gray-300 py-6 mt-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-gray-700">
-                <a href="/" class="hover:text-gray-900">Home</a>
-                <a href="/envie-su-sitio" class="hover:text-gray-900">Envíe su sitio</a>
-                <a href="/sobre-nosotros" class="hover:text-gray-900">Sobre nosotros</a>
-                <a href="/terminos-de-uso" class="hover:text-gray-900">Terminos de uso</a>
-                <a href="/politica-de-privacidad" class="hover:text-gray-900">Política de privacidad</a>
-                <a href="/politica-de-cookies" class="hover:text-gray-900">Política de cookies</a>
-                <a href="/nuestras-redes" class="hover:text-gray-900">Nuestras Redes</a>
-                <a href="/contacta-con-nosotros" class="hover:text-gray-900">Contacta con nosotros</a>
+                <a href="https://roodos.com" class="hover:text-gray-900">Home</a>
+                <a href="https://roodos.com/envie-su-sitio" class="hover:text-gray-900">Envíe su sitio</a>
+                <a href="https://roodos.com/sobre-nosotros" class="hover:text-gray-900">Sobre nosotros</a>
+                <a href="https://roodos.com/terminos-de-uso" class="hover:text-gray-900">Terminos de uso</a>
+                <a href="https://roodos.com/politica-de-privacidad" class="hover:text-gray-900">Política de privacidad</a>
+                <a href="https://roodos.com/politica-de-cookies" class="hover:text-gray-900">Política de cookies</a>
+                <a href="https://roodos.com/nuestras-redes" class="hover:text-gray-900">Nuestras Redes</a>
+                <a href="https://roodos.com/contacta-con-nosotros" class="hover:text-gray-900">Contacta con nosotros</a>
             </nav>
         </div>
     </footer>
