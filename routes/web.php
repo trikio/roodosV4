@@ -16,13 +16,13 @@ $infoPages = [
 ];
 
 // Dominio principal global (solo estático)
-// Route::domain('roodos.com')->group(function () use ($infoPages) {
-//     Route::view('/', 'pages.global-home')->name('global.home');
+Route::domain('roodos.com')->group(function () use ($infoPages) {
+    Route::view('/', 'pages.global-home')->name('global.home');
 
-//     foreach ($infoPages as $slug => $view) {
-//         Route::view('/' . $slug, $view);
-//     }
-// });
+    foreach ($infoPages as $slug => $view) {
+        Route::view('/' . $slug, $view);
+    }
+});
 
 Route::domain('roodos.{country}')->group(function () {
     Route::get('/', function (string $country) {
