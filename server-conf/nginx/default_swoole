@@ -20,9 +20,9 @@ server {
         
         add_header Permissions-Policy "browsing-topics=()" always;
 
-        # Redirigir todas las URLs que terminan en "/" a su versión sin "/"
-        if ($request_uri ~ ^/(.*)/$) {
-                return 301 $scheme://$host/$1;
+        # Redirigir URLs con "/" final (excepto la raíz "/") a su versión sin "/"
+        if ($uri ~ ^(.+)/$) {
+                return 301 $scheme://$host$1$is_args$args;
         }
 
         location / {
