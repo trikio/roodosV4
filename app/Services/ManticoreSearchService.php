@@ -55,7 +55,7 @@ class ManticoreSearchService
                 ->from($searchIndex);
 
             if (!empty($searchQuery)) {
-                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
+                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
             }
 
             $query = $this->applyCarFilters($query, $options);
@@ -156,7 +156,7 @@ class ManticoreSearchService
                 ->from($searchIndex);
 
             if (!empty($searchQuery)) {
-                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
+                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
             }
 
             $query = $this->applyHouseFilters($query, $options);
@@ -259,7 +259,7 @@ class ManticoreSearchService
             ->from($searchIndex);
 
         if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
+            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
         }
 
         $query = $this->applyCarFilters($query, $options);
@@ -276,7 +276,7 @@ class ManticoreSearchService
             ->from($searchIndex);
 
         if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
+            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
         }
 
         $query = $this->applyHouseFilters($query, $options);
@@ -294,7 +294,7 @@ class ManticoreSearchService
             ->from($searchIndex);
 
         if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/2'));
+            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
         }
 
         $query = $this->applyHouseFilters($query, $options);
