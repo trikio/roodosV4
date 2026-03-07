@@ -6,7 +6,7 @@ server {
 }
 server {
         server_name roodos.com roodos.cl roodos.ec roodos.pe roodos.mx;
-        listen 80;
+        listen 80 default_server;
         root /app/public;
         index index.php index.html index.htm index.nginx-debian.html;
         charset       utf-8;
@@ -45,4 +45,3 @@ server {
                 gzip_static on;
         }
 }
-
