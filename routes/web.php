@@ -24,10 +24,6 @@ Route::domain('roodos.com')->group(function () use ($infoPages) {
     }
 });
 
-Route::domain('www.roodos.com')->group(function () {
-    Route::redirect('/{path?}', 'https://roodos.com', 301)->where('path', '.*');
-});
-
 Route::domain('roodos.{country}')->group(function () {
     Route::get('/', function (string $country) {
         $countryCode = strtoupper($country);

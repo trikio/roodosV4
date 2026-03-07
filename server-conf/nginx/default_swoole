@@ -39,3 +39,10 @@ server {
                 gzip_static on;
         }
 }
+
+server {
+        server_name www.roodos.com;
+        listen 80;
+
+        return 301 https://roodos.com$request_uri;
+}
