@@ -25,20 +25,7 @@ Route::domain('roodos.com')->group(function () use ($infoPages) {
 });
 
 Route::domain('www.roodos.com')->group(function () {
-    Route::get('/{path?}', function (Request $request, ?string $path = null) {
-        $target = 'https://roodos.com';
-
-        if (!empty($path)) {
-            $target .= '/' . ltrim($path, '/');
-        }
-
-        $query = $request->getQueryString();
-        if (!empty($query)) {
-            $target .= '?' . $query;
-        }
-
-        return redirect()->away($target, 301);
-    })->where('path', '.*');
+    Route::redirect('/{path?}', 'https://roodos.com', 301)->where('path', '.*');
 });
 
 Route::domain('roodos.{country}')->group(function () {
