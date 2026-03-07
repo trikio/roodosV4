@@ -148,7 +148,7 @@ class HousesController extends Controller
                 'size' => $item['size'] ?? 0,
                 'location' => $item['state_name'] ?? '',
                 'city' => $item['city_name'] ?? '',
-                'image_url' => $item['image'] ?? 'https://via.placeholder.com/150',
+                'image_url' => $item['image'] ?? null,
                 'url' => $item['url'] ?? '#',
                 'slug' => $item['slug'] ?? '',
             ];
