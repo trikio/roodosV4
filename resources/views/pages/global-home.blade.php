@@ -11,10 +11,10 @@
 <body class="min-h-screen bg-gradient-to-b from-sky-100 via-cyan-50 to-blue-100 text-slate-900 flex flex-col">
     @php
         $markets = [
-            ['code' => 'cl', 'name' => 'Chile'],
-            ['code' => 'ec', 'name' => 'Ecuador'],
-            ['code' => 'pe', 'name' => 'Peru'],
-            ['code' => 'mx', 'name' => 'Mexico'],
+            ['code' => 'cl', 'name' => 'Chile', 'flag' => 'https://flagcdn.com/w80/cl.png'],
+            ['code' => 'ec', 'name' => 'Ecuador', 'flag' => 'https://flagcdn.com/w80/ec.png'],
+            ['code' => 'pe', 'name' => 'Peru', 'flag' => 'https://flagcdn.com/w80/pe.png'],
+            ['code' => 'mx', 'name' => 'Mexico', 'flag' => 'https://flagcdn.com/w80/mx.png'],
         ];
     @endphp
 
@@ -28,51 +28,33 @@
                     Bienvenido a Roodos
                 </h1>
                 <p class="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto mb-6">
-                    Elige país y categoría para explorar autos y casas.
+                    Elige un país para entrar a su home local.
                 </p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 @foreach($markets as $market)
                 <div class="rounded-2xl border border-slate-200 bg-white/90 backdrop-blur p-6 sm:p-7 shadow-sm">
-                    <div class="mb-5">
+                    <div class="mb-5 flex items-center gap-3">
+                        <img
+                            src="{{ $market['flag'] }}"
+                            alt="Bandera de {{ $market['name'] }}"
+                            class="w-10 h-7 object-cover rounded-sm border border-slate-200"
+                            loading="lazy"
+                        >
                         <p class="text-3xl font-black text-slate-900">{{ $market['name'] }}</p>
-                        <p class="text-slate-600">Portales disponibles para {{ $market['name'] }}</p>
+                    </div>
+                    <div class="mb-5">
+                        <p class="text-slate-600">Entrar al portal de {{ $market['name'] }}</p>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <a
-                            href="https://casas.roodos.{{ $market['code'] }}"
-                            class="group rounded-xl border border-slate-200 p-4 hover:shadow-lg hover:-translate-y-0.5 transition duration-300"
-                        >
-                            <div class="flex items-center gap-3 mb-2">
-                                <img
-                                    src="https://casas.roodos.cl/assets/img/houses_logo.png"
-                                    alt="Casas Roodos"
-                                    class="w-10 h-10 object-contain"
-                                    onerror="this.onerror=null;this.src='{{ asset('assets/img/houses_logo.png') }}';"
-                                >
-                                <span class="font-bold text-slate-900">Casas</span>
-                            </div>
-                            <span class="text-[#008bea] font-semibold">Entrar</span>
-                        </a>
-
-                        <a
-                            href="https://autos.roodos.{{ $market['code'] }}"
-                            class="group rounded-xl border border-slate-200 p-4 hover:shadow-lg hover:-translate-y-0.5 transition duration-300"
-                        >
-                            <div class="flex items-center gap-3 mb-2">
-                                <img
-                                    src="https://autos.roodos.cl/assets/img/cars_logo.png"
-                                    alt="Autos Roodos"
-                                    class="w-10 h-10 object-contain"
-                                    onerror="this.onerror=null;this.src='{{ asset('assets/img/cars_logo.png') }}';"
-                                >
-                                <span class="font-bold text-slate-900">Autos</span>
-                            </div>
-                            <span class="text-[#008bea] font-semibold">Entrar</span>
-                        </a>
-                    </div>
+                    <a
+                        href="https://roodos.{{ $market['code'] }}"
+                        class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-[#008bea] hover:shadow-md transition"
+                    >
+                        Ir a Roodos {{ $market['name'] }}
+                        <span aria-hidden="true">→</span>
+                    </a>
                 </div>
                 @endforeach
             </div>
