@@ -18,6 +18,13 @@
             $metaDescription .= ' ' . $sampleTitles;
         }
     }
+    $adsKeyword = trim((string) ($searchQuery ?? ''));
+    if ($adsKeyword === '' && isset($slugData['title'])) {
+        $adsKeyword = trim((string) $slugData['title']);
+    }
+    if ($adsKeyword === '') {
+        $adsKeyword = trim((string) request('q', ''));
+    }
     $currentOrder = request('order');
     if (empty($currentOrder)) {
         $currentOrder = match (request('sort')) {
@@ -87,6 +94,21 @@
             <!-- Cars List -->
             <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 mb-8">
                 <div>
+                    <div id="afscontainer1" class="mb-4"></div>
+                    <script type="text/javascript" charset="utf-8">
+                        var pageOptions = {
+                            "pubId": "partner-pub-4474623749606512",
+                            "query": @json($adsKeyword),
+                            "styleId": "6494563446",
+                            "adsafe": "high"
+                        };
+
+                        var adblock1 = {
+                            "container": "afscontainer1"
+                        };
+
+                        _googCsa('ads', pageOptions, adblock1);
+                    </script>
                     @forelse($cars as $car)
                     <a href="/auto/{{ $car->id }}" class="block mb-4 js-result-link">
                     <div class="flex flex-col bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition p-4">
