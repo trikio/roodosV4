@@ -181,13 +181,13 @@
                     </div>
                     @endforelse
 
+                    <div id="afscontainer2" class="mt-6"></div>
+
                     @if($houses->hasPages())
                     <div class="mt-8">
                         {{ $houses->onEachSide(0)->appends(request()->query())->links('vendor.pagination.tailwind') }}
                     </div>
                     @endif
-
-                    <div id="afscontainer2" class="mt-6"></div>
                 </div>
 
                 <div class="hidden lg:block">

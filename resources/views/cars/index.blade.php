@@ -192,14 +192,14 @@
                     </div>
                     @endforelse
 
+                    <div id="afscontainer2" class="mt-6"></div>
+
                     <!-- Pagination -->
                     @if($cars->hasPages())
                     <div class="mt-8">
                         {{ $cars->onEachSide(0)->appends(request()->query())->links('vendor.pagination.tailwind') }}
                     </div>
                     @endif
-
-                    <div id="afscontainer2" class="mt-6"></div>
                 </div>
 
                 <!-- Advertisement Column -->
