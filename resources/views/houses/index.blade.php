@@ -102,10 +102,16 @@
                         };
 
                         var adblock1 = {
-                            "container": "afscontainer1"
+                            "container": "afscontainer1",
+                            "number": 2
                         };
 
-                        _googCsa('ads', pageOptions, adblock1);
+                        var adblock2 = {
+                            "container": "afscontainer2",
+                            "number": 4
+                        };
+
+                        _googCsa('ads', pageOptions, adblock1, adblock2);
                     </script>
                     @forelse($houses as $house)
                     <a href="/casa/{{ $house->id }}" class="block mb-4 js-result-link">
@@ -180,6 +186,8 @@
                         {{ $houses->onEachSide(0)->appends(request()->query())->links('vendor.pagination.tailwind') }}
                     </div>
                     @endif
+
+                    <div id="afscontainer2" class="mt-6"></div>
                 </div>
 
                 <div class="hidden lg:block">
