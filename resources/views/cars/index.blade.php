@@ -37,6 +37,9 @@
 
 @section('page_title', $pageTitle)
 @section('meta_description', $metaDescription)
+@if(isset($slugData))
+@section('canonical_url', url()->current())
+@endif
 
 @section('content')
 <!-- Sticky Mobile Bar -->

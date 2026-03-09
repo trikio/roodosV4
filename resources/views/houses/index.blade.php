@@ -37,6 +37,9 @@
 
 @section('page_title', $pageTitle)
 @section('meta_description', $metaDescription)
+@if(isset($slugData))
+@section('canonical_url', url()->current())
+@endif
 
 @section('content')
 <div class="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">

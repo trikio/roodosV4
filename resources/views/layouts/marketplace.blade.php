@@ -24,12 +24,16 @@
         if ($metaDescription === '') {
             $metaDescription = $pageTitle;
         }
+        $canonicalUrl = trim($__env->yieldContent('canonical_url'));
     @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $htmlTitle }}</title>
     <meta name="title" content="{{ $pageTitle }}">
     <meta name="description" content="{{ $metaDescription }}">
+    @if($canonicalUrl !== '')
+    <link rel="canonical" href="{{ $canonicalUrl }}">
+    @endif
     <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     <script async="async" src="https://www.google.com/adsense/search/ads.js"></script>
     <script type="text/javascript" charset="utf-8">
