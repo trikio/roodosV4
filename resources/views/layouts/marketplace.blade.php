@@ -25,12 +25,16 @@
             $metaDescription = $pageTitle;
         }
         $canonicalUrl = trim($__env->yieldContent('canonical_url'));
+        $robotsContent = trim($__env->yieldContent('robots_content'));
     @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $htmlTitle }}</title>
     <meta name="title" content="{{ $pageTitle }}">
     <meta name="description" content="{{ $metaDescription }}">
+    @if($robotsContent !== '')
+    <meta name="robots" content="{{ $robotsContent }}">
+    @endif
     @if($canonicalUrl !== '')
     <link rel="canonical" href="{{ $canonicalUrl }}">
     @endif

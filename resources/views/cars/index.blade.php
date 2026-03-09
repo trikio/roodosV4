@@ -25,6 +25,8 @@
     if ($adsKeyword === '') {
         $adsKeyword = trim((string) request('q', ''));
     }
+    $isCleanLanding = isset($slugData) && trim((string) request()->getQueryString()) === '';
+    $robotsContent = $isCleanLanding ? 'index,follow' : 'noindex,follow';
     $currentOrder = request('order');
     if (empty($currentOrder)) {
         $currentOrder = match (request('sort')) {
@@ -37,6 +39,7 @@
 
 @section('page_title', $pageTitle)
 @section('meta_description', $metaDescription)
+@section('robots_content', $robotsContent)
 @if(isset($slugData))
 @section('canonical_url', url()->current())
 @endif
