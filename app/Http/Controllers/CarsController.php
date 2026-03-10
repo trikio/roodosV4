@@ -193,7 +193,9 @@ class CarsController extends Controller
         $source = (string) ($car['nexo_id'] ?? 'fuente externa');
 
         $country = $countryCode;
-        return view('cars.show', compact('targetUrl', 'source', 'country'));
+        return response()
+            ->view('cars.show', compact('targetUrl', 'source', 'country'))
+            ->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
     private function resolveCountryCode(Request $request, ?string $country = null): string

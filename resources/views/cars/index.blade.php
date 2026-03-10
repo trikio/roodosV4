@@ -123,7 +123,7 @@
                         _googCsa('ads', pageOptions, adblock1, adblock2);
                     </script>
                     @forelse($cars as $car)
-                    <a href="/auto/{{ $car->id }}" class="block mb-4 js-result-link">
+                    <a href="/auto/{{ $car->id }}" rel="nofollow" class="block mb-4 js-result-link">
                     <div class="flex flex-col bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition p-4">
                         <!-- Title -->
                         <h2 class="font-bold text-lg text-gray-900 mb-2 w-full line-clamp-2">{{ $car->title }}</h2>
@@ -267,10 +267,10 @@
                 document.querySelectorAll('.js-result-link').forEach((link) => {
                     if (isDesktopViewport()) {
                         link.setAttribute('target', '_blank');
-                        link.setAttribute('rel', 'noopener noreferrer');
+                        link.setAttribute('rel', 'nofollow noopener noreferrer');
                     } else {
                         link.removeAttribute('target');
-                        link.removeAttribute('rel');
+                        link.setAttribute('rel', 'nofollow');
                     }
                 });
             };

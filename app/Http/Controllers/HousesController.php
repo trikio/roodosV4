@@ -102,7 +102,9 @@ class HousesController extends Controller
         $source = (string) ($house['house_operation_name'] ?? 'fuente externa');
 
         $country = $countryCode;
-        return view('houses.show', compact('targetUrl', 'source', 'country'));
+        return response()
+            ->view('houses.show', compact('targetUrl', 'source', 'country'))
+            ->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
     private function renderResults(Request $request, ?array $slugData = null, ?string $type = null, ?string $countryCode = null)
