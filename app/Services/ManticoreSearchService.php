@@ -118,6 +118,46 @@ class ManticoreSearchService
         }
     }
 
+    public function getCarMakeBySlug(string $slug): ?array
+    {
+        try {
+            $result = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from('car_make')
+                ->where('slug', $slug)
+                ->limit(0, 1)
+                ->execute();
+
+            if (empty($result)) {
+                return null;
+            }
+
+            return $result[0];
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    public function getCarModelBySlug(string $slug): ?array
+    {
+        try {
+            $result = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from('car_model')
+                ->where('slug', $slug)
+                ->limit(0, 1)
+                ->execute();
+
+            if (empty($result)) {
+                return null;
+            }
+
+            return $result[0];
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
     public function houseSearch($searchIndex, $options)
     {
         $attempts = 0;

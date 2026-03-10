@@ -1,5 +1,6 @@
 @php
     $visibleFilterLimit = 12;
+    $searchUrl = route('cars.index', ['country' => request()->route('country') ?: ($country ?? 'lab')]);
 @endphp
 
 <!-- Brand Filter -->
@@ -10,11 +11,11 @@
         @foreach($brands as $brand)
         @php
             $isActive = request('brand') == $brand['id'];
-            // Don't include 'q' in landing pages (slug already contains search info)
-            $baseParams = request()->except(['brand', 'q']);
+            $baseParams = array_filter(request()->except(['brand']), static fn ($value) => $value !== null && $value !== '');
+            $inactiveParams = array_merge($baseParams, ['brand' => $brand['id']]);
             $uri = $isActive
-                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
-                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['brand' => $brand['id']]));
+                ? (empty($baseParams) ? $searchUrl : $searchUrl . '?' . http_build_query($baseParams))
+                : $searchUrl . '?' . http_build_query($inactiveParams);
         @endphp
         <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
@@ -49,11 +50,11 @@
         @foreach($models as $model)
         @php
             $isActive = request('model') == $model['id'];
-            // Don't include 'q' in landing pages (slug already contains search info)
-            $baseParams = request()->except(['model', 'q']);
+            $baseParams = array_filter(request()->except(['model']), static fn ($value) => $value !== null && $value !== '');
+            $inactiveParams = array_merge($baseParams, ['model' => $model['id']]);
             $uri = $isActive
-                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
-                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['model' => $model['id']]));
+                ? (empty($baseParams) ? $searchUrl : $searchUrl . '?' . http_build_query($baseParams))
+                : $searchUrl . '?' . http_build_query($inactiveParams);
         @endphp
         <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
@@ -166,11 +167,11 @@
         @foreach($locations as $location)
         @php
             $isActive = request('location') == $location['id'];
-            // Don't include 'q' in landing pages (slug already contains search info)
-            $baseParams = request()->except(['location', 'q']);
+            $baseParams = array_filter(request()->except(['location']), static fn ($value) => $value !== null && $value !== '');
+            $inactiveParams = array_merge($baseParams, ['location' => $location['id']]);
             $uri = $isActive
-                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
-                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['location' => $location['id']]));
+                ? (empty($baseParams) ? $searchUrl : $searchUrl . '?' . http_build_query($baseParams))
+                : $searchUrl . '?' . http_build_query($inactiveParams);
         @endphp
         <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"
@@ -205,11 +206,11 @@
         @foreach($cities as $city)
         @php
             $isActive = request('city') == $city['id'];
-            // Don't include 'q' in landing pages (slug already contains search info)
-            $baseParams = request()->except(['city', 'q']);
+            $baseParams = array_filter(request()->except(['city']), static fn ($value) => $value !== null && $value !== '');
+            $inactiveParams = array_merge($baseParams, ['city' => $city['id']]);
             $uri = $isActive
-                ? request()->path() . '?' . http_build_query(array_filter($baseParams))
-                : request()->path() . '?' . http_build_query(array_merge($baseParams, ['city' => $city['id']]));
+                ? (empty($baseParams) ? $searchUrl : $searchUrl . '?' . http_build_query($baseParams))
+                : $searchUrl . '?' . http_build_query($inactiveParams);
         @endphp
         <li class="{{ $loop->index >= $visibleFilterLimit && !$isActive ? 'hidden filter-extra-option' : '' }}">
             <p class="filter-link flex items-center justify-between text-sm cursor-pointer rounded px-2 {{ $isActive ? 'bg-[#008bea] text-white font-semibold' : 'text-[#008bea] hover:bg-gray-100' }}"

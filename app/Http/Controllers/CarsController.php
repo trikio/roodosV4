@@ -76,137 +76,53 @@ class CarsController extends Controller
 
     public function index(Request $request)
     {
-        $countryCode = $this->resolveCountryCode($request);
-        $searchIndex = $this->getCarsIndexName($countryCode);
+        return $this->renderCarsIndex($request);
+    }
 
-        // Build search options from request
-        $options = [
-            'page' => $request->get('page', 1),
-            'q' => $request->get('q', ''),
-            'make' => $request->get('brand', ''),
-            'model' => $request->get('model', ''),
-            'state' => $request->get('location', ''),
-            'city' => $request->get('city', ''),
-            'fuel' => $request->get('fuel', ''),
-            'transmission' => $request->get('transmission', ''),
-            'body' => $request->get('body', ''),
-            'min_price' => $request->get('min_price', ''),
-            'max_price' => $request->get('max_price', ''),
-            'min_year' => $request->get('min_year', ''),
-            'max_year' => $request->get('max_year', ''),
-            'min_km' => $request->get('min_km', ''),
-            'max_km' => $request->get('max_km', ''),
-            'order' => $this->normalizeOrder($request),
-        ];
+    public function brand(Request $request, $country = null, string $slug = '')
+    {
+        $make = $this->manticore->getCarMakeBySlug($slug);
 
-        // Search using ManticoreSearch
-        $results = $this->manticore->carSearch($searchIndex, $options);
-
-        // DEBUG
-        \Log::info('[INDEX] ManticoreSearch Results', [
-            'items_count' => count($results['items'] ?? []),
-            'info_count' => count($results['info'] ?? []),
-            'make_count' => count($results['make'] ?? []),
-            'query' => $options['q'],
-            'raw_results_keys' => array_keys($results)
-        ]);
-
-        // Get total from meta
-        $total = 0;
-        if (!empty($results['info'])) {
-            foreach ($results['info'] as $meta) {
-                if (isset($meta['Variable_name']) && $meta['Variable_name'] === 'total_found') {
-                    $total = (int)$meta['Value'];
-                    break;
-                }
-            }
+        if (!$make || empty($make['id'])) {
+            abort(404);
         }
 
-        // DEBUG
-        \Log::info('Total calculation', [
-            'total' => $total,
-            'info_array' => $results['info'] ?? []
-        ]);
+        $request->merge(['brand' => (int) $make['id']]);
 
-        // Check if requested page exceeds maximum available pages
-        $maxPage = $total > 0 ? (int)ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1;
-        if ($options['page'] > $maxPage) {
-            // Redirect to the last available page
-            $query = $request->query();
-            $query['page'] = $maxPage;
-            return redirect()->to($request->path() . '?' . http_build_query($query));
+        return $this->renderCarsIndex($request, $country, [
+            'make' => (int) $make['id'],
+        ], [
+            'slugData' => [
+                'original' => $slug,
+                'title' => $make['name'] ?? ucfirst(str_replace('-', ' ', $slug)),
+            ],
+            'searchQuery' => '',
+        ]);
+    }
+
+    public function model(Request $request, $country = null, string $slug = '')
+    {
+        $model = $this->manticore->getCarModelBySlug($slug);
+
+        if (!$model || empty($model['id'])) {
+            abort(404);
         }
 
-        // Transform results to objects for view
-        $carsCollection = collect($results['items'])->map(function ($item) {
-            return (object)[
-                'id' => $item['id'],
-                'title' => $item['title'],
-                'brand' => $item['make_name'],
-                'model' => $item['model_name'],
-                'price' => $item['price'],
-                'year' => $item['year_int'],
-                'kilometers' => $item['km'],
-                'location' => $item['state_name'],
-                'city' => $item['city_name'],
-                'transmission' => $item['transmission_name'],
-                'fuel' => $item['fuel_name'],
-                'body' => $item['body_name'],
-                'condition' => 'usado',
-                'image_url' => $item['image'] ?? null,
-                'url' => $item['url'] ?? '#',
-                'slug' => $item['slug'] ?? '',
-                'nexo_id' => $item['nexo_id'] ?? '',
-            ];
-        });
-
-        // DEBUG
-        \Log::info('Collection created', [
-            'collection_count' => $carsCollection->count(),
-            'first_item' => $carsCollection->first()
+        $request->merge([
+            'brand' => (int) ($model['id_car_make'] ?? 0),
+            'model' => (int) $model['id'],
         ]);
 
-        // Create paginator
-        $cars = new LengthAwarePaginator(
-            $carsCollection,
-            $total,
-            ManticoreSearchService::RESULTS_PER_PAGE,
-            $options['page'],
-            ['path' => '/search', 'query' => $request->query()]
-        );
-
-        // Process facets for filters (with IDs, excluding empty values)
-        $brands = collect($results['make'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_car_make'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-        $models = collect($results['model'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_car_model'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-        $locations = collect($results['state'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_state'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-        $cities = collect($results['city'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_city'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-
-        $searchQuery = $options['q'];
-        return view('cars.index', compact('cars', 'brands', 'models', 'locations', 'cities', 'searchQuery'));
+        return $this->renderCarsIndex($request, $country, [
+            'make' => (int) ($model['id_car_make'] ?? 0),
+            'model' => (int) $model['id'],
+        ], [
+            'slugData' => [
+                'original' => $slug,
+                'title' => $model['make_model'] ?? $model['model_name'] ?? ucfirst(str_replace('-', ' ', $slug)),
+            ],
+            'searchQuery' => '',
+        ]);
     }
 
     public function landing(Request $request, $country = null, $slug = null)
@@ -214,7 +130,6 @@ class CarsController extends Controller
         // Extract type from subdomain (autos.roodos.* -> 'autos')
         $type = 'autos';
         $countryCode = $this->resolveCountryCode($request, $country);
-        $searchIndex = $this->getCarsIndexName($countryCode);
 
         $landing = $this->manticore->getLandingBySlug($countryCode, (string) $slug);
 
@@ -228,145 +143,9 @@ class CarsController extends Controller
             'title' => $landing['title'],
         ];
 
-        // DEBUG - Check what parameters are being received
-        \Log::info('[LANDING] Method called', [
-            'type' => $type,
-            'country' => $countryCode,
-            'slug' => $slug,
-            'landing_title' => $landing['title'],
-            'url' => $request->url(),
-            'path' => $request->path()
-        ]);
-
-        // Build search options from request and slug
-        $options = [
-            'page' => $request->get('page', 1),
+        return $this->renderCarsIndex($request, $country, [
             'q' => $searchQuery,
-            'make' => $request->get('brand', ''),
-            'model' => $request->get('model', ''),
-            'state' => $request->get('location', ''),
-            'city' => $request->get('city', ''),
-            'fuel' => $request->get('fuel', ''),
-            'transmission' => $request->get('transmission', ''),
-            'body' => $request->get('body', ''),
-            'min_price' => $request->get('min_price', ''),
-            'max_price' => $request->get('max_price', ''),
-            'min_year' => $request->get('min_year', ''),
-            'max_year' => $request->get('max_year', ''),
-            'min_km' => $request->get('min_km', ''),
-            'max_km' => $request->get('max_km', ''),
-            'order' => $this->normalizeOrder($request),
-        ];
-
-        // Search using ManticoreSearch
-        $results = $this->manticore->carSearch($searchIndex, $options);
-
-        // DEBUG
-        \Log::info('[LANDING] ManticoreSearch Results', [
-            'items_count' => count($results['items'] ?? []),
-            'info_count' => count($results['info'] ?? []),
-            'make_count' => count($results['make'] ?? []),
-            'query' => $options['q'],
-            'slugData' => $slugData,
-            'raw_results_keys' => array_keys($results)
-        ]);
-
-        // Get total from meta
-        $total = 0;
-        if (!empty($results['info'])) {
-            foreach ($results['info'] as $meta) {
-                if (isset($meta['Variable_name']) && $meta['Variable_name'] === 'total_found') {
-                    $total = (int)$meta['Value'];
-                    break;
-                }
-            }
-        }
-
-        // DEBUG
-        \Log::info('Total calculation', [
-            'total' => $total,
-            'info_array' => $results['info'] ?? []
-        ]);
-
-        // Check if requested page exceeds maximum available pages
-        $maxPage = $total > 0 ? (int)ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1;
-        if ($options['page'] > $maxPage) {
-            // Redirect to the last available page
-            $query = $request->query();
-            $query['page'] = $maxPage;
-            return redirect()->to($request->path() . '?' . http_build_query($query));
-        }
-
-        // Transform results to objects for view
-        $carsCollection = collect($results['items'])->map(function ($item) {
-            return (object)[
-                'id' => $item['id'],
-                'title' => $item['title'],
-                'brand' => $item['make_name'],
-                'model' => $item['model_name'],
-                'price' => $item['price'],
-                'year' => $item['year_int'],
-                'kilometers' => $item['km'],
-                'location' => $item['state_name'],
-                'city' => $item['city_name'],
-                'transmission' => $item['transmission_name'],
-                'fuel' => $item['fuel_name'],
-                'body' => $item['body_name'],
-                'condition' => 'usado',
-                'image_url' => $item['image'] ?? null,
-                'url' => $item['url'] ?? '#',
-                'slug' => $item['slug'] ?? '',
-                'nexo_id' => $item['nexo_id'] ?? '',
-            ];
-        });
-
-        // DEBUG
-        \Log::info('Collection created', [
-            'collection_count' => $carsCollection->count(),
-            'first_item' => $carsCollection->first()
-        ]);
-
-        // Create paginator without q parameter (slug contains the search info)
-        $cars = new LengthAwarePaginator(
-            $carsCollection,
-            $total,
-            ManticoreSearchService::RESULTS_PER_PAGE,
-            $options['page'],
-            ['path' => $request->path(), 'query' => $request->query()]
-        );
-
-        // Process facets for filters (with IDs, excluding empty values)
-        $brands = collect($results['make'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_car_make'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-        $models = collect($results['model'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_car_model'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-        $locations = collect($results['state'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_state'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-        $cities = collect($results['city'])
-            ->filter(function($item) {
-                return !empty($item['name']);
-            })
-            ->map(function($item) {
-                return ['id' => $item['id_city'], 'name' => $item['name'], 'total' => $item['total']];
-            });
-
-        $country = $countryCode;
-        return view('cars.index', compact('cars', 'brands', 'models', 'locations', 'cities', 'slugData', 'type', 'country', 'searchQuery'));
+        ], compact('slugData', 'type', 'searchQuery'));
     }
 
     private function resolveCountryFromHost(Request $request): ?string
@@ -431,5 +210,129 @@ class CarsController extends Controller
     private function getCarsIndexName(string $countryCode): string
     {
         return 'car_' . strtolower($countryCode);
+    }
+
+    private function renderCarsIndex(Request $request, ?string $country = null, array $overrides = [], array $viewData = [])
+    {
+        $countryCode = $this->resolveCountryCode($request, $country);
+        $searchIndex = $this->getCarsIndexName($countryCode);
+
+        $options = array_merge([
+            'page' => $request->get('page', 1),
+            'q' => $request->get('q', ''),
+            'make' => $request->get('brand', ''),
+            'model' => $request->get('model', ''),
+            'state' => $request->get('location', ''),
+            'city' => $request->get('city', ''),
+            'fuel' => $request->get('fuel', ''),
+            'transmission' => $request->get('transmission', ''),
+            'body' => $request->get('body', ''),
+            'min_price' => $request->get('min_price', ''),
+            'max_price' => $request->get('max_price', ''),
+            'min_year' => $request->get('min_year', ''),
+            'max_year' => $request->get('max_year', ''),
+            'min_km' => $request->get('min_km', ''),
+            'max_km' => $request->get('max_km', ''),
+            'order' => $this->normalizeOrder($request),
+        ], $overrides);
+
+        $request->merge([
+            'q' => $options['q'],
+            'brand' => $options['make'],
+            'model' => $options['model'],
+            'location' => $options['state'],
+            'city' => $options['city'],
+            'fuel' => $options['fuel'],
+            'transmission' => $options['transmission'],
+            'body' => $options['body'],
+            'min_price' => $options['min_price'],
+            'max_price' => $options['max_price'],
+            'min_year' => $options['min_year'],
+            'max_year' => $options['max_year'],
+            'min_km' => $options['min_km'],
+            'max_km' => $options['max_km'],
+            'order' => $options['order'],
+        ]);
+
+        $results = $this->manticore->carSearch($searchIndex, $options);
+        $total = $this->extractTotal($results['info'] ?? []);
+
+        $maxPage = $total > 0 ? (int) ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1;
+        if ((int) $options['page'] > $maxPage) {
+            $query = $request->query();
+            $query['page'] = $maxPage;
+            return redirect()->to($request->path() . '?' . http_build_query($query));
+        }
+
+        $carsCollection = collect($results['items'])->map(function ($item) {
+            return (object) [
+                'id' => $item['id'],
+                'title' => $item['title'],
+                'brand' => $item['make_name'],
+                'model' => $item['model_name'],
+                'price' => $item['price'],
+                'year' => $item['year_int'],
+                'kilometers' => $item['km'],
+                'location' => $item['state_name'],
+                'city' => $item['city_name'],
+                'transmission' => $item['transmission_name'],
+                'fuel' => $item['fuel_name'],
+                'body' => $item['body_name'],
+                'condition' => 'usado',
+                'image_url' => $item['image'] ?? null,
+                'url' => $item['url'] ?? '#',
+                'slug' => $item['slug'] ?? '',
+                'nexo_id' => $item['nexo_id'] ?? '',
+            ];
+        });
+
+        $cars = new LengthAwarePaginator(
+            $carsCollection,
+            $total,
+            ManticoreSearchService::RESULTS_PER_PAGE,
+            $options['page'],
+            ['path' => $request->path(), 'query' => $request->query()]
+        );
+
+        $brands = $this->mapFacetCollection($results['make'] ?? [], 'id_car_make');
+        $models = $this->mapFacetCollection($results['model'] ?? [], 'id_car_model');
+        $locations = $this->mapFacetCollection($results['state'] ?? [], 'id_state');
+        $cities = $this->mapFacetCollection($results['city'] ?? [], 'id_city');
+        $searchQuery = $viewData['searchQuery'] ?? $options['q'];
+        $type = $viewData['type'] ?? 'autos';
+        $country = $countryCode;
+
+        return view('cars.index', array_merge([
+            'cars' => $cars,
+            'brands' => $brands,
+            'models' => $models,
+            'locations' => $locations,
+            'cities' => $cities,
+            'searchQuery' => $searchQuery,
+            'type' => $type,
+            'country' => $country,
+        ], $viewData));
+    }
+
+    private function extractTotal(array $info): int
+    {
+        foreach ($info as $meta) {
+            if (($meta['Variable_name'] ?? null) === 'total_found') {
+                return (int) $meta['Value'];
+            }
+        }
+
+        return 0;
+    }
+
+    private function mapFacetCollection(array $items, string $idField)
+    {
+        return collect($items)
+            ->filter(function ($item) {
+                return !empty($item['name']);
+            })
+            ->map(function ($item) use ($idField) {
+                return ['id' => $item[$idField], 'name' => $item['name'], 'total' => $item['total']];
+            });
     }
 }

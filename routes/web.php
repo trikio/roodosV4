@@ -58,6 +58,9 @@ Route::domain('autos.roodos.{country}')->group(function () use ($infoPages) {
     // Search/Index page
     Route::get('/search', [CarsController::class, 'index'])->name('cars.index');
 
+    Route::get('/marca/{slug}', [CarsController::class, 'brand'])->name('cars.brand');
+    Route::get('/modelo/{slug}', [CarsController::class, 'model'])->name('cars.model');
+
     // Ruta para detalle de auto
     Route::get('/auto/{id}', [CarsController::class, 'show'])->name('cars.show');
 

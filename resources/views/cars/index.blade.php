@@ -2,6 +2,7 @@
 
 @php
     $pageTitle = isset($slugData) ? $slugData['title'] : (!empty($searchQuery) ? ucfirst($searchQuery) : 'Autos');
+    $searchUrl = route('cars.index', ['country' => request()->route('country') ?: ($country ?? 'lab')]);
     $countryCodeForCurrency = strtoupper((string) (request()->route('country') ?: ($country ?? '')));
     if ($countryCodeForCurrency === '') {
         $host = request()->getHost();
@@ -241,7 +242,7 @@
             </div>
             <!-- Contenido scrollable -->
             <div class="overflow-y-auto flex-1 px-6 py-4">
-                <form method="GET" action="{{ url()->current() }}" id="mobile-filters-form" class="space-y-6">
+                <form method="GET" action="{{ $searchUrl }}" id="mobile-filters-form" class="space-y-6">
                     <input type="hidden" name="brand" id="modal-brand-input" value="{{ request('brand') }}">
                     <input type="hidden" name="model" id="modal-model-input" value="{{ request('model') }}">
                     <input type="hidden" name="location" id="modal-location-input" value="{{ request('location') }}">
@@ -334,7 +335,7 @@
                     select.addEventListener('change', () => {
                         const form = document.createElement('form');
                         form.method = 'GET';
-                        form.action = '{{ url()->current() }}';
+                        form.action = @json($searchUrl);
 
                         // Copiar todos los query params actuales
                         const params = new URLSearchParams(window.location.search);
