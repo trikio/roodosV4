@@ -138,6 +138,11 @@ class CarsController extends Controller
             abort(404);
         }
 
+        $redirectPath = trim((string) ($landing['redirect'] ?? ''));
+        if ($redirectPath !== '') {
+            return redirect()->to(url($redirectPath), 301);
+        }
+
         $searchQuery = trim((string) $landing['title']);
         $slugData = [
             'original' => $slug,
