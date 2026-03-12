@@ -2,6 +2,25 @@
 
 @php
     $pageTitle = isset($slugData) ? $slugData['title'] : (!empty($searchQuery) ? ucfirst($searchQuery) : 'Autos');
+    $breadcrumbItems = $slugData['breadcrumb'] ?? null;
+    if (!is_array($breadcrumbItems) || $breadcrumbItems === []) {
+        $breadcrumbItems = [
+            ['label' => 'Inicio', 'url' => url('/')],
+            ['label' => $pageTitle, 'url' => null],
+        ];
+    }
+    $breadcrumbSchema = [
+        '@context' => 'https://schema.org',
+        '@type' => 'BreadcrumbList',
+        'itemListElement' => collect($breadcrumbItems)->values()->map(function ($item, $index) {
+            return [
+                '@type' => 'ListItem',
+                'position' => $index + 1,
+                'name' => $item['label'],
+                'item' => $item['url'] ?? url()->current(),
+            ];
+        })->all(),
+    ];
     $searchUrl = route('cars.index', ['country' => request()->route('country') ?: ($country ?? 'lab')]);
     $countryCodeForCurrency = strtoupper((string) (request()->route('country') ?: ($country ?? '')));
     if ($countryCodeForCurrency === '') {
@@ -44,6 +63,9 @@
 @if(isset($slugData))
 @section('canonical_url', url()->current())
 @endif
+@section('head')
+<script type="application/ld+json">{!! json_encode($breadcrumbSchema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
+@endsection
 
 @section('content')
 <!-- Sticky Mobile Bar -->
@@ -67,10 +89,18 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
     <!-- Breadcrumb -->
-    <div class="flex items-center gap-2 text-sm text-gray-600 mb-6">
-        <a href="/" class="hover:text-gray-900">Inicio</a>
-        <span>></span>
-        <span>{{ $pageTitle }}</span>
+    <div class="flex items-center gap-2 text-sm text-gray-600 mb-6 overflow-hidden whitespace-nowrap">
+        @foreach($breadcrumbItems as $item)
+            @if(!$loop->first)
+                <span class="shrink-0 whitespace-nowrap">&gt;</span>
+            @endif
+
+            @if(!empty($item['url']))
+                <a href="{{ $item['url'] }}" class="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap hover:text-gray-900">{{ $item['label'] }}</a>
+            @else
+                <span class="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap">{{ $item['label'] }}</span>
+            @endif
+        @endforeach
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">

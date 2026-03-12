@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Str;
 use App\Services\ManticoreSearchService;
 
 class CarsController extends Controller
@@ -141,6 +142,7 @@ class CarsController extends Controller
         $slugData = [
             'original' => $slug,
             'title' => $landing['title'],
+            'breadcrumb' => $this->buildLandingBreadcrumb($landing, $countryCode),
         ];
 
         return $this->renderCarsIndex($request, $country, [
@@ -170,6 +172,120 @@ class CarsController extends Controller
             'city' => $parts[2] ?? null,
             'title' => ucwords(str_replace('-', ' ', $slug))
         ];
+    }
+
+    private function buildLandingBreadcrumb(array $landing, string $countryCode): array
+    {
+        $items = [[
+            'label' => 'Autos',
+            'url' => url('/'),
+        ]];
+
+        $decodedContent = $this->decodeLandingContent($landing['content'] ?? null);
+        if (!is_array($decodedContent)) {
+            return $items;
+        }
+
+        $breadcrumb = $this->normalizeLandingBreadcrumb($decodedContent['breadcrumb'] ?? null);
+        if (!is_array($breadcrumb)) {
+            return $items;
+        }
+
+        $makeSlug = trim((string) ($breadcrumb['make'] ?? ''));
+        if ($makeSlug !== '') {
+            $items[] = [
+                'label' => $this->formatBreadcrumbLabel($makeSlug),
+                'url' => url('/marca/' . $makeSlug),
+            ];
+        }
+
+        $modelSlug = trim((string) ($breadcrumb['model'] ?? ''));
+        if ($modelSlug !== '') {
+            $items[] = [
+                'label' => $this->formatBreadcrumbLabel($modelSlug),
+                'url' => url('/modelo/' . $modelSlug),
+            ];
+        }
+
+        $title = trim((string) ($landing['title'] ?? ''));
+        if ($title !== '') {
+            $items[] = [
+                'label' => $title,
+                'url' => null,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function normalizeLandingBreadcrumb(mixed $breadcrumb): ?array
+    {
+        if (!is_array($breadcrumb)) {
+            return null;
+        }
+
+        if (array_key_exists('make', $breadcrumb) || array_key_exists('model', $breadcrumb)) {
+            return $breadcrumb;
+        }
+
+        $normalized = [];
+        foreach ($breadcrumb as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (!isset($normalized['make']) && !empty($entry['make'])) {
+                $normalized['make'] = $entry['make'];
+            }
+
+            if (!isset($normalized['model']) && !empty($entry['model'])) {
+                $normalized['model'] = $entry['model'];
+            }
+        }
+
+        return $normalized === [] ? null : $normalized;
+    }
+
+    private function decodeLandingContent(mixed $content): ?array
+    {
+        if (is_array($content)) {
+            return $content;
+        }
+
+        if (is_object($content)) {
+            return (array) $content;
+        }
+
+        if (!is_string($content)) {
+            return null;
+        }
+
+        $content = trim($content);
+        if ($content === '') {
+            return null;
+        }
+
+        $decoded = json_decode($content, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        if (is_string($decoded)) {
+            $decoded = json_decode($decoded, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    private function formatBreadcrumbLabel(string $slug): string
+    {
+        return (string) Str::of($slug)
+            ->replace('-', ' ')
+            ->squish()
+            ->title();
     }
 
     public function show($country = null, $id = null)
