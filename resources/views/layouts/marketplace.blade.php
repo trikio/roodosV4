@@ -39,10 +39,12 @@
     <link rel="canonical" href="{{ $canonicalUrl }}">
     @endif
     <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
+    {{--
     <script async="async" src="https://www.google.com/adsense/search/ads.js"></script>
     <script type="text/javascript" charset="utf-8">
         (function(g,o){g[o]=g[o]||function(){(g[o]['q']=g[o]['q']||[]).push(arguments)},g[o]['t']=1*new Date})(window,'_googCsa');
     </script>
+    --}}
     @yield('head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>

@@ -121,6 +121,20 @@ class CarsController extends Controller
             'slugData' => [
                 'original' => $slug,
                 'title' => $model['make_model'] ?? $model['model_name'] ?? ucfirst(str_replace('-', ' ', $slug)),
+                'breadcrumb' => [
+                    [
+                        'label' => 'Autos',
+                        'url' => url('/'),
+                    ],
+                    [
+                        'label' => $model['make_name'] ?? $this->formatBreadcrumbLabel((string) ($model['slug_make'] ?? '')),
+                        'url' => !empty($model['slug_make']) ? url('/marca/' . $model['slug_make']) : null,
+                    ],
+                    [
+                        'label' => $model['make_model'] ?? $model['model_name'] ?? ucfirst(str_replace('-', ' ', $slug)),
+                        'url' => null,
+                    ],
+                ],
             ],
             'searchQuery' => '',
         ]);

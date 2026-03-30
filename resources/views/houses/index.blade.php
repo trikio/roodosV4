@@ -98,6 +98,7 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 mb-8">
                 <div>
+                    {{--
                     <div id="afscontainer1" class="mb-4"></div>
                     <script type="text/javascript" charset="utf-8">
                         var pageOptions = {
@@ -119,6 +120,7 @@
 
                         _googCsa('ads', pageOptions, adblock1, adblock2);
                     </script>
+                    --}}
                     @forelse($houses as $house)
                     <a href="/casa/{{ $house->id }}" rel="nofollow" class="block mb-4 js-result-link">
                     <div class="flex flex-col bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition p-4">
@@ -187,7 +189,7 @@
                     </div>
                     @endforelse
 
-                    <div id="afscontainer2" class="mt-6"></div>
+                    {{-- <div id="afscontainer2" class="mt-6"></div> --}}
 
                     @if($houses->hasPages())
                     <div class="mt-8">
