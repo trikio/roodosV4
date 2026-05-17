@@ -13,6 +13,7 @@
     <meta name="title" content="{{ $pageTitle }}">
     <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <meta name="google-site-verification" content="dy0CWiFLxPBH2ZQPf17BVD1Im8vPqIEpK3jI7zLhx4E" />
 </head>
 <body class="bg-gray-50">
     <!-- Header -->
