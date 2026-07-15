@@ -48,6 +48,7 @@
     @yield('head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <meta name="google-site-verification" content="0gMlZXbV2gUEJuoa5IYvm1dhKSYPEege-_1pQpbx9vQ" />
+    <meta name="google-site-verification" content="DWi3HovZbHy1oIwIBsDxSSqropuFv7aVXrBNj2CZijw" />
 </head>
 <body class="bg-gray-50">
     <!-- Header -->
