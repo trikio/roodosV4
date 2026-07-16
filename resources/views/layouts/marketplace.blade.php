@@ -14,6 +14,16 @@
         $countryName = config('countries.names.' . $countryForTitle, $countryForTitle);
         $marketplaceType = str_starts_with(request()->getHost(), 'casas.') ? 'casas' : 'autos';
 
+        $countryList = ['cl' => 'Chile', 'pe' => 'Perú', 'ec' => 'Ecuador', 'mx' => 'México'];
+        $isRealCountry = array_key_exists($countryCode, $countryList);
+        $hreflangUrls = [];
+        if ($isRealCountry) {
+            $currentPath = request()->getRequestUri();
+            foreach (array_keys($countryList) as $cc) {
+                $hreflangUrls[$cc] = request()->getScheme() . '://' . $marketplaceType . '.roodos.' . $cc . $currentPath;
+            }
+        }
+
         $pageTitle = trim($__env->yieldContent('page_title'));
         if ($pageTitle === '') {
             $pageTitle = 'Roodos - Marketplace de Autos';
@@ -37,6 +47,11 @@
     @endif
     @if($canonicalUrl !== '')
     <link rel="canonical" href="{{ $canonicalUrl }}">
+    @endif
+    @if($isRealCountry)
+    @foreach($hreflangUrls as $cc => $altUrl)
+    <link rel="alternate" hreflang="es-{{ strtoupper($cc) }}" href="{{ $altUrl }}">
+    @endforeach
     @endif
     <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     {{--
@@ -127,6 +142,18 @@
                 <a href="https://roodos.com/nuestras-redes" class="hover:text-gray-900">Nuestras Redes</a>
                 <a href="https://roodos.com/contacta-con-nosotros" class="hover:text-gray-900">Contacta con nosotros</a>
             </nav>
+            @if($isRealCountry)
+            <nav class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-300">
+                <span class="text-gray-500">Roodos {{ ucfirst($marketplaceType) }} en:</span>
+                @foreach($countryList as $cc => $label)
+                    @if($cc === $countryCode)
+                        <span class="font-semibold text-gray-800">{{ $label }}</span>
+                    @else
+                        <a href="{{ 'https://' . $marketplaceType . '.roodos.' . $cc }}" class="hover:text-gray-900">{{ $label }}</a>
+                    @endif
+                @endforeach
+            </nav>
+            @endif
         </div>
     </footer>
 
