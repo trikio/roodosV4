@@ -16,13 +16,6 @@
 
         $countryList = ['cl' => 'Chile', 'pe' => 'Perú', 'ec' => 'Ecuador', 'mx' => 'México'];
         $isRealCountry = array_key_exists($countryCode, $countryList);
-        $hreflangUrls = [];
-        if ($isRealCountry) {
-            $currentPath = request()->getRequestUri();
-            foreach (array_keys($countryList) as $cc) {
-                $hreflangUrls[$cc] = request()->getScheme() . '://' . $marketplaceType . '.roodos.' . $cc . $currentPath;
-            }
-        }
 
         $pageTitle = trim($__env->yieldContent('page_title'));
         if ($pageTitle === '') {
@@ -47,11 +40,6 @@
     @endif
     @if($canonicalUrl !== '')
     <link rel="canonical" href="{{ $canonicalUrl }}">
-    @endif
-    @if($isRealCountry)
-    @foreach($hreflangUrls as $cc => $altUrl)
-    <link rel="alternate" hreflang="es-{{ strtoupper($cc) }}" href="{{ $altUrl }}">
-    @endforeach
     @endif
     <link rel="icon" type="image/png" href="{{ asset('assets/img/favicon.png') }}">
     {{--
