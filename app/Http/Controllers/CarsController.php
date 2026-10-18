@@ -6,10 +6,14 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 use App\Services\ManticoreSearchService;
+use App\Support\LandingClassifier;
 
 class CarsController extends Controller
 {
     protected $manticore;
+
+    /** Cars a landing needs to be its own canonical; below this it shows and points to its parent. */
+    private const LANDING_MIN_RESULTS = 10;
 
     public function __construct(ManticoreSearchService $manticore)
     {
@@ -38,41 +42,47 @@ class CarsController extends Controller
         $countryCode = $this->resolveCountryCode($request, $country);
         $searchIndex = $this->getCarsIndexName($countryCode);
 
-        // Get total cars count
-        $options = [
-            'page' => 1,
-            'q' => '',
-            'make' => '',
-            'model' => '',
-            'state' => '',
-            'city' => '',
-            'fuel' => '',
-            'transmission' => '',
-            'body' => '',
-            'min_price' => '',
-            'max_price' => '',
-            'min_year' => '',
-            'max_year' => '',
-            'min_km' => '',
-            'max_km' => '',
-            'order' => '',
-        ];
+        // Filters default to "no filter" in the service, so an empty search returns the total count.
+        $results = $this->manticore->carSearch($searchIndex, ['page' => 1]);
+        $totalCars = $this->extractTotal($results['info'] ?? []);
 
-        $results = $this->manticore->carSearch($searchIndex, $options);
-
-        // Get total from meta
-        $totalCars = 0;
-        if (!empty($results['info'])) {
-            foreach ($results['info'] as $meta) {
-                if (isset($meta['Variable_name']) && $meta['Variable_name'] === 'total_found') {
-                    $totalCars = (int)$meta['Value'];
-                    break;
-                }
-            }
-        }
+        $homeLinks = $this->homeLinks($countryCode);
 
         $country = $countryCode;
-        return view('cars.home', compact('type', 'country', 'totalCars'));
+        return view('cars.home', compact('type', 'country', 'totalCars', 'homeLinks'));
+    }
+
+    /**
+     * Home links pointing straight at the final URL: the "autos-x-usados" (or "autos-x") landing
+     * when the country has it, otherwise the make/model page. Cities without a landing are left out.
+     *
+     * @return array{models: array, brands: array, cities: array}
+     */
+    private function homeLinks(string $countryCode): array
+    {
+        $models = ['Ford Ranger', 'Honda Accord', 'BMW 320', 'Toyota Corolla', 'Chevrolet Aveo', 'Mazda 3', 'Nissan Sentra', 'Hyundai Tucson'];
+        $brands = ['Alfa Romeo', 'Audi', 'BMW', 'Chevrolet', 'Ford', 'Honda', 'Hyundai', 'Kia', 'Mazda', 'Mercedes-Benz', 'Nissan', 'Toyota', 'Volkswagen', 'Volvo', 'Mitsubishi', 'Suzuki', 'Jeep', 'Subaru'];
+        $cities = config('countries.autos_home.locations.' . strtoupper($countryCode), []);
+
+        $candidates = fn (string $label) => ['autos-' . Str::slug($label) . '-usados', 'autos-' . Str::slug($label)];
+        $allCandidates = array_merge(...array_map($candidates, array_merge($models, $brands, $cities)));
+        $existing = array_flip($this->manticore->existingCarLandingSlugs($countryCode, $allCandidates));
+
+        $link = function (string $label, ?string $fallbackPrefix) use ($candidates, $existing) {
+            foreach ($candidates($label) as $slug) {
+                if (isset($existing[$slug])) {
+                    return ['label' => $label, 'url' => url('/' . $slug)];
+                }
+            }
+
+            return $fallbackPrefix !== null ? ['label' => $label, 'url' => url($fallbackPrefix . Str::slug($label))] : null;
+        };
+
+        return [
+            'models' => array_map(fn ($label) => $link($label, '/modelo/'), $models),
+            'brands' => array_map(fn ($label) => $link($label, '/marca/'), $brands),
+            'cities' => array_values(array_filter(array_map(fn ($label) => $link($label, null), $cities))),
+        ];
     }
 
     public function index(Request $request)
@@ -82,6 +92,10 @@ class CarsController extends Controller
 
     public function brand(Request $request, $country = null, string $slug = '')
     {
+        if ($hub = $this->hubLandingRedirect($request, $country, $slug)) {
+            return $hub;
+        }
+
         $make = $this->manticore->getCarMakeBySlug($slug);
 
         if (!$make || empty($make['id'])) {
@@ -103,6 +117,10 @@ class CarsController extends Controller
 
     public function model(Request $request, $country = null, string $slug = '')
     {
+        if ($hub = $this->hubLandingRedirect($request, $country, $slug)) {
+            return $hub;
+        }
+
         $model = $this->manticore->getCarModelBySlug($slug);
 
         if (!$model || empty($model['id'])) {
@@ -148,8 +166,9 @@ class CarsController extends Controller
 
         $landing = $this->manticore->getLandingBySlug($countryCode, (string) $slug);
 
+        // Legacy landings removed by landings:clean: 410 tells Google they are gone for good.
         if (!$landing || empty($landing['title'])) {
-            abort(404);
+            abort(410);
         }
 
         $redirectPath = trim((string) ($landing['redirect'] ?? ''));
@@ -158,15 +177,207 @@ class CarsController extends Controller
         }
 
         $searchQuery = trim((string) $landing['title']);
+        $breadcrumbSlugs = LandingClassifier::breadcrumbSlugs($landing['content'] ?? null);
+        // Parent levels are "autos-{make}[-{model}]-usados"; camionetas, motos or new-car landings
+        // have no such parent and keep searching by title.
+        $filters = LandingClassifier::isAutosUsados($searchQuery)
+            ? $this->resolveLandingFilters($landing, $breadcrumbSlugs, (string) $slug)
+            : [];
+        $canonicalUrl = url('/' . ltrim((string) $slug, '/'));
+        $widened = false;
+        $resultsQuery = $searchQuery;
+
+        if ($filters !== []) {
+            $level = $this->resolveLandingLevel($countryCode, (string) $slug, $searchQuery, $filters, $breadcrumbSlugs);
+            $filters = $level['filters'];
+            $canonicalUrl = $level['canonical'] ?? $canonicalUrl;
+            $widened = $level['widened'];
+            $resultsQuery = trim($searchQuery . ' ' . $level['extra_terms']);
+        }
+
         $slugData = [
             'original' => $slug,
             'title' => $landing['title'],
             'breadcrumb' => $this->buildLandingBreadcrumb($landing, $countryCode),
+            'meta_description' => trim((string) ($landing['meta_description'] ?? '')),
+            'canonical_url' => $canonicalUrl,
+            'widened' => $widened,
         ];
 
-        return $this->renderCarsIndex($request, $country, [
-            'q' => $searchQuery,
-        ], compact('slugData', 'type', 'searchQuery'));
+        return $this->renderCarsIndex($request, $country, array_merge(
+            ['q' => $resultsQuery],
+            array_fill_keys(array_keys(ManticoreSearchService::LANDING_FILTER_ATTRIBUTES), ''),
+            $filters
+        ), compact('slugData', 'type', 'searchQuery'));
+    }
+
+    /**
+     * /marca/x and /modelo/x list the same cars as the "autos-x-usados" landing, the URL that
+     * ranks: when that landing exists they 301 to it instead of competing with it.
+     */
+    private function hubLandingRedirect(Request $request, ?string $country, string $slug)
+    {
+        $countryCode = $this->resolveCountryCode($request, $country);
+        $hubSlug = 'autos-' . $slug . '-usados';
+        $landing = $this->manticore->getLandingBySlug($countryCode, $hubSlug);
+
+        if (empty($landing['title']) || trim((string) ($landing['redirect'] ?? '')) !== '') {
+            return null;
+        }
+
+        $query = $request->getQueryString();
+
+        return redirect()->to(url('/' . $hubSlug) . ($query ? '?' . $query : ''), 301);
+    }
+
+    /**
+     * Make/model/state/city filters for a landing, from its ids when the slug confirms them
+     * (see LandingClassifier::confirmedNames). An empty result means a text-only landing,
+     * searched by its title as before.
+     */
+    private function resolveLandingFilters(array $landing, array $breadcrumbSlugs, string $slug): array
+    {
+        ['make' => $makeConfirmed, 'model' => $modelConfirmed] = LandingClassifier::confirmedNames($slug, $breadcrumbSlugs['make'], $breadcrumbSlugs['model']);
+
+        if (!$makeConfirmed && !$modelConfirmed) {
+            return [];
+        }
+
+        $filters = [];
+
+        if ($modelConfirmed) {
+            $modelId = (int) ($landing['id_car_model'] ?? 0);
+            $makeId = (int) ($landing['id_car_make'] ?? 0);
+            if ($modelId <= 0) {
+                $model = $this->manticore->getCarModelBySlug($breadcrumbSlugs['model']);
+                $modelId = (int) ($model['id'] ?? 0);
+                $makeId = $makeId ?: (int) ($model['id_car_make'] ?? 0);
+            }
+            if ($modelId > 0) {
+                $filters['model'] = $modelId;
+            }
+            if ($makeId > 0) {
+                $filters['make'] = $makeId;
+            }
+        }
+
+        if (empty($filters['make']) && $makeConfirmed) {
+            $makeId = (int) ($landing['id_car_make'] ?? 0);
+            if ($makeId <= 0) {
+                $makeId = (int) ($this->manticore->getCarMakeBySlug($breadcrumbSlugs['make'])['id'] ?? 0);
+            }
+            if ($makeId > 0) {
+                $filters['make'] = $makeId;
+            }
+        }
+
+        // Without a make the landing has no parent to widen to; keep it as a text landing.
+        if (empty($filters['make'])) {
+            return [];
+        }
+
+        foreach (['state' => 'id_state', 'city' => 'id_city'] as $key => $attribute) {
+            if ((int) ($landing[$attribute] ?? 0) > 0) {
+                $filters[$key] = (int) $landing[$attribute];
+            }
+        }
+
+        return $filters;
+    }
+
+    /**
+     * Backlog rule: a landing with LANDING_MIN_RESULTS cars matching every specific term of its
+     * title is its own canonical. Otherwise it shows its model results (or make results, if the
+     * model also falls short) and the canonical points to that parent.
+     *
+     * @return array{filters: array, canonical: ?string, widened: bool, extra_terms: string}
+     */
+    private function resolveLandingLevel(string $countryCode, string $slug, string $title, array $filters, array $breadcrumbSlugs): array
+    {
+        $searchIndex = $this->getCarsIndexName($countryCode);
+        $specificTerms = implode(' ', LandingClassifier::classify($title)['terms']);
+        $parents = $this->landingParents($filters, $breadcrumbSlugs);
+
+        // A landing whose title only names its make/model ("autos-honda") lists the same cars as
+        // the main landing of that level, so it points there instead of competing with it.
+        $nameTokens = array_merge(LandingClassifier::slugTokens($breadcrumbSlugs['make']), LandingClassifier::slugTokens($breadcrumbSlugs['model']));
+        $termTokens = $specificTerms === '' ? [] : explode(' ', $specificTerms);
+        // A model level short of cars still widens to its make below, like any other landing.
+        if (empty($filters['state']) && empty($filters['city']) && array_diff($termTokens, $nameTokens) === []) {
+            $level = $parents[0]['filters'] == $filters ? $parents[0] : $parents[count($parents) - 1];
+            $isMakeLevel = empty($level['filters']['model']);
+
+            if ($isMakeLevel || $this->manticore->countCars($searchIndex, $level['filters']) >= self::LANDING_MIN_RESULTS) {
+                return ['filters' => $filters, 'canonical' => $this->landingParentCanonical($countryCode, $slug, $level), 'widened' => false, 'extra_terms' => ''];
+            }
+        }
+
+        if ($this->manticore->countCars($searchIndex, ['q' => $specificTerms] + $filters, true) >= self::LANDING_MIN_RESULTS) {
+            return ['filters' => $filters, 'canonical' => null, 'widened' => false, 'extra_terms' => ''];
+        }
+
+        foreach ($parents as $index => $parent) {
+            $isLast = $index === count($parents) - 1;
+            if (!$isLast && $this->manticore->countCars($searchIndex, $parent['filters']) < self::LANDING_MIN_RESULTS) {
+                continue;
+            }
+
+            $canonical = $this->landingParentCanonical($countryCode, $slug, $parent);
+
+            return [
+                'filters' => $parent['filters'],
+                'canonical' => $canonical,
+                // Pointing to itself means this landing already is the parent level: same cars.
+                'widened' => $canonical !== null,
+                // The results query needs at least one title word per car; the parent names make
+                // sure every car of the parent level qualifies, even if the title lacks them.
+                'extra_terms' => str_replace('-', ' ', $parent['slug']),
+            ];
+        }
+
+        return ['filters' => $filters, 'canonical' => null, 'widened' => false, 'extra_terms' => ''];
+    }
+
+    /**
+     * Parent levels of a filtered landing, most specific first: its model (if any), then its make.
+     */
+    private function landingParents(array $filters, array $breadcrumbSlugs): array
+    {
+        $parents = [];
+        if (!empty($filters['model'])) {
+            $parents[] = ['filters' => ['make' => $filters['make'], 'model' => $filters['model']], 'slug' => $breadcrumbSlugs['model'], 'page' => '/modelo/'];
+        }
+        $parents[] = ['filters' => ['make' => $filters['make']], 'slug' => $breadcrumbSlugs['make'], 'page' => '/marca/'];
+
+        return $parents;
+    }
+
+    /**
+     * Canonical URL of a parent level, or null when $slug already is that level's main landing.
+     */
+    private function landingParentCanonical(string $countryCode, string $slug, array $parent): ?string
+    {
+        $parentSlug = $parent['slug'] !== '' ? 'autos-' . $parent['slug'] . '-usados' : '';
+        if ($parentSlug === $slug) {
+            return null;
+        }
+
+        return $this->landingParentUrl($countryCode, $parentSlug, $parent['page'] . $parent['slug']);
+    }
+
+    /**
+     * The "autos-{make}[-{model}]-usados" landing when it exists, otherwise the make/model page.
+     */
+    private function landingParentUrl(string $countryCode, string $parentSlug, string $fallbackPath): ?string
+    {
+        if ($parentSlug !== '') {
+            $parent = $this->manticore->getLandingBySlug($countryCode, $parentSlug);
+            if (!empty($parent['title']) && trim((string) ($parent['redirect'] ?? '')) === '') {
+                return url('/' . $parentSlug);
+            }
+        }
+
+        return str_ends_with($fallbackPath, '/') ? null : url($fallbackPath);
     }
 
     private function resolveCountryFromHost(Request $request): ?string
@@ -179,20 +390,6 @@ class CarsController extends Controller
         return null;
     }
 
-    private function parseSlug($slug)
-    {
-        // Parse slug: chevrolet-aveo-quito
-        $parts = explode('-', $slug);
-
-        return [
-            'original' => $slug,
-            'brand' => $parts[0] ?? null,
-            'model' => $parts[1] ?? null,
-            'city' => $parts[2] ?? null,
-            'title' => ucwords(str_replace('-', ' ', $slug))
-        ];
-    }
-
     private function buildLandingBreadcrumb(array $landing, string $countryCode): array
     {
         $items = [[
@@ -200,17 +397,12 @@ class CarsController extends Controller
             'url' => url('/'),
         ]];
 
-        $decodedContent = $this->decodeLandingContent($landing['content'] ?? null);
-        if (!is_array($decodedContent)) {
+        $breadcrumb = LandingClassifier::breadcrumbSlugs($landing['content'] ?? null);
+        if ($breadcrumb['make'] === '' && $breadcrumb['model'] === '') {
             return $items;
         }
 
-        $breadcrumb = $this->normalizeLandingBreadcrumb($decodedContent['breadcrumb'] ?? null);
-        if (!is_array($breadcrumb)) {
-            return $items;
-        }
-
-        $makeSlug = trim((string) ($breadcrumb['make'] ?? ''));
+        $makeSlug = $breadcrumb['make'];
         if ($makeSlug !== '') {
             $items[] = [
                 'label' => $this->formatBreadcrumbLabel($makeSlug),
@@ -218,7 +410,7 @@ class CarsController extends Controller
             ];
         }
 
-        $modelSlug = trim((string) ($breadcrumb['model'] ?? ''));
+        $modelSlug = $breadcrumb['model'];
         if ($modelSlug !== '') {
             $items[] = [
                 'label' => $this->formatBreadcrumbLabel($modelSlug),
@@ -235,68 +427,6 @@ class CarsController extends Controller
         }
 
         return $items;
-    }
-
-    private function normalizeLandingBreadcrumb(mixed $breadcrumb): ?array
-    {
-        if (!is_array($breadcrumb)) {
-            return null;
-        }
-
-        if (array_key_exists('make', $breadcrumb) || array_key_exists('model', $breadcrumb)) {
-            return $breadcrumb;
-        }
-
-        $normalized = [];
-        foreach ($breadcrumb as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            if (!isset($normalized['make']) && !empty($entry['make'])) {
-                $normalized['make'] = $entry['make'];
-            }
-
-            if (!isset($normalized['model']) && !empty($entry['model'])) {
-                $normalized['model'] = $entry['model'];
-            }
-        }
-
-        return $normalized === [] ? null : $normalized;
-    }
-
-    private function decodeLandingContent(mixed $content): ?array
-    {
-        if (is_array($content)) {
-            return $content;
-        }
-
-        if (is_object($content)) {
-            return (array) $content;
-        }
-
-        if (!is_string($content)) {
-            return null;
-        }
-
-        $content = trim($content);
-        if ($content === '') {
-            return null;
-        }
-
-        $decoded = json_decode($content, true);
-        if (is_array($decoded)) {
-            return $decoded;
-        }
-
-        if (is_string($decoded)) {
-            $decoded = json_decode($decoded, true);
-            if (is_array($decoded)) {
-                return $decoded;
-            }
-        }
-
-        return null;
     }
 
     private function formatBreadcrumbLabel(string $slug): string
@@ -428,7 +558,7 @@ class CarsController extends Controller
             $total,
             ManticoreSearchService::RESULTS_PER_PAGE,
             $options['page'],
-            ['path' => $request->path(), 'query' => $request->query()]
+            ['path' => url($request->path()), 'query' => $this->paginationQuery($request, $options, $viewData)]
         );
 
         $brands = $this->mapFacetCollection($results['make'] ?? [], 'id_car_make');
@@ -449,6 +579,20 @@ class CarsController extends Controller
             'type' => $type,
             'country' => $country,
         ], $viewData));
+    }
+
+    /**
+     * Query string for page links. Landing, make and model pages merge their filters into the
+     * request; repeating them in every link created endless URL variants, so those pages keep
+     * only the order. Search pages keep the non-empty filters the visitor chose.
+     */
+    private function paginationQuery(Request $request, array $options, array $viewData): array
+    {
+        if (isset($viewData['slugData'])) {
+            return array_filter(['order' => $options['order']], fn ($value) => $value !== '' && $value !== null);
+        }
+
+        return array_filter($request->except('page'), fn ($value) => $value !== '' && $value !== null);
     }
 
     private function extractTotal(array $info): int

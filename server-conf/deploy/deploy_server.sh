@@ -46,3 +46,8 @@ sudo mkdir /var/run/manticore;
 sudo chown -R manticore:manticore /var/lib/manticore/;
 sudo chown -R manticore:manticore /var/run/manticore/;
 sudo chown -R manticore:manticore /var/log/manticore/;
+
+# Servicio de Laravel Octane (lo reinicia el deploy de GitHub Actions)
+sudo cp /app/server-conf/service_systemd/octane.service /etc/systemd/system/octane.service
+sudo systemctl daemon-reload
+sudo systemctl enable octane

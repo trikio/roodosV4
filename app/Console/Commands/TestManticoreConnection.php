@@ -27,7 +27,7 @@ class TestManticoreConnection extends Command
      */
     public function handle()
     {
-        $this->info('Testing connection to ManticoreSearch at ' . env('MANTICORE_HOST') . ':' . env('MANTICORE_PORT'));
+        $this->info('Testing connection to ManticoreSearch at ' . config('services.manticore.host') . ':' . config('services.manticore.port'));
 
         try {
             $manticore = new ManticoreSearchService();

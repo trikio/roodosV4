@@ -32,10 +32,13 @@
     $currencySymbol = config('countries.currency.' . $countryCodeForCurrency, '$');
     $metaDescription = $pageTitle;
     if (isset($slugData)) {
-        $sampleTitles = $cars->take(3)->pluck('title')->filter()->implode(', ');
-        $metaDescription = $cars->total() . ' anuncios para ' . $pageTitle . '.';
-        if ($sampleTitles !== '') {
-            $metaDescription .= ' ' . $sampleTitles;
+        $metaDescription = $slugData['meta_description'] ?? '';
+        if ($metaDescription === '') {
+            $sampleTitles = $cars->getCollection()->pluck('title')->filter()->unique()->take(3)->implode(', ');
+            $metaDescription = $cars->total() . ' anuncios para ' . $pageTitle . '.';
+            if ($sampleTitles !== '') {
+                $metaDescription .= ' ' . $sampleTitles;
+            }
         }
     }
     $adsKeyword = trim((string) ($searchQuery ?? ''));
@@ -61,7 +64,7 @@
 @section('meta_description', $metaDescription)
 @section('robots_content', $robotsContent)
 @if(isset($slugData))
-@section('canonical_url', url()->current())
+@section('canonical_url', $slugData['canonical_url'] ?? url()->current())
 @endif
 @section('head')
 <script type="application/ld+json">{!! json_encode($breadcrumbSchema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
@@ -118,6 +121,9 @@
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900">{{ $pageTitle }}</h1>
                     <p class="text-gray-600 mt-1">{{ $cars->total() }} resultados encontrados</p>
+                    @if(!empty($slugData['widened']))
+                        <p class="text-sm text-gray-500 mt-1">Hay pocos anuncios con esos criterios; mostramos resultados similares.</p>
+                    @endif
                 </div>
                 <div class="hidden lg:block">
                     <select name="order" class="sort-order-select px-4 py-2 border border-gray-300 rounded-lg text-gray-700">
@@ -236,7 +242,7 @@
                     <!-- Pagination -->
                     @if($cars->hasPages())
                     <div class="mt-8">
-                        {{ $cars->onEachSide(0)->appends(request()->query())->links('vendor.pagination.tailwind') }}
+                        {{ $cars->onEachSide(0)->links('vendor.pagination.tailwind') }}
                     </div>
                     @endif
                 </div>
