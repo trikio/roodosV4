@@ -58,4 +58,4 @@ Las rutas dependen del host, así que en local hay que apuntar dominios como `au
 
 ## Deploy
 
-Cada push a `main` corre los tests y, si pasan, despliega por SSH con [.github/workflows/roodos.yml](.github/workflows/roodos.yml). La instalación inicial del servidor está en [server-conf/deploy/](server-conf/deploy/). Octane corre como servicio systemd (`octane.service`).
+Cada push a `main` despliega por SSH con [.github/workflows/roodos.yml](.github/workflows/roodos.yml). La instalación inicial del servidor está en [server-conf/deploy/](server-conf/deploy/).
