@@ -45,6 +45,14 @@ Por país genera en `storage/app/landings/` un `.sql` (con respaldo de la tabla 
 
 Las landings desactivadas responden 410; `/marca/x` y `/modelo/x` redirigen a `autos-x-usados` cuando existe.
 
+## Monitoreo y túnel de la base
+
+La base MySQL de roodos no está en el servidor de producción: una máquina aparte abre un túnel SSH reverso que la publica en `127.0.0.1:3307` del servidor, y de ahí reindexa Manticore cada hora. Si el túnel se cae, los avisos se congelan (pasó del 4 al 23 de octubre de 2026).
+
+- **Túnel:** [server-conf/tunnel/mysql-reverse-tunnel.service](server-conf/tunnel/mysql-reverse-tunnel.service) se instala en la máquina de la base; se reconecta solo. En el servidor conviene `ClientAliveInterval 30` en `sshd_config` para que una sesión muerta libere el 3307.
+- **Chequeo de salud:** [server-conf/healthcheck/roodos-healthcheck.sh](server-conf/healthcheck/roodos-healthcheck.sh) corre cada 15 minutos (crontab) y avisa por [ntfy](https://ntfy.sh) si Manticore no responde, el túnel está caído, los índices llevan más de 3 h sin actualizarse o la home de autos de un país no da 200. El tema de ntfy va en `/etc/roodos-healthcheck.env` (`NTFY_TOPIC=...`), fuera del repo. Log: `/var/log/roodos-healthcheck.log`.
+- **Manticore:** [server-conf/service_systemd/manticore.service](server-conf/service_systemd/manticore.service) se detiene con `--stopwait`; con `--stop` un reinicio dejaba el servicio colgado (caída del 23 de octubre de 2026).
+
 ## Desarrollo
 
 ```bash

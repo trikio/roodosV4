@@ -2,6 +2,7 @@
 Description=Manticore Search Engine
 After=network.target remote-fs.target nss-lookup.target
 Documentation=https://manual.manticoresearch.com/, man:searchd(1)
+StartLimitIntervalSec=0
 
 [Service]
 Type=forking
@@ -9,8 +10,10 @@ User=root
 Group=root
 RuntimeDirectory=manticore
 
-ExecStart=/usr/bin/searchd
-ExecStop=/usr/bin/searchd --stop
+ExecStart=/usr/bin/searchd --config /etc/manticoresearch/manticore.conf
+# --stopwait returns only once searchd is gone. With --stop a restart started the new searchd
+# while the old one still held binlog.lock, and the new one died (outage of 2026-10-23).
+ExecStop=/usr/bin/searchd --config /etc/manticoresearch/manticore.conf --stopwait
 KillMode=process
 KillSignal=SIGTERM
 SendSIGKILL=no
@@ -18,11 +21,14 @@ LimitNOFILE=65536
 LimitCORE=infinity
 LimitMEMLOCK=infinity
 Restart=always
-TimeoutStartSec=infinity
-PIDFile=/var/run/manticore/searchd.pid
+RestartSec=5
+# A start that never completes fails and is retried instead of hanging forever.
+TimeoutStartSec=300
+TimeoutStopSec=120
+PIDFile=/run/manticore/searchd.pid
 RuntimeDirectoryMode=0755
+WorkingDirectory=/var/lib/manticore
 
 [Install]
 WantedBy=multi-user.target
-Alias=manticore.service
 Alias=searchd.service
