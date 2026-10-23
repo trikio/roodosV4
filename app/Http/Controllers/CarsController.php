@@ -53,7 +53,7 @@ class CarsController extends Controller
     }
 
     /**
-     * Home links pointing straight at the final URL: the "autos-x-usados" (or "autos-x") landing
+     * Home links pointing straight at the final URL: the "autos-x-usados", "autos-usados-x" or "autos-x" landing
      * when the country has it, otherwise the make/model page. Cities without a landing are left out.
      *
      * @return array{models: array, brands: array, cities: array}
@@ -64,7 +64,8 @@ class CarsController extends Controller
         $brands = ['Alfa Romeo', 'Audi', 'BMW', 'Chevrolet', 'Ford', 'Honda', 'Hyundai', 'Kia', 'Mazda', 'Mercedes-Benz', 'Nissan', 'Toyota', 'Volkswagen', 'Volvo', 'Mitsubishi', 'Suzuki', 'Jeep', 'Subaru'];
         $cities = config('countries.autos_home.locations.' . strtoupper($countryCode), []);
 
-        $candidates = fn (string $label) => ['autos-' . Str::slug($label) . '-usados', 'autos-' . Str::slug($label)];
+        // Make/model landings read "autos-x-usados"; city ones "autos-usados-x" (city last).
+        $candidates = fn (string $label) => ['autos-' . Str::slug($label) . '-usados', 'autos-usados-' . Str::slug($label), 'autos-' . Str::slug($label)];
         $allCandidates = array_merge(...array_map($candidates, array_merge($models, $brands, $cities)));
         $existing = array_flip($this->manticore->existingCarLandingSlugs($countryCode, $allCandidates));
 

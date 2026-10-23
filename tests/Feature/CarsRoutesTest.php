@@ -51,13 +51,14 @@ class CarsRoutesTest extends TestCase
         $manticore->shouldReceive('carSearch')->andReturn($this->emptySearchResult());
         $manticore->shouldReceive('existingCarLandingSlugs')
             ->with('cl', Mockery::on(fn ($slugs) => in_array('autos-vina-del-mar', $slugs, true)))
-            ->andReturn(['autos-honda-usados', 'autos-toyota-corolla-usados', 'autos-vina-del-mar']);
+            ->andReturn(['autos-honda-usados', 'autos-toyota-corolla-usados', 'autos-vina-del-mar', 'autos-usados-valparaiso']);
 
         $this->get('http://autos.roodos.cl/')
             ->assertOk()
             ->assertSee('href="http://autos.roodos.cl/autos-honda-usados"', false)
             ->assertSee('href="http://autos.roodos.cl/autos-toyota-corolla-usados"', false)
             ->assertSee('href="http://autos.roodos.cl/autos-vina-del-mar"', false)
+            ->assertSee('href="http://autos.roodos.cl/autos-usados-valparaiso"', false)
             // No landing for this make: its make page, never a URL that redirects.
             ->assertSee('href="http://autos.roodos.cl/marca/audi"', false)
             ->assertDontSee('href="/honda"', false)
