@@ -46,7 +46,7 @@ class CleanLandingsCommandTest extends TestCase
             'models' => ['honda-civic', 'chevrolet-aveo', 'audi-100'],
             'places' => ['Lima', 'Lima Metropolitana'],
         ]);
-        $manticore->shouldReceive('iterateCarLandings')->with('pe')->andReturn((fn () => yield from $rows)());
+        $manticore->shouldReceive('iterateCarLandings')->with('pe')->andReturnUsing(fn () => (fn () => yield from $rows)());
         $manticore->shouldReceive('countCars')
             ->withArgs(fn ($index, $options, $allTerms) => $index === 'car_pe' && $allTerms)
             ->andReturnUsing(fn ($index, $options) => $adsByTerms[$options['q']] ?? 0);

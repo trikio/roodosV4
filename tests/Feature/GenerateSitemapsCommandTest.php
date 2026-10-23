@@ -40,6 +40,19 @@ class GenerateSitemapsCommandTest extends TestCase
         $this->assertSame([], glob($this->tmp . '/app/sitemaps/pe/landings-*.xml'));
     }
 
+    public function test_sitemap_index_stays_empty_until_cleanup_is_applied(): void
+    {
+        file_put_contents($this->tmp . '/app/sitemaps/pe/removed-1.xml', '<urlset/>');
+
+        $this->get('http://autos.roodos.pe/sitemap.xml')->assertOk()->assertDontSee('removed-1.xml');
+        $this->get('http://autos.roodos.pe/sitemaps/removed-1.xml')->assertNotFound();
+
+        touch($this->tmp . '/app/sitemaps/pe/.limpieza-aplicada');
+
+        $this->get('http://autos.roodos.pe/sitemap.xml')->assertSee('https://autos.roodos.pe/sitemaps/removed-1.xml');
+        $this->get('http://autos.roodos.pe/sitemaps/removed-1.xml')->assertOk();
+    }
+
     public function test_lists_active_landings_once_cleanup_is_applied(): void
     {
         touch($this->tmp . '/app/sitemaps/pe/.limpieza-aplicada');

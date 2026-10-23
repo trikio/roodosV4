@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Console\Commands\GenerateSitemaps;
 use App\Support\Sitemap;
 
 class SitemapController extends Controller
@@ -13,7 +14,11 @@ class SitemapController extends Controller
     public function index(string $country)
     {
         $country = strtolower($country);
-        $files = glob(Sitemap::directory($country) . '/{landings,removed}-*.xml', GLOB_BRACE) ?: [];
+        $directory = Sitemap::directory($country);
+        // Until the country's cleanup is applied its URLs still answer 200: publish nothing yet.
+        $files = is_file($directory . '/' . GenerateSitemaps::CLEANUP_MARKER)
+            ? (glob($directory . '/{landings,removed}-*.xml', GLOB_BRACE) ?: [])
+            : [];
         natsort($files);
 
         $urls = array_map(fn ($file) => Sitemap::baseUrl($country) . '/sitemaps/' . basename($file), array_values($files));
@@ -34,8 +39,9 @@ class SitemapController extends Controller
 
     public function show(string $country, string $file)
     {
-        $path = Sitemap::directory(strtolower($country)) . '/' . $file;
-        abort_unless(is_file($path), 404);
+        $directory = Sitemap::directory(strtolower($country));
+        $path = $directory . '/' . $file;
+        abort_unless(is_file($path) && is_file($directory . '/' . GenerateSitemaps::CLEANUP_MARKER), 404);
 
         return response()->file($path, ['Content-Type' => 'application/xml']);
     }

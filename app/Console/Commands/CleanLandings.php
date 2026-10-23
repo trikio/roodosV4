@@ -18,7 +18,8 @@ class CleanLandings extends Command
     protected $signature = 'landings:clean
                             {country : Código de país (pe, cl, ec, mx, lab) o "all" para todos menos lab}
                             {--min-ads=5 : Avisos mínimos para que una landing se quede}
-                            {--output= : Carpeta del SQL y CSV (por defecto storage/app/landings)}';
+                            {--output= : Carpeta del SQL y CSV (por defecto storage/app/landings)}
+                            {--memory=2G : Límite de memoria de PHP (México, con ~2 millones de landings, usa ~4G)}';
 
     protected $description = 'Genera un SQL para revisar que deja solo las landings de búsquedas reales (lista blanca). No modifica la base.';
 
@@ -28,8 +29,21 @@ class CleanLandings extends Command
 
     private ManticoreSearchService $manticore;
 
-    /** @var array<string, array> vocabulary split per group key, shared by thousands of landings */
-    private array $splits = [];
+    /**
+     * Each landing is kept as a packed list (millions of them in México): slug, group key,
+     * junk reason or null, whether it is a real search, whether its ids are unconfirmed.
+     */
+    private const SLUG = 0;
+    private const KEY = 1;
+    private const JUNK = 2;
+    private const REAL = 3;
+    private const BAD_IDS = 4;
+
+    /** @var array<string, array{0: string, 1: bool}> raw group key => [normalized key, real search] */
+    private array $groups = [];
+
+    /** @var array<string, ?string> group key => redirect target, shared by every landing of the group */
+    private array $parentTargets = [];
 
     public function handle(ManticoreSearchService $manticore): int
     {
@@ -47,7 +61,7 @@ class CleanLandings extends Command
             }
         }
 
-        ini_set('memory_limit', '2G');
+        ini_set('memory_limit', (string) $this->option('memory'));
 
         foreach ($countries as $country) {
             $this->cleanCountry($country);
@@ -60,7 +74,8 @@ class CleanLandings extends Command
     {
         $this->info("[{$country}] Leyendo vocabulario y landings...");
         $vocabulary = LandingVocabulary::forCountry($this->manticore, $country);
-        $this->splits = [];
+        $this->groups = [];
+        $this->parentTargets = [];
         [$landings, $redirected] = $this->loadLandings($country, $vocabulary);
 
         $this->info("[{$country}] Contando avisos por grupo (" . count($landings) . ' landings)...');
@@ -76,7 +91,7 @@ class CleanLandings extends Command
 
         $summary = $this->summary($country, count($landings), count($redirected), $actions);
         file_put_contents($basename . '.sql', $this->buildSql($country, $summary, $actions));
-        $this->writeCsv($basename . '.csv', $landings, $actions);
+        $this->writeCsv($basename . '.csv', $country, $landings, $actions);
         $sitemaps = $this->writeRemovedSitemaps($country, $landings, $actions);
 
         $this->line($summary);
@@ -107,14 +122,13 @@ class CleanLandings extends Command
             $breadcrumb = LandingClassifier::breadcrumbSlugs($row['content']);
             $confirmed = LandingClassifier::confirmedNames($slug, $breadcrumb['make'], $breadcrumb['model']);
 
-            $group = $this->group(LandingClassifier::groupKey($title), $vocabulary);
+            [$key, $real] = $this->group(LandingClassifier::groupKey($title), $vocabulary);
             $landings[$id] = [
-                'slug' => $slug,
-                'title' => $title,
-                'key' => $group['key'],
-                'real' => $group['real'],
-                'junk' => LandingClassifier::junkReason($title),
-                'bad_ids' => (int) $row['id_car_make'] > 0 && !$confirmed['make'] && !$confirmed['model'],
+                self::SLUG => $slug,
+                self::KEY => $key,
+                self::JUNK => LandingClassifier::junkReason($title),
+                self::REAL => $real,
+                self::BAD_IDS => (int) $row['id_car_make'] > 0 && !$confirmed['make'] && !$confirmed['model'],
             ];
         }
 
@@ -130,13 +144,13 @@ class CleanLandings extends Command
     {
         $mains = [];
         foreach ($landings as $id => $landing) {
-            if ($landing['junk'] !== null || !$landing['real']) {
+            if ($landing[self::JUNK] !== null || !$landing[self::REAL]) {
                 continue;
             }
 
-            $current = $mains[$landing['key']] ?? null;
+            $current = $mains[$landing[self::KEY]] ?? null;
             if ($current === null || $this->rank($id, $landing) < $this->rank($current, $landings[$current])) {
-                $mains[$landing['key']] = $id;
+                $mains[$landing[self::KEY]] = $id;
             }
         }
 
@@ -153,15 +167,15 @@ class CleanLandings extends Command
     }
 
     /**
-     * Group key and vocabulary split of a title's raw key. Real searches get the make a model
-     * implies, so "aveo-ecuador" groups with "autos-chevrolet-aveo-usados".
+     * Normalized group key of a title's raw key, and whether it is a real search. Real searches
+     * get the make a model implies, so "aveo-ecuador" groups with "autos-chevrolet-aveo-usados".
      *
-     * @return array{key: string, real: bool, parts: array}
+     * @return array{0: string, 1: bool}
      */
     private function group(string $rawKey, LandingVocabulary $vocabulary): array
     {
-        if (isset($this->splits[$rawKey])) {
-            return $this->splits[$rawKey];
+        if (isset($this->groups[$rawKey])) {
+            return $this->groups[$rawKey];
         }
 
         ['prefix' => $prefix, 'terms' => $terms] = $this->keyParts($rawKey);
@@ -176,9 +190,7 @@ class CleanLandings extends Command
             $key = $prefix . implode(' ', $normalized);
         }
 
-        $parts['make'] = array_values(array_unique(array_merge($parts['make'], $parts['implied_make'])));
-
-        return $this->splits[$rawKey] = $this->splits[$key] = ['key' => $key, 'real' => $real, 'parts' => $parts];
+        return $this->groups[$rawKey] = $this->groups[$key] = [$key, $real];
     }
 
     /**
@@ -188,7 +200,7 @@ class CleanLandings extends Command
      */
     private function rank(int $id, array $landing): array
     {
-        $tokens = LandingClassifier::slugTokens($landing['slug']);
+        $tokens = LandingClassifier::slugTokens($landing[self::SLUG]);
         $hasShape = isset(LandingClassifier::TYPE_WORDS[$tokens[0] ?? ''])
             && isset(LandingClassifier::CONDITION_WORDS[$tokens[count($tokens) - 1] ?? '']);
 
@@ -197,7 +209,7 @@ class CleanLandings extends Command
             count(array_intersect($tokens, LandingClassifier::GENERIC_WORDS)),
             count($tokens) === count(array_unique($tokens)) ? 0 : 1,
             count($tokens),
-            strlen($landing['slug']),
+            strlen($landing[self::SLUG]),
             $id,
         ];
     }
@@ -209,31 +221,36 @@ class CleanLandings extends Command
     private function planActions(array $landings, array $keepers, LandingVocabulary $vocabulary): array
     {
         $actions = ['redirect' => [], 'deactivate' => [], 'fix_ids' => []];
+        $keeperPaths = [];
 
         foreach ($landings as $id => $landing) {
-            $key = $landing['key'];
+            $key = $landing[self::KEY];
 
             // Country-wide landings ("autos-usados-ecuador") name nothing specific: left as they are.
-            if ($this->keyParts($key)['terms'] === [] && $landing['junk'] === null) {
+            if ($this->keyParts($key)['terms'] === [] && $landing[self::JUNK] === null) {
                 continue;
             }
 
-            if (isset($keepers[$key]) && $landing['junk'] === null) {
+            if (isset($keepers[$key]) && $landing[self::JUNK] === null) {
                 if ($keepers[$key] === $id) {
-                    if ($landing['bad_ids']) {
+                    if ($landing[self::BAD_IDS]) {
                         $actions['fix_ids'][] = $id;
                     }
                 } else {
-                    $actions['redirect'][$id] = '/' . $landings[$keepers[$key]]['slug'];
+                    $actions['redirect'][$id] = $keeperPaths[$key] ??= '/' . $landings[$keepers[$key]][self::SLUG];
                 }
                 continue;
             }
 
-            $parent = $this->parentTarget($key, $keepers, $landings, $vocabulary);
+            // array_key_exists, not ??=: most groups have no parent, and null must be cached too.
+            if (!array_key_exists($key, $this->parentTargets)) {
+                $this->parentTargets[$key] = $this->parentTarget($key, $keepers, $landings, $vocabulary);
+            }
+            $parent = $this->parentTargets[$key];
             if ($parent !== null) {
                 $actions['redirect'][$id] = $parent;
             } else {
-                $actions['deactivate'][$id] = $landing['junk'] ?? ($landing['real'] ? 'pocos_avisos' : 'texto_libre');
+                $actions['deactivate'][$id] = $landing[self::JUNK] ?? ($landing[self::REAL] ? 'pocos_avisos' : 'texto_libre');
             }
         }
 
@@ -246,8 +263,9 @@ class CleanLandings extends Command
      */
     private function parentTarget(string $key, array $keepers, array $landings, LandingVocabulary $vocabulary): ?string
     {
-        $prefix = $this->keyParts($key)['prefix'];
-        $parts = $this->group($key, $vocabulary)['parts'];
+        ['prefix' => $prefix, 'terms' => $terms] = $this->keyParts($key);
+        $parts = $vocabulary->split($terms);
+        $parts['make'] = array_values(array_unique(array_merge($parts['make'], $parts['implied_make'])));
 
         $candidates = [
             array_merge($parts['make'], $parts['model'], $parts['place'], $parts['year']),
@@ -263,7 +281,7 @@ class CleanLandings extends Command
             sort($candidate);
             $candidateKey = $prefix . implode(' ', $candidate);
             if ($candidateKey !== $key && isset($keepers[$candidateKey])) {
-                return '/' . $landings[$keepers[$candidateKey]]['slug'];
+                return '/' . $landings[$keepers[$candidateKey]][self::SLUG];
             }
         }
 
@@ -281,7 +299,7 @@ class CleanLandings extends Command
         $kept = [];
         foreach ($landings as $id => $landing) {
             if (!isset($actions['redirect'][$id]) && !isset($actions['deactivate'][$id])) {
-                $kept[$landing['slug']] = true;
+                $kept[$landing[self::SLUG]] = true;
             }
         }
 
@@ -380,24 +398,33 @@ class CleanLandings extends Command
         return implode("\n", $sql) . "\n";
     }
 
-    private function writeCsv(string $path, array $landings, array $actions): void
+    /**
+     * Titles are not kept in memory, so they are read again from the index while writing.
+     */
+    private function writeCsv(string $path, string $country, array $landings, array $actions): void
     {
         $handle = fopen($path, 'w');
         fputcsv($handle, ['id', 'slug', 'titulo', 'accion', 'destino', 'motivo']);
 
         $fixIds = array_flip($actions['fix_ids']);
-        foreach ($landings as $id => $landing) {
+        foreach ($this->manticore->iterateCarLandings($country) as $row) {
+            $id = (int) $row['id'];
+            if (!isset($landings[$id])) {
+                continue;
+            }
+            $landing = $landings[$id];
+
             if (isset($actions['redirect'][$id])) {
-                $row = ['redirigir', $actions['redirect'][$id], $landing['junk'] ?? ''];
+                $result = ['redirigir', $actions['redirect'][$id], $landing[self::JUNK] ?? ''];
             } elseif (isset($actions['deactivate'][$id])) {
-                $row = ['eliminar', '', $actions['deactivate'][$id]];
+                $result = ['eliminar', '', $actions['deactivate'][$id]];
             } elseif (isset($fixIds[$id])) {
-                $row = ['mantener', '', 'ids corregidos'];
+                $result = ['mantener', '', 'ids corregidos'];
             } else {
-                $row = ['mantener', '', ''];
+                $result = ['mantener', '', ''];
             }
 
-            fputcsv($handle, array_merge([$id, $landing['slug'], $landing['title']], $row));
+            fputcsv($handle, array_merge([$id, $landing[self::SLUG], (string) $row['title']], $result));
         }
 
         fclose($handle);
@@ -418,7 +445,7 @@ class CleanLandings extends Command
         $ids = array_merge(array_keys($actions['redirect']), array_keys($actions['deactivate']));
         $files = 0;
         foreach (array_chunk($ids, self::SITEMAP_SIZE) as $chunk) {
-            $urls = array_map(fn ($id) => Sitemap::landingUrl($country, $landings[$id]['slug']), $chunk);
+            $urls = array_map(fn ($id) => Sitemap::landingUrl($country, $landings[$id][self::SLUG]), $chunk);
             file_put_contents($directory . '/removed-' . (++$files) . '.xml', Sitemap::urlset($urls));
         }
 
