@@ -42,7 +42,7 @@ class CleanLandingsCommandTest extends TestCase
     {
         $manticore = Mockery::mock(ManticoreSearchService::class);
         $manticore->shouldReceive('carVocabulary')->with('pe')->andReturn([
-            'makes' => ['honda', 'chevrolet', 'audi'],
+            'makes' => ['honda', 'chevrolet', 'audi', 'toyota'],
             'models' => ['honda-civic', 'chevrolet-aveo', 'audi-100'],
             'places' => ['Lima', 'Lima Metropolitana'],
         ]);
@@ -106,5 +106,25 @@ class CleanLandingsCommandTest extends TestCase
         $this->assertStringContainsString('<loc>https://autos.roodos.pe/honda-ecuador</loc>', $removed);
         $this->assertStringContainsString('<loc>https://autos.roodos.pe/doble-traccion-si-inmovilizador</loc>', $removed);
         $this->assertStringNotContainsString('autos-honda-usados<', $removed);
+    }
+
+    public function test_main_landing_keeps_the_plural_type_and_condition_shape(): void
+    {
+        ['sql' => $sql] = $this->runCleanup([
+            $this->row(1, 'usados-lima-toyota', 'usados Lima Toyota'),
+            $this->row(2, 'autos-toyota-usados-lima', 'Autos Toyota usados Lima'),
+            $this->row(3, 'autos-lima-usado', 'Autos Lima usado'),
+            $this->row(4, 'autos-lima', 'Autos Lima'),
+            $this->row(5, 'peru-autos', 'Perú Autos'),
+            $this->row(6, 'autos-usados-peru', 'Autos usados Perú'),
+            $this->row(7, 'camion-camioneta-marca', 'Camion Camioneta Marca'),
+        ], ['lima toyota' => 20, 'lima' => 50]);
+
+        // The city goes last, so "ends with usados" is not required.
+        $this->assertStringContainsString("SET redirect = '/autos-toyota-usados-lima' WHERE country_id = 'pe' AND redirect = '' AND id IN (1);", $sql);
+        $this->assertStringContainsString("SET redirect = '/autos-lima' WHERE country_id = 'pe' AND redirect = '' AND id IN (3);", $sql);
+        // Country-wide landings are deduplicated too, one per type and condition.
+        $this->assertStringContainsString("SET redirect = '/autos-usados-peru' WHERE country_id = 'pe' AND redirect = '' AND id IN (5);", $sql);
+        $this->assertDoesNotMatchRegularExpression('/id IN \\([^)]*\\b(2|4|6|7)\\b/', $sql);
     }
 }

@@ -144,7 +144,10 @@ class CleanLandings extends Command
     {
         $mains = [];
         foreach ($landings as $id => $landing) {
-            if ($landing[self::JUNK] !== null || !$landing[self::REAL]) {
+            // Country-wide groups ("autos-usados-peru", "peru-motos") name nothing and always
+            // have ads: they compete for one main page too.
+            $countryWide = str_ends_with($landing[self::KEY], '|');
+            if ($landing[self::JUNK] !== null || (!$landing[self::REAL] && !$countryWide)) {
                 continue;
             }
 
@@ -158,6 +161,10 @@ class CleanLandings extends Command
         $keepers = [];
         foreach ($mains as $key => $id) {
             $terms = $this->keyParts($key)['terms'];
+            if ($terms === []) {
+                $keepers[$key] = $id;
+                continue;
+            }
             if ($this->manticore->countCars('car_' . $country, ['q' => implode(' ', $terms)], true) >= $minAds) {
                 $keepers[$key] = $id;
             }
@@ -194,18 +201,23 @@ class CleanLandings extends Command
     }
 
     /**
-     * Lower is better: "autos-honda-usados" shape first (type word first, condition word last),
-     * then fewer filler words ("marca", "version"...), then no repeated words ("honda-honda"),
-     * then shorter, then older.
+     * Lower is better: starts with the plural type ("autos-", not "auto-" or a make), names the
+     * condition in plural anywhere ("autos-toyota-usados-lima" keeps the city last), then fewer
+     * filler words ("marca", "version"...), no repeated words ("honda-honda"), shorter, older.
      */
     private function rank(int $id, array $landing): array
     {
         $tokens = LandingClassifier::slugTokens($landing[self::SLUG]);
-        $hasShape = isset(LandingClassifier::TYPE_WORDS[$tokens[0] ?? ''])
-            && isset(LandingClassifier::CONDITION_WORDS[$tokens[count($tokens) - 1] ?? '']);
+        $first = $tokens[0] ?? '';
+        $typeRank = match (true) {
+            (LandingClassifier::TYPE_WORDS[$first] ?? null) === $first => 0,
+            isset(LandingClassifier::TYPE_WORDS[$first]) => 1,
+            default => 2,
+        };
 
         return [
-            $hasShape ? 0 : 1,
+            $typeRank,
+            array_intersect($tokens, ['usados', 'usadas', 'nuevos', 'nuevas', 'seminuevos', 'seminuevas']) !== [] ? 0 : 1,
             count(array_intersect($tokens, LandingClassifier::GENERIC_WORDS)),
             count($tokens) === count(array_unique($tokens)) ? 0 : 1,
             count($tokens),
@@ -225,11 +237,6 @@ class CleanLandings extends Command
 
         foreach ($landings as $id => $landing) {
             $key = $landing[self::KEY];
-
-            // Country-wide landings ("autos-usados-ecuador") name nothing specific: left as they are.
-            if ($this->keyParts($key)['terms'] === [] && $landing[self::JUNK] === null) {
-                continue;
-            }
 
             if (isset($keepers[$key]) && $landing[self::JUNK] === null) {
                 if ($keepers[$key] === $id) {
