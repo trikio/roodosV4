@@ -8,7 +8,15 @@ use Illuminate\Console\Command;
 
 class GenerateSitemaps extends Command
 {
-    protected $signature = 'sitemaps:generate {country? : Código de país; sin él, todos menos lab}';
+    protected $signature = 'sitemaps:generate
+                            {country? : Código de país; sin él, todos menos lab}
+                            {--force : Generar aunque la limpieza de landings no esté marcada como aplicada}';
+
+    /**
+     * Created by hand once the landings:clean SQL is applied and reindexed. Until then the
+     * index still holds every legacy landing, and a sitemap would ask Google to crawl them.
+     */
+    public const CLEANUP_MARKER = '.limpieza-aplicada';
 
     protected $description = 'Escribe los sitemaps de landings activas (sin redirect) de cada país en storage/app/sitemaps.';
 
@@ -31,6 +39,11 @@ class GenerateSitemaps extends Command
             $directory = Sitemap::directory($countryCode);
             if (!is_dir($directory)) {
                 mkdir($directory, 0755, true);
+            }
+
+            if (!$this->option('force') && !is_file($directory . '/' . self::CLEANUP_MARKER)) {
+                $this->warn("[{$countryCode}] Omitido: falta {$directory}/" . self::CLEANUP_MARKER . ' (crearlo después de aplicar la limpieza de landings).');
+                continue;
             }
 
             // Written aside and swapped in, so the served sitemap is never half written.

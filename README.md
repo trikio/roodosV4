@@ -39,7 +39,7 @@ php artisan landings:clean all     # o un país: pe, cl, ec, mx. Lee Manticore; 
 Por país genera en `storage/app/landings/` un `.sql` (con respaldo de la tabla al inicio) y un `.csv` con la acción de cada landing, y en `storage/app/sitemaps/{país}/removed-*.xml` la lista de URLs eliminadas o redirigidas para que Google las vuelva a rastrear pronto. Después de revisarlos:
 
 1. Aplicar el `.sql` en MySQL.
-2. `sudo indexer --rotate car_landings_{país}` y `php artisan sitemaps:generate {país}` (el cron lo repite cada noche).
+2. `sudo indexer --rotate car_landings_{país}`, `touch storage/app/sitemaps/{país}/.limpieza-aplicada` y `php artisan sitemaps:generate {país}` (el cron lo repite cada noche). Sin ese archivo el sitemap del país no se genera, para no publicar landings sin limpiar.
 3. Enviar `https://autos.roodos.{país}/sitemap.xml` en Search Console.
 4. Borrar `removed-*.xml` cuando Search Console muestre esas URLs fuera del índice (1-2 meses).
 
