@@ -3,7 +3,6 @@
 @php
     $pageTitle = number_format($totalCars, 0, ',', '.') . ' Autos';
     $countryCode = strtoupper((string) ($country ?: request()->route('country') ?: 'EC'));
-    $homeLocations = config('countries.autos_home.locations.' . $countryCode, config('countries.autos_home.locations.EC', []));
 @endphp
 
 @section('page_title', $pageTitle)
@@ -41,14 +40,9 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Búsquedas Populares</h2>
     <div class="flex flex-wrap gap-3">
-        <a href="/ford-ranger" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Ford Ranger</a>
-        <a href="/honda-accord" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Honda Accord</a>
-        <a href="/bmw-320" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">BMW 320</a>
-        <a href="/toyota-corolla" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Toyota Corolla</a>
-        <a href="/chevrolet-aveo" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Chevrolet Aveo</a>
-        <a href="/mazda-3" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Mazda 3</a>
-        <a href="/nissan-sentra" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Nissan Sentra</a>
-        <a href="/hyundai-tucson" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">Hyundai Tucson</a>
+        @foreach($homeLinks['models'] as $link)
+        <a href="{{ $link['url'] }}" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">{{ $link['label'] }}</a>
+        @endforeach
     </div>
 </div>
 
@@ -57,9 +51,9 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Buscar por Marca</h2>
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            @foreach(['Alfa Romeo', 'Audi', 'BMW', 'Chevrolet', 'Ford', 'Honda', 'Hyundai', 'Kia', 'Mazda', 'Mercedes-Benz', 'Nissan', 'Toyota', 'Volkswagen', 'Volvo', 'Mitsubishi', 'Suzuki', 'Jeep', 'Subaru'] as $brand)
-            <a href="/{{ strtolower(str_replace([' ', '-'], '-', $brand)) }}" class="bg-white p-4 rounded-lg border border-gray-200 hover:border-[#008bea] hover:shadow-md transition text-center">
-                <p class="font-medium text-gray-900">{{ $brand }}</p>
+            @foreach($homeLinks['brands'] as $link)
+            <a href="{{ $link['url'] }}" class="bg-white p-4 rounded-lg border border-gray-200 hover:border-[#008bea] hover:shadow-md transition text-center">
+                <p class="font-medium text-gray-900">{{ $link['label'] }}</p>
             </a>
             @endforeach
         </div>
@@ -70,8 +64,8 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Buscar por Ubicación</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        @foreach($homeLocations as $city)
-        <a href="/autos-{{ strtolower($city) }}" class="text-[#008bea] hover:underline">{{ $city }}</a>
+        @foreach($homeLinks['cities'] as $link)
+        <a href="{{ $link['url'] }}" class="text-[#008bea] hover:underline">{{ $link['label'] }}</a>
         @endforeach
     </div>
 </div>

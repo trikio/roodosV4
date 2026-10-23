@@ -1,2 +1,3 @@
 0 * * * * sudo indexer --rotate car_ec car_pe car_cl car_mx >> /var/log/manticore/indexer-cron.log 2>&1
 0 3 * * * sudo indexer --rotate car_landings_ec car_landings_pe car_landings_cl car_landings_mx >> /var/log/manticore/indexer-cron.log 2>&1
+30 3 * * * cd /app && php8.4 artisan sitemaps:generate >> /var/log/roodos-sitemaps.log 2>&1

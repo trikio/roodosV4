@@ -11,6 +11,8 @@ class ManticoreSearchService
 {
     protected $connection;
     const RESULTS_PER_PAGE = 24;
+    const CAR_MATCH_COLUMNS = ['title', 'details', 'make_name', 'model_name', 'city_name', 'state_name', 'year_string', 'fuel_name', 'transmission_name', 'body_name'];
+    const LANDING_FILTER_ATTRIBUTES = ['make' => 'id_car_make', 'model' => 'id_car_model', 'state' => 'id_state', 'city' => 'id_city'];
 
     public function __construct()
     {
@@ -22,8 +24,8 @@ class ManticoreSearchService
         try {
             $this->connection = new Connection();
             $this->connection->setParams([
-                'host' => env('MANTICORE_HOST', '127.0.0.1'),
-                'port' => env('MANTICORE_PORT', 9306)
+                'host' => config('services.manticore.host'),
+                'port' => config('services.manticore.port'),
             ]);
         } catch (Exception $e) {
             throw new Exception("Error connecting to ManticoreSearch: " . $e->getMessage());
@@ -47,16 +49,14 @@ class ManticoreSearchService
             $page = $options['page'] ?? 1;
             $searchQuery = $options['q'] ?? '';
 
-            $columns = ['title', 'details', 'make_name', 'model_name', 'city_name', 'state_name', 'year_string', 'fuel_name', 'transmission_name', 'body_name'];
+            $columns = self::CAR_MATCH_COLUMNS;
 
             // Main results query
             $query = (new SphinxQL($this->connection))
                 ->select('*')
                 ->from($searchIndex);
 
-            if (!empty($searchQuery)) {
-                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
-            }
+            $this->applyQuorumMatch($query, $columns, $searchQuery);
 
             $query = $this->applyCarFilters($query, $options);
             $query->limit(((int)$page - 1) * self::RESULTS_PER_PAGE, self::RESULTS_PER_PAGE);
@@ -95,6 +95,34 @@ class ManticoreSearchService
             ];
         } catch (Exception $e) {
             throw new Exception("Error searching cars: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Total of cars matching $options, without fetching rows or facets.
+     * With $allTerms every word of $options['q'] must match, instead of at least one.
+     */
+    public function countCars($searchIndex, array $options, bool $allTerms = false): int
+    {
+        try {
+            $query = (new SphinxQL($this->connection))
+                ->select(SphinxQL::expr('COUNT(*) AS total'))
+                ->from($searchIndex);
+
+            $searchQuery = trim((string) ($options['q'] ?? ''));
+            if ($allTerms && $searchQuery !== '') {
+                $query->match(self::CAR_MATCH_COLUMNS, $searchQuery);
+            } else {
+                $this->applyQuorumMatch($query, self::CAR_MATCH_COLUMNS, $searchQuery);
+            }
+            $this->applyCarFilters($query, $options);
+            $query->option('cutoff', 0);
+
+            $result = $query->execute()->fetchAllAssoc();
+
+            return (int) ($result[0]['total'] ?? 0);
+        } catch (Exception $e) {
+            throw new Exception("Error counting cars: " . $e->getMessage());
         }
     }
 
@@ -195,9 +223,7 @@ class ManticoreSearchService
                 ->select('*')
                 ->from($searchIndex);
 
-            if (!empty($searchQuery)) {
-                $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
-            }
+            $this->applyQuorumMatch($query, $columns, $searchQuery);
 
             $query = $this->applyHouseFilters($query, $options);
             $query->limit(((int)$page - 1) * self::RESULTS_PER_PAGE, self::RESULTS_PER_PAGE);
@@ -271,6 +297,80 @@ class ManticoreSearchService
         }
     }
 
+    /**
+     * Make and model slugs (shared by all countries) and the city/state names with ads in one country.
+     *
+     * @return array{makes: string[], models: string[], places: string[]}
+     */
+    public function carVocabulary(string $countryCode): array
+    {
+        $column = fn (string $sql, string $field) => array_column(
+            (new SphinxQL($this->connection))->query($sql)->execute()->fetchAllAssoc(),
+            $field
+        );
+
+        $places = [];
+        foreach (['city_name', 'state_name'] as $field) {
+            $places = array_merge($places, $column("SELECT {$field} FROM car_{$countryCode} GROUP BY {$field} LIMIT 20000 OPTION max_matches=20000", $field));
+        }
+
+        return [
+            'makes' => $column('SELECT slug FROM car_make LIMIT 10000 OPTION max_matches=10000', 'slug'),
+            'models' => $column('SELECT slug FROM car_model LIMIT 200000 OPTION max_matches=200000', 'slug'),
+            'places' => array_values(array_filter($places)),
+        ];
+    }
+
+    /**
+     * Which of $slugs are active, non-redirecting car landings of the country.
+     */
+    public function existingCarLandingSlugs(string $countryCode, array $slugs): array
+    {
+        if ($slugs === []) {
+            return [];
+        }
+
+        try {
+            $rows = (new SphinxQL($this->connection))
+                ->select('slug')
+                ->from('car_landings_' . $countryCode)
+                ->where('slug', 'IN', array_values($slugs))
+                ->where('redirect', '')
+                ->limit(0, count($slugs))
+                ->execute()
+                ->fetchAllAssoc();
+
+            return array_column($rows, 'slug');
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Every car landing of a country, in id order, fetched in batches to keep memory flat.
+     */
+    public function iterateCarLandings(string $countryCode, int $batchSize = 20000): \Generator
+    {
+        $lastId = 0;
+
+        do {
+            $rows = (new SphinxQL($this->connection))
+                ->select('id', 'slug', 'title', 'content', 'redirect', 'id_car_make', 'id_car_model')
+                ->from('car_landings_' . $countryCode)
+                ->where('id', '>', $lastId)
+                ->orderBy('id', 'ASC')
+                ->limit(0, $batchSize)
+                ->option('max_matches', $batchSize)
+                ->execute()
+                ->fetchAllAssoc();
+
+            foreach ($rows as $row) {
+                $lastId = (int) $row['id'];
+                yield $row;
+            }
+        } while (count($rows) === $batchSize);
+    }
+
     public function getHouseLandingBySlug(string $countryCode, string $slug): ?array
     {
         $indexName = 'house_landings_' . $countryCode;
@@ -298,9 +398,7 @@ class ManticoreSearchService
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
             ->from($searchIndex);
 
-        if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
-        }
+        $this->applyQuorumMatch($query, $columns, $searchQuery);
 
         $query = $this->applyCarFilters($query, $options);
         $query->groupBy($idField)
@@ -315,9 +413,7 @@ class ManticoreSearchService
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
             ->from($searchIndex);
 
-        if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
-        }
+        $this->applyQuorumMatch($query, $columns, $searchQuery);
 
         $query = $this->applyHouseFilters($query, $options);
         $query->groupBy($idField)
@@ -333,9 +429,7 @@ class ManticoreSearchService
             ->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
             ->from($searchIndex);
 
-        if (!empty($searchQuery)) {
-            $query->match($columns, SphinxQL::expr('"' . $searchQuery . '"/1'));
-        }
+        $this->applyQuorumMatch($query, $columns, $searchQuery);
 
         $query = $this->applyHouseFilters($query, $options);
         $query->groupBy($idField)
@@ -345,6 +439,21 @@ class ManticoreSearchService
         $result = $query->execute();
 
         return is_iterable($result) ? iterator_to_array($result) : (array) $result;
+    }
+
+    /**
+     * Matches documents containing at least one of the words of $searchQuery
+     * (quorum operator). User input is escaped so characters like " or @
+     * cannot break or alter the full-text expression.
+     */
+    protected function applyQuorumMatch(SphinxQL $query, array $columns, ?string $searchQuery): SphinxQL
+    {
+        $searchQuery = trim((string) $searchQuery);
+        if ($searchQuery === '') {
+            return $query;
+        }
+
+        return $query->match($columns, SphinxQL::expr('"' . $query->escapeMatch($searchQuery) . '"/1'));
     }
 
     protected function applyCarFilters($query, $options)

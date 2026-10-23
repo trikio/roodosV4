@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CarsController;
 use App\Http\Controllers\HousesController;
+use App\Http\Controllers\SitemapController;
 
 $infoPages = [
     'envie-su-sitio' => 'pages.submit-site',
@@ -63,6 +64,10 @@ Route::domain('autos.roodos.{country}')->group(function () use ($infoPages) {
 
     // Ruta para detalle de auto
     Route::get('/auto/{id}', [CarsController::class, 'show'])->name('cars.show');
+
+    Route::get('/robots.txt', [SitemapController::class, 'robots']);
+    Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('cars.sitemap');
+    Route::get('/sitemaps/{file}', [SitemapController::class, 'show'])->where('file', '(landings|removed)-[0-9]+\.xml');
 
     // Páginas informativas
     foreach ($infoPages as $slug => $view) {
