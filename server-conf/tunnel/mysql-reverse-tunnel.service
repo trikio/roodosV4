@@ -1,0 +1,34 @@
+# Se instala en la MÁQUINA DE LA BASE DE ROODOS (no en el servidor de producción).
+# Publica su MySQL en 127.0.0.1:3307 del servidor, que es de donde reindexa Manticore.
+#
+#   sudo cp mysql-reverse-tunnel.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now mysql-reverse-tunnel
+#
+# Reemplazar USUARIO y la ruta de la llave (la que está en authorized_keys del servidor
+# como "roodos-tunnel").
+
+[Unit]
+Description=Tunel SSH reverso: MySQL de roodos en 127.0.0.1:3307 del servidor de produccion
+After=network-online.target mysql.service
+Wants=network-online.target
+# Never give up retrying: an outage of the network or the server must not leave it stopped.
+StartLimitIntervalSec=0
+
+[Service]
+User=USUARIO
+# ServerAlive*: detects a dead connection in ~90 s instead of hanging on it.
+# ExitOnForwardFailure: if 3307 can't be published, exit and retry instead of staying
+# connected without the tunnel.
+ExecStart=/usr/bin/ssh -N \
+    -o ServerAliveInterval=30 \
+    -o ServerAliveCountMax=3 \
+    -o ExitOnForwardFailure=yes \
+    -o StrictHostKeyChecking=accept-new \
+    -i /home/USUARIO/.ssh/roodos_tunnel \
+    -R 127.0.0.1:3307:127.0.0.1:3306 \
+    root@207.180.223.102
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
