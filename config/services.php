@@ -35,6 +35,12 @@ return [
         ],
     ],
 
+    'landings' => [
+        // Filters landings by make/model and points the canonical of thin ones to a parent page.
+        // Off: in production it moved the canonical away from the pages with most traffic.
+        'widening' => (bool) env('LANDING_WIDENING', false),
+    ],
+
     'manticore' => [
         'host' => env('MANTICORE_HOST', '127.0.0.1'),
         'port' => (int) env('MANTICORE_PORT', 9306),

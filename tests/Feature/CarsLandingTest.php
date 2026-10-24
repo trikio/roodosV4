@@ -16,6 +16,24 @@ class CarsLandingTest extends TestCase
 
         $this->manticore = Mockery::mock(ManticoreSearchService::class);
         $this->app->instance(ManticoreSearchService::class, $this->manticore);
+        config(['services.landings.widening' => true]);
+    }
+
+    public function test_by_default_landings_keep_their_canonical_and_title_search(): void
+    {
+        config(['services.landings.widening' => false]);
+        $this->givenLanding($this->landing([
+            'slug' => 'venta-autos-usados-volkswagen-escarabajo-lima-los-olivos',
+            'title' => 'venta Autos usados Volkswagen Escarabajo Lima Los Olivos',
+            'content' => json_encode(['breadcrumb' => ['make' => 'volkswagen', 'model' => 'volkswagen-escarabajo']]),
+        ]));
+        $this->manticore->shouldNotReceive('countCars');
+        $this->expectSearch(fn ($o) => $o['q'] === 'venta Autos usados Volkswagen Escarabajo Lima Los Olivos' && $o['make'] === '');
+
+        $response = $this->get('http://autos.roodos.pe/venta-autos-usados-volkswagen-escarabajo-lima-los-olivos');
+
+        $this->assertCanonical($response, '/venta-autos-usados-volkswagen-escarabajo-lima-los-olivos');
+        $response->assertDontSee('mostramos resultados similares');
     }
 
     private function landing(array $attributes = []): array

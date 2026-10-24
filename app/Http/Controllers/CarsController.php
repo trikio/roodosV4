@@ -178,7 +178,7 @@ class CarsController extends Controller
         $breadcrumbSlugs = LandingClassifier::breadcrumbSlugs($landing['content'] ?? null);
         // Parent levels are "autos-{make}[-{model}]-usados"; camionetas, motos or new-car landings
         // have no such parent and keep searching by title.
-        $filters = LandingClassifier::isAutosUsados($searchQuery)
+        $filters = config('services.landings.widening') && LandingClassifier::isAutosUsados($searchQuery)
             ? $this->resolveLandingFilters($landing, $breadcrumbSlugs, (string) $slug)
             : [];
         $canonicalUrl = url('/' . ltrim((string) $slug, '/'));
