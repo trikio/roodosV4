@@ -93,10 +93,6 @@ class CarsController extends Controller
 
     public function brand(Request $request, $country = null, string $slug = '')
     {
-        if ($hub = $this->hubLandingRedirect($request, $country, $slug)) {
-            return $hub;
-        }
-
         $make = $this->manticore->getCarMakeBySlug($slug);
 
         if (!$make || empty($make['id'])) {
@@ -118,10 +114,6 @@ class CarsController extends Controller
 
     public function model(Request $request, $country = null, string $slug = '')
     {
-        if ($hub = $this->hubLandingRedirect($request, $country, $slug)) {
-            return $hub;
-        }
-
         $model = $this->manticore->getCarModelBySlug($slug);
 
         if (!$model || empty($model['id'])) {
@@ -164,6 +156,11 @@ class CarsController extends Controller
         // Extract type from subdomain (autos.roodos.* -> 'autos')
         $type = 'autos';
         $countryCode = $this->resolveCountryCode($request, $country);
+
+        // Old site URLs ("/x/index.html") are the same landing; nginx 301s them, this is the fallback.
+        if (str_ends_with((string) $slug, '/index.html')) {
+            return redirect()->to(url('/' . substr((string) $slug, 0, -strlen('/index.html'))), 301);
+        }
 
         $landing = $this->manticore->getLandingBySlug($countryCode, (string) $slug);
 
@@ -210,25 +207,6 @@ class CarsController extends Controller
             array_fill_keys(array_keys(ManticoreSearchService::LANDING_FILTER_ATTRIBUTES), ''),
             $filters
         ), compact('slugData', 'type', 'searchQuery'));
-    }
-
-    /**
-     * /marca/x and /modelo/x list the same cars as the "autos-x-usados" landing, the URL that
-     * ranks: when that landing exists they 301 to it instead of competing with it.
-     */
-    private function hubLandingRedirect(Request $request, ?string $country, string $slug)
-    {
-        $countryCode = $this->resolveCountryCode($request, $country);
-        $hubSlug = 'autos-' . $slug . '-usados';
-        $landing = $this->manticore->getLandingBySlug($countryCode, $hubSlug);
-
-        if (empty($landing['title']) || trim((string) ($landing['redirect'] ?? '')) !== '') {
-            return null;
-        }
-
-        $query = $request->getQueryString();
-
-        return redirect()->to(url('/' . $hubSlug) . ($query ? '?' . $query : ''), 301);
     }
 
     /**

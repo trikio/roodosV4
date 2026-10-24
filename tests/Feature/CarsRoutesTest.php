@@ -66,16 +66,11 @@ class CarsRoutesTest extends TestCase
             ->assertDontSee('autos-santiago', false);
     }
 
-    public function test_make_page_redirects_to_its_landing(): void
+    public function test_old_index_html_urls_redirect_to_the_landing(): void
     {
-        $this->mockManticore()
-            ->shouldReceive('getLandingBySlug')
-            ->with('cl', 'autos-honda-usados')
-            ->andReturn(['title' => 'Autos Honda usados', 'redirect' => '']);
-
-        $this->get('http://autos.roodos.cl/marca/honda')
+        $this->get('http://autos.roodos.pe/venta-autos-usados-toyota-tercel-trujillo/index.html')
             ->assertStatus(301)
-            ->assertRedirect('http://autos.roodos.cl/autos-honda-usados');
+            ->assertRedirect('http://autos.roodos.pe/venta-autos-usados-toyota-tercel-trujillo');
     }
 
     public function test_robots_declares_the_country_sitemap(): void
