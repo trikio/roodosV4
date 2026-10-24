@@ -70,4 +70,18 @@
     </div>
 </div>
 
+@if(!empty($homeLinks['landings']))
+<!-- Featured searches -->
+<div class="bg-gray-50 py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-6">Búsquedas destacadas</h2>
+        <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
+            @foreach($homeLinks['landings'] as $link)
+            <li><a href="{{ $link['url'] }}" class="text-[#008bea] hover:underline">{{ $link['title'] }}</a></li>
+            @endforeach
+        </ul>
+    </div>
+</div>
+@endif
+
 @endsection

@@ -245,6 +245,8 @@
                         {{ $cars->onEachSide(0)->links('vendor.pagination.tailwind') }}
                     </div>
                     @endif
+
+                    @include('cars._landing_links')
                 </div>
 
                 <!-- Advertisement Column -->

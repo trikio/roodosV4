@@ -16,6 +16,7 @@ class CarsLandingTest extends TestCase
 
         $this->manticore = Mockery::mock(ManticoreSearchService::class);
         $this->app->instance(ManticoreSearchService::class, $this->manticore);
+        $this->manticore->shouldReceive('similarCarLandings')->andReturn([])->byDefault();
         config(['services.landings.widening' => true]);
     }
 

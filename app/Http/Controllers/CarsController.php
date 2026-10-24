@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
+use App\Services\LandingLinks;
 use App\Services\ManticoreSearchService;
 use App\Support\LandingClassifier;
 
@@ -15,7 +16,7 @@ class CarsController extends Controller
     /** Cars a landing needs to be its own canonical; below this it shows and points to its parent. */
     private const LANDING_MIN_RESULTS = 10;
 
-    public function __construct(ManticoreSearchService $manticore)
+    public function __construct(ManticoreSearchService $manticore, private LandingLinks $links)
     {
         $this->manticore = $manticore;
     }
@@ -56,7 +57,7 @@ class CarsController extends Controller
      * Home links pointing straight at the final URL: the "autos-x-usados", "autos-usados-x" or "autos-x" landing
      * when the country has it, otherwise the make/model page. Cities without a landing are left out.
      *
-     * @return array{models: array, brands: array, cities: array}
+     * @return array{models: array, brands: array, cities: array, landings: array}
      */
     private function homeLinks(string $countryCode): array
     {
@@ -83,6 +84,7 @@ class CarsController extends Controller
             'models' => array_map(fn ($label) => $link($label, '/modelo/'), $models),
             'brands' => array_map(fn ($label) => $link($label, '/marca/'), $brands),
             'cities' => array_values(array_filter(array_map(fn ($label) => $link($label, null), $cities))),
+            'landings' => $this->links->forHome($countryCode, $cities),
         ];
     }
 
@@ -101,14 +103,21 @@ class CarsController extends Controller
 
         $request->merge(['brand' => (int) $make['id']]);
 
+        $makeName = $make['name'] ?? ucfirst(str_replace('-', ' ', $slug));
+
         return $this->renderCarsIndex($request, $country, [
             'make' => (int) $make['id'],
         ], [
             'slugData' => [
                 'original' => $slug,
-                'title' => $make['name'] ?? ucfirst(str_replace('-', ' ', $slug)),
+                'title' => $makeName,
             ],
             'searchQuery' => '',
+            'linkModels' => true,
+            'landingLinks' => [
+                'title' => 'Búsquedas de ' . $makeName,
+                'links' => $this->links->forName($this->resolveCountryCode($request, $country), $makeName),
+            ],
         ]);
     }
 
@@ -125,29 +134,37 @@ class CarsController extends Controller
             'model' => (int) $model['id'],
         ]);
 
+        // car_model has no make slug: the breadcrumb link to the make page needs car_make.
+        $makeSlug = (string) ($this->manticore->getCarMakeById((int) ($model['id_car_make'] ?? 0))['slug'] ?? '');
+        $modelTitle = $model['make_model'] ?? $model['model_name'] ?? ucfirst(str_replace('-', ' ', $slug));
+
         return $this->renderCarsIndex($request, $country, [
             'make' => (int) ($model['id_car_make'] ?? 0),
             'model' => (int) $model['id'],
         ], [
             'slugData' => [
                 'original' => $slug,
-                'title' => $model['make_model'] ?? $model['model_name'] ?? ucfirst(str_replace('-', ' ', $slug)),
+                'title' => $modelTitle,
                 'breadcrumb' => [
                     [
                         'label' => 'Autos',
                         'url' => url('/'),
                     ],
                     [
-                        'label' => $model['make_name'] ?? $this->formatBreadcrumbLabel((string) ($model['slug_make'] ?? '')),
-                        'url' => !empty($model['slug_make']) ? url('/marca/' . $model['slug_make']) : null,
+                        'label' => $model['make_name'] ?? $this->formatBreadcrumbLabel($makeSlug),
+                        'url' => $makeSlug !== '' ? url('/marca/' . $makeSlug) : null,
                     ],
                     [
-                        'label' => $model['make_model'] ?? $model['model_name'] ?? ucfirst(str_replace('-', ' ', $slug)),
+                        'label' => $modelTitle,
                         'url' => null,
                     ],
                 ],
             ],
             'searchQuery' => '',
+            'landingLinks' => [
+                'title' => 'Búsquedas de ' . $modelTitle,
+                'links' => $this->links->forName($this->resolveCountryCode($request, $country), $modelTitle),
+            ],
         ]);
     }
 
@@ -206,7 +223,12 @@ class CarsController extends Controller
             ['q' => $resultsQuery],
             array_fill_keys(array_keys(ManticoreSearchService::LANDING_FILTER_ATTRIBUTES), ''),
             $filters
-        ), compact('slugData', 'type', 'searchQuery'));
+        ), array_merge(compact('slugData', 'type', 'searchQuery'), [
+            'landingLinks' => [
+                'title' => 'Búsquedas relacionadas',
+                'links' => $this->links->related($countryCode, $landing),
+            ],
+        ]));
     }
 
     /**
@@ -544,6 +566,16 @@ class CarsController extends Controller
         $models = $this->mapFacetCollection($results['model'] ?? [], 'id_car_model');
         $locations = $this->mapFacetCollection($results['state'] ?? [], 'id_state');
         $cities = $this->mapFacetCollection($results['city'] ?? [], 'id_city');
+        // Make pages link to the pages of their models that have ads (the model facet).
+        if (!empty($viewData['linkModels'])) {
+            $slugs = array_column($this->manticore->carModelsByIds($models->take(40)->pluck('id')->all()), 'slug', 'id');
+            $viewData['modelLinks'] = $models->take(40)
+                ->filter(fn ($model) => !empty($slugs[$model['id']]))
+                ->map(fn ($model) => ['title' => $model['name'], 'url' => url('/modelo/' . $slugs[$model['id']])])
+                ->values()
+                ->all();
+        }
+
         $searchQuery = $viewData['searchQuery'] ?? $options['q'];
         $type = $viewData['type'] ?? 'autos';
         $country = $countryCode;

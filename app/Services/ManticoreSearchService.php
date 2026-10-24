@@ -166,6 +166,23 @@ class ManticoreSearchService
         }
     }
 
+    public function getCarMakeById(int $id): ?array
+    {
+        try {
+            $result = (new SphinxQL($this->connection))
+                ->select('*')
+                ->from('car_make')
+                ->where('id', $id)
+                ->limit(0, 1)
+                ->execute()
+                ->fetchAllAssoc();
+
+            return $result[0] ?? null;
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
     public function getCarModelBySlug(string $slug): ?array
     {
         try {
@@ -319,6 +336,87 @@ class ManticoreSearchService
             'models' => $column('SELECT slug FROM car_model LIMIT 200000 OPTION max_matches=200000', 'slug'),
             'places' => array_values(array_filter($places)),
         ];
+    }
+
+    /**
+     * Active, non-redirecting landings whose title shares words with $terms, most similar first.
+     * With $allTerms every word must be in the title; otherwise at least one.
+     *
+     * @return array<int, array{id: string, slug: string, title: string}>
+     */
+    public function similarCarLandings(string $countryCode, string $terms, bool $allTerms, int $limit, array $excludeIds = []): array
+    {
+        $terms = trim($terms);
+        if ($terms === '') {
+            return [];
+        }
+
+        try {
+            $query = (new SphinxQL($this->connection))
+                ->select('id', 'slug', 'title')
+                ->from('car_landings_' . $countryCode)
+                ->where('redirect', '');
+
+            $escaped = $query->escapeMatch($terms);
+            $query->match('title', SphinxQL::expr($allTerms ? $escaped : '"' . $escaped . '"/1'));
+
+            if ($excludeIds !== []) {
+                $query->where('id', 'NOT IN', array_map('intval', $excludeIds));
+            }
+
+            return $query->limit(0, $limit)->option('max_matches', $limit)->execute()->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Active, non-redirecting landings with these slugs, as slug => title.
+     */
+    public function carLandingTitles(string $countryCode, array $slugs): array
+    {
+        if ($slugs === []) {
+            return [];
+        }
+
+        try {
+            $rows = (new SphinxQL($this->connection))
+                ->select('slug', 'title')
+                ->from('car_landings_' . $countryCode)
+                ->where('slug', 'IN', array_values($slugs))
+                ->where('redirect', '')
+                ->limit(0, count($slugs))
+                ->execute()
+                ->fetchAllAssoc();
+
+            return array_column($rows, 'title', 'slug');
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Model slugs and names for the given model ids.
+     *
+     * @return array<int, array{id: string, slug: string, model_name: string}>
+     */
+    public function carModelsByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        try {
+            return (new SphinxQL($this->connection))
+                ->select('id', 'slug', 'model_name')
+                ->from('car_model')
+                ->where('id', 'IN', array_map('intval', array_values($ids)))
+                ->limit(0, count($ids))
+                ->execute()
+                ->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
     }
 
     /**
