@@ -51,7 +51,7 @@ La base MySQL de roodos no está en el servidor de producción: una máquina apa
 
 - **Túnel:** [server-conf/tunnel/mysql-reverse-tunnel.service](server-conf/tunnel/mysql-reverse-tunnel.service) se instala en la máquina de la base; se reconecta solo. En el servidor conviene `ClientAliveInterval 30` en `sshd_config` para que una sesión muerta libere el 3307.
 - **Chequeo de salud:** [server-conf/healthcheck/roodos-healthcheck.sh](server-conf/healthcheck/roodos-healthcheck.sh) corre cada 15 minutos (crontab) y avisa por [ntfy](https://ntfy.sh) si Manticore no responde, el túnel está caído, los índices llevan más de 3 h sin actualizarse o la home de autos de un país no da 200. El tema de ntfy va en `/etc/roodos-healthcheck.env` (`NTFY_TOPIC=...`), fuera del repo. Log: `/var/log/roodos-healthcheck.log`.
-- **Manticore:** [server-conf/service_systemd/manticore.service](server-conf/service_systemd/manticore.service) se detiene con `--stopwait`; con `--stop` un reinicio dejaba el servicio colgado (caída del 23 de octubre de 2026).
+- **Manticore:** [server-conf/service_systemd/manticore.service](server-conf/service_systemd/manticore.service) se detiene con `--stopwait`; con `--stop` un reinicio dejaba el servicio colgado (caída del 23 de octubre de 2026). Si `searchd` no se apaga en 120 s, systemd lo mata con SIGKILL para que el reinicio no quede bloqueado por `binlog.lock` (caída del 28 de octubre de 2026). [server-conf/needrestart/roodos.conf](server-conf/needrestart/roodos.conf) va en `/etc/needrestart/conf.d/` para que las actualizaciones automáticas no reinicien Manticore solas.
 
 ## Desarrollo
 

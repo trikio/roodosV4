@@ -16,7 +16,9 @@ ExecStart=/usr/bin/searchd --config /etc/manticoresearch/manticore.conf
 ExecStop=/usr/bin/searchd --config /etc/manticoresearch/manticore.conf --stopwait
 KillMode=process
 KillSignal=SIGTERM
-SendSIGKILL=no
+# A searchd stuck in shutdown is killed after TimeoutStopSec. With SendSIGKILL=no it stayed
+# alive holding binlog.lock and every new start died for 4 hours (outage of 2026-10-28).
+SendSIGKILL=yes
 LimitNOFILE=65536
 LimitCORE=infinity
 LimitMEMLOCK=infinity
