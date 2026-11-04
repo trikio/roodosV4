@@ -1,5 +1,7 @@
 const mixpanelToken = import.meta.env.VITE_MIXPANEL_TOKEN;
 const adsenseClient = import.meta.env.VITE_ADSENSE_CLIENT;
+// Las vistas encolan eventos como [nombre, propiedades, callback?]; se envían al cargar Mixpanel.
+const mixpanelEvents = (window.mixpanelEvents = window.mixpanelEvents || []);
 
 let vendorsLoaded = false;
 let pageLoaded = document.readyState === "complete";
@@ -26,9 +28,23 @@ function loadScript(src, { async = true, defer = false, attrs = {} } = {}) {
   });
 }
 
+function flushMixpanelEvents() {
+  mixpanelEvents.splice(0).forEach(([name, properties, callback]) => {
+    if (!mixpanelToken) {
+      callback?.();
+      return;
+    }
+    window.mixpanel.track(name, properties, { transport: "sendBeacon", send_immediately: true }, callback);
+  });
+}
+
 function loadMixpanel() {
-  if (!mixpanelToken || window.__mixpanelLoaded) return;
+  if (window.__mixpanelLoaded) return;
   window.__mixpanelLoaded = true;
+  if (!mixpanelToken) {
+    flushMixpanelEvents();
+    return;
+  }
 
   (function (e, c) {
     if (!c.__SV) {
@@ -79,6 +95,7 @@ function loadMixpanel() {
     autocapture: true,
     record_sessions_percent: 100,
   });
+  flushMixpanelEvents();
 }
 
 function loadAdsenseScript(clientId) {
@@ -148,6 +165,8 @@ function loadVendorsOnce() {
 
 window.addEventListener("load", () => {
   pageLoaded = true;
+  // Con eventos pendientes no se espera interacción: el detalle redirige a la fuente en 0,5 s.
+  if (mixpanelEvents.length) loadMixpanel();
   loadVendorsOnce();
 });
 

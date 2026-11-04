@@ -103,7 +103,7 @@ class HousesController extends Controller
 
         $country = $countryCode;
         return response()
-            ->view('houses.show', compact('targetUrl', 'source', 'country'))
+            ->view('houses.show', compact('targetUrl', 'source', 'country') + ['adId' => $houseId])
             ->header('X-Robots-Tag', 'noindex, nofollow');
     }
 

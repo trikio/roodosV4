@@ -45,6 +45,14 @@
 @endif
 
 @section('content')
+@if(request()->routeIs('houses.index'))
+@include('partials.mixpanel-search', [
+    'vertical' => 'casas',
+    'results' => $houses,
+    'order' => $currentOrder,
+    'filterKeys' => ['operation', 'type', 'location', 'city', 'min_price', 'max_price', 'rooms', 'bath', 'min_size', 'max_size'],
+])
+@endif
 <div class="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
         <button

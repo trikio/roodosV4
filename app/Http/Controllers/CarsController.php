@@ -460,7 +460,7 @@ class CarsController extends Controller
 
         $country = $countryCode;
         return response()
-            ->view('cars.show', compact('targetUrl', 'source', 'country'))
+            ->view('cars.show', compact('targetUrl', 'source', 'country') + ['adId' => $carId])
             ->header('X-Robots-Tag', 'noindex, nofollow');
     }
 

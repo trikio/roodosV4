@@ -16,10 +16,23 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => {
+    (() => {
+        const startedAt = Date.now();
+        let redirected = false;
+        const redirect = () => {
+            if (redirected) return;
+            redirected = true;
             window.location.href = @json($targetUrl);
-        }, 500);
-    });
+        };
+
+        // Redirige a los 0.5 s o cuando Mixpanel envíe el evento, sin pasar de 1.5 s.
+        (window.mixpanelEvents = window.mixpanelEvents || []).push(['Ad Detail Viewed', {
+            vertical: 'casas',
+            country: @json($country),
+            ad_id: @json($adId),
+            source: @json($source),
+        }, () => setTimeout(redirect, Math.max(0, 500 - (Date.now() - startedAt)))]);
+        setTimeout(redirect, 1500);
+    })();
 </script>
 @endsection
