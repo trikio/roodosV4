@@ -78,6 +78,8 @@
     'order' => $currentOrder,
     'filterKeys' => ['brand', 'model', 'location', 'city', 'fuel', 'transmission', 'body', 'min_price', 'max_price', 'min_year', 'max_year', 'min_km', 'max_km'],
 ])
+@elseif(isset($slugData))
+@include('partials.mixpanel-landing', ['vertical' => 'autos', 'results' => $cars])
 @endif
 <!-- Sticky Mobile Bar -->
 <div class="lg:hidden sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">

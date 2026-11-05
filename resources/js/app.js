@@ -165,7 +165,8 @@ function loadVendorsOnce() {
 
 window.addEventListener("load", () => {
   pageLoaded = true;
-  // Con eventos pendientes no se espera interacción: el detalle redirige a la fuente en 0,5 s.
+  // Con eventos pendientes no se espera interacción: se perderían las visitas que se van sin
+  // interactuar y el detalle, que redirige a la fuente en 0,5 s.
   if (mixpanelEvents.length) loadMixpanel();
   loadVendorsOnce();
 });

@@ -111,6 +111,18 @@ class CarsLandingTest extends TestCase
             ->assertDontSee('mostramos resultados similares');
     }
 
+    public function test_landing_queues_mixpanel_landing_event(): void
+    {
+        $this->givenLanding($this->landing());
+        $this->givenSpecificCount('honda', 131);
+        $this->expectSearch(fn ($o) => true, 131);
+
+        $this->get('http://autos.roodos.pe/autos-honda-usados')
+            ->assertOk()
+            ->assertSee('push([\'Landing Viewed\', {"vertical":"autos","country":"pe","landing_type":"landing","slug":"autos-honda-usados","title":"Autos Honda usados","results_count":131,"page":1,"widened":false}]);', false)
+            ->assertDontSee("'Search'", false);
+    }
+
     public function test_page_links_carry_only_the_page(): void
     {
         $this->givenLanding($this->landing());

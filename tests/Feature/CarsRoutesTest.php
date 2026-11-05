@@ -93,6 +93,16 @@ class CarsRoutesTest extends TestCase
         $this->get('http://autos.roodos.cl/search?q=' . urlencode('toyota "corolla'))->assertOk();
     }
 
+    public function test_search_queues_mixpanel_search_event(): void
+    {
+        $this->mockManticore()->shouldReceive('carSearch')->andReturn($this->emptySearchResult(7));
+
+        $this->get('http://autos.roodos.cl/search?q=toyota&min_year=2015')
+            ->assertOk()
+            ->assertSee('push([\'Search\', {"vertical":"autos","country":"cl","query":"toyota","results_count":7,"page":1,"order":null,"min_year":"2015"}]);', false)
+            ->assertDontSee("'Landing Viewed'", false);
+    }
+
     public function test_removed_landing_returns_410(): void
     {
         $this->mockManticore()
