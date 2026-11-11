@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CarsController;
+use App\Http\Controllers\GuidesController;
 use App\Http\Controllers\HousesController;
 use App\Http\Controllers\SitemapController;
 
@@ -64,6 +65,9 @@ Route::domain('autos.roodos.{country}')->group(function () use ($infoPages) {
 
     // Ruta para detalle de auto
     Route::get('/auto/{id}', [CarsController::class, 'show'])->name('cars.show');
+
+    Route::get('/guias', [GuidesController::class, 'index'])->name('guides.index');
+    Route::get('/guias/{slug}', [GuidesController::class, 'show'])->name('guides.show');
 
     Route::get('/robots.txt', [SitemapController::class, 'robots']);
     Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('cars.sitemap');

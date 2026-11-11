@@ -1,0 +1,96 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Services\ManticoreSearchService;
+use Mockery;
+use Tests\TestCase;
+
+class GuidesTest extends TestCase
+{
+    private const GUIDES = [
+        'mx' => ['como-usan-la-tecnologia-las-agencias-de-seminuevos', 'https://www.autoraptor.com/'],
+        'cl' => ['como-calcula-una-automotora-el-pie-y-las-cuotas', 'https://www.autoraptor.com/automotive-desking-software'],
+        'pe' => ['como-manejan-el-stock-los-concesionarios-de-autos-usados', 'https://www.autoraptor.com/dealership-inventory-management'],
+        'ec' => ['que-pasa-cuando-le-escribes-a-una-concesionaria', 'https://www.autoraptor.com/dealership-lead-management'],
+    ];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('existingCarLandingSlugs')->andReturn(['autos-toyota-usados']);
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+    }
+
+    public function test_index_lists_only_the_country_guides(): void
+    {
+        foreach (self::GUIDES as $country => [$slug]) {
+            $response = $this->get("http://autos.roodos.{$country}/guias")->assertOk();
+
+            $response->assertSee('href="http://autos.roodos.' . $country . '/guias/' . $slug . '"', false)
+                ->assertSee('<html lang="es-' . strtoupper($country) . '">', false)
+                ->assertSee('<link rel="canonical" href="http://autos.roodos.' . $country . '/guias">', false)
+                ->assertDontSee('noindex', false);
+
+            foreach (self::GUIDES as $other => [$otherSlug]) {
+                if ($other !== $country) {
+                    $response->assertDontSee($otherSlug, false);
+                }
+            }
+        }
+    }
+
+    public function test_article_has_its_seo_tags(): void
+    {
+        $response = $this->get('http://autos.roodos.cl/guias/como-calcula-una-automotora-el-pie-y-las-cuotas')->assertOk();
+
+        $response->assertSee('<html lang="es-CL">', false)
+            ->assertSee('<title>Cómo calcula una automotora el pie y las cuotas de un auto usado | Roodos</title>', false)
+            ->assertSee('<meta name="description" content="Qué variables mueve una automotora cuando arma tu crédito automotriz, cómo leer la CAE y el costo total, y qué preguntar antes de firmar.">', false)
+            ->assertSee('<link rel="canonical" href="http://autos.roodos.cl/guias/como-calcula-una-automotora-el-pie-y-las-cuotas">', false)
+            ->assertSee('<meta name="robots" content="index,follow">', false)
+            ->assertSee('"@type":"Article","headline":"Cómo calcula una automotora el pie y las cuotas de un auto usado"', false)
+            ->assertSee('"datePublished":"2026-11-11","dateModified":"2026-11-11"', false)
+            ->assertSee('"@type":"BreadcrumbList"', false)
+            ->assertSee('<meta property="og:title" content="Cómo calcula una automotora el pie y las cuotas de un auto usado | Roodos">', false)
+            ->assertSee('<h1 class="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">Cómo calcula una automotora el pie y las cuotas de un auto usado</h1>', false)
+            ->assertSee('<h2>Las piezas de la cuota</h2>', false)
+            ->assertDontSee('noindex', false)
+            ->assertDontSee('hreflang', false);
+    }
+
+    public function test_autoraptor_link_is_a_plain_followed_link(): void
+    {
+        foreach (self::GUIDES as $country => [$slug, $autoraptorUrl]) {
+            $html = $this->get("http://autos.roodos.{$country}/guias/{$slug}")->assertOk()->getContent();
+
+            preg_match_all('/<a [^>]*href="https:\/\/www\.autoraptor\.com[^"]*"[^>]*>/', $html, $links);
+            $this->assertSame(['<a href="' . $autoraptorUrl . '">'], $links[0], $country);
+        }
+    }
+
+    public function test_article_ends_with_internal_search_links(): void
+    {
+        $this->get('http://autos.roodos.pe/guias/como-manejan-el-stock-los-concesionarios-de-autos-usados')
+            ->assertOk()
+            ->assertSee('href="http://autos.roodos.pe/search"', false)
+            ->assertSee('href="http://autos.roodos.pe/autos-toyota-usados"', false)
+            ->assertSee('href="http://autos.roodos.pe/marca/honda"', false);
+    }
+
+    public function test_guide_of_another_country_is_not_found(): void
+    {
+        $this->get('http://autos.roodos.mx/guias/como-calcula-una-automotora-el-pie-y-las-cuotas')->assertNotFound();
+        $this->get('http://autos.roodos.cl/guias/no-existe')->assertNotFound();
+        $this->get('http://autos.roodos.lab/guias')->assertNotFound();
+    }
+
+    public function test_footer_links_to_the_guides(): void
+    {
+        $this->get('http://autos.roodos.ec/guias/que-pasa-cuando-le-escribes-a-una-concesionaria')
+            ->assertOk()
+            ->assertSee('<a href="http://autos.roodos.ec/guias" class="hover:text-gray-900">Guías</a>', false);
+    }
+}

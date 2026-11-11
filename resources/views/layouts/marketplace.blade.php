@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="@yield('html_lang', 'es')">
 <head>
     @php
         $countryCode = request()->route('country');
@@ -21,7 +21,8 @@
         if ($pageTitle === '') {
             $pageTitle = 'Roodos - Marketplace de Autos';
         }
-        $htmlTitle = $pageTitle . ' - Roodos Autos ' . $countryName;
+        // Pages with their own full title (the guides' meta title) skip the site suffix.
+        $htmlTitle = trim($__env->yieldContent('html_title')) ?: $pageTitle . ' - Roodos Autos ' . $countryName;
 
         $metaDescription = trim($__env->yieldContent('meta_description'));
         if ($metaDescription === '') {
@@ -122,6 +123,9 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-gray-700">
                 <a href="https://roodos.com" class="hover:text-gray-900">Home</a>
+                @if($isRealCountry && $marketplaceType === 'autos')
+                <a href="{{ url('/guias') }}" class="hover:text-gray-900">Guías</a>
+                @endif
                 <a href="https://roodos.com/envie-su-sitio" class="hover:text-gray-900">Envíe su sitio</a>
                 <a href="https://roodos.com/sobre-nosotros" class="hover:text-gray-900">Sobre nosotros</a>
                 <a href="https://roodos.com/terminos-de-uso" class="hover:text-gray-900">Terminos de uso</a>

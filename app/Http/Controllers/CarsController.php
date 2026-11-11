@@ -62,22 +62,14 @@ class CarsController extends Controller
     private function homeLinks(string $countryCode): array
     {
         $models = ['Ford Ranger', 'Honda Accord', 'BMW 320', 'Toyota Corolla', 'Chevrolet Aveo', 'Mazda 3', 'Nissan Sentra', 'Hyundai Tucson'];
-        $brands = ['Alfa Romeo', 'Audi', 'BMW', 'Chevrolet', 'Ford', 'Honda', 'Hyundai', 'Kia', 'Mazda', 'Mercedes-Benz', 'Nissan', 'Toyota', 'Volkswagen', 'Volvo', 'Mitsubishi', 'Suzuki', 'Jeep', 'Subaru'];
+        $brands = LandingLinks::MAIN_MAKES;
         $cities = config('countries.autos_home.locations.' . strtoupper($countryCode), []);
+        $urls = $this->links->landingUrls($countryCode, array_merge($models, $brands, $cities));
 
-        // Make/model landings read "autos-x-usados"; city ones "autos-usados-x" (city last).
-        $candidates = fn (string $label) => ['autos-' . Str::slug($label) . '-usados', 'autos-usados-' . Str::slug($label), 'autos-' . Str::slug($label)];
-        $allCandidates = array_merge(...array_map($candidates, array_merge($models, $brands, $cities)));
-        $existing = array_flip($this->manticore->existingCarLandingSlugs($countryCode, $allCandidates));
+        $link = function (string $label, ?string $fallbackPrefix) use ($urls) {
+            $url = $urls[$label] ?? ($fallbackPrefix !== null ? url($fallbackPrefix . Str::slug($label)) : null);
 
-        $link = function (string $label, ?string $fallbackPrefix) use ($candidates, $existing) {
-            foreach ($candidates($label) as $slug) {
-                if (isset($existing[$slug])) {
-                    return ['label' => $label, 'url' => url('/' . $slug)];
-                }
-            }
-
-            return $fallbackPrefix !== null ? ['label' => $label, 'url' => url($fallbackPrefix . Str::slug($label))] : null;
+            return $url !== null ? ['label' => $label, 'url' => $url] : null;
         };
 
         return [

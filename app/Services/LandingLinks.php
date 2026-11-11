@@ -24,8 +24,36 @@ class LandingLinks
     /** Scraped ad labels ("Marca Chevrolet Modelo Aveo Versión..."): such titles are not linked. */
     private const LABEL_WORDS = ['marca', 'modelo', 'version', 'condicion', 'item', 'tipo', 'motor', 'kilometros', 'recorrido', 'puertas'];
 
+    /** Makes linked from the home and from the guides. */
+    public const MAIN_MAKES = ['Alfa Romeo', 'Audi', 'BMW', 'Chevrolet', 'Ford', 'Honda', 'Hyundai', 'Kia', 'Mazda', 'Mercedes-Benz', 'Nissan', 'Toyota', 'Volkswagen', 'Volvo', 'Mitsubishi', 'Suzuki', 'Jeep', 'Subaru'];
+
     public function __construct(private ManticoreSearchService $manticore)
     {
+    }
+
+    /**
+     * The "autos-x-usados", "autos-usados-x" or "autos-x" landing of each label when the country
+     * has it, or null. Make/model landings read "autos-x-usados"; city ones "autos-usados-x".
+     *
+     * @return array<string, ?string> label => URL
+     */
+    public function landingUrls(string $countryCode, array $labels): array
+    {
+        $candidates = fn (string $label) => ['autos-' . Str::slug($label) . '-usados', 'autos-usados-' . Str::slug($label), 'autos-' . Str::slug($label)];
+        $existing = array_flip($this->manticore->existingCarLandingSlugs($countryCode, array_merge(...array_map($candidates, $labels))));
+
+        $urls = [];
+        foreach ($labels as $label) {
+            $urls[$label] = null;
+            foreach ($candidates($label) as $slug) {
+                if (isset($existing[$slug])) {
+                    $urls[$label] = url('/' . $slug);
+                    break;
+                }
+            }
+        }
+
+        return $urls;
     }
 
     /**
