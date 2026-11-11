@@ -3,8 +3,8 @@ title: "Cómo usan la tecnología las agencias de seminuevos para atenderte"
 meta_title: "Cómo usan la tecnología las agencias de seminuevos | Roodos"
 meta_description: "Qué pasa con tus datos cuando le escribes a una agencia de autos seminuevos, cómo te dan seguimiento y cómo aprovecharlo para comprar mejor."
 slug: como-usan-la-tecnologia-las-agencias-de-seminuevos
-published_at: 2026-11-11
-updated_at: 2026-11-11
+published_at: 2026-11-18
+updated_at: 2026-11-18
 ---
 
 Comprar un auto seminuevo en México ya no empieza en el lote. Empieza en el celular: revisas modelos, comparas precios en portales como Roodos, mandas un mensaje por WhatsApp a dos o tres agencias y esperas a ver quién contesta primero y quién te da la mejor cotización.

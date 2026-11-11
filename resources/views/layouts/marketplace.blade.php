@@ -123,7 +123,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-base text-gray-700">
                 <a href="https://roodos.com" class="hover:text-gray-900">Home</a>
-                @if($isRealCountry && $marketplaceType === 'autos')
+                @if($isRealCountry && $marketplaceType === 'autos' && \App\Support\Guides::all($countryCode) !== [])
                 <a href="{{ url('/guias') }}" class="hover:text-gray-900">Guías</a>
                 @endif
                 <a href="https://roodos.com/envie-su-sitio" class="hover:text-gray-900">Envíe su sitio</a>

@@ -3,8 +3,8 @@ title: "¿Por qué un auto usado desaparece tan rápido de los avisos? Así mane
 meta_title: "Por qué los autos usados desaparecen rápido de los avisos | Roodos"
 meta_description: "Cómo manejan su inventario los concesionarios de autos usados en Perú, qué significan los días en stock y cómo usar esa información para negociar."
 slug: como-manejan-el-stock-los-concesionarios-de-autos-usados
-published_at: 2026-11-11
-updated_at: 2026-11-11
+published_at: 2026-11-25
+updated_at: 2026-11-25
 ---
 
 Te ha pasado: ves un auto usado a buen precio, lo guardas para revisarlo con calma y, cuando vuelves dos días después, el aviso ya no está. O al revés: escribes por un auto que sigue publicado y el concesionario te responde que "ese ya se vendió, pero tenemos otro parecido".
@@ -42,7 +42,7 @@ Por eso, a veces escribes por un auto que ya no existe. En algunos casos es un d
 
 Los concesionarios con más volumen ya no manejan el inventario en una hoja de cálculo. Usan sistemas donde cada auto tiene su ficha completa y está conectado con las ventas.
 
-Un ejemplo de este tipo de herramientas es la [gestión de inventario para concesionarios](https://www.autoraptor.com/dealership-inventory-management) de Autoraptor (sitio en inglés), una plataforma usada por concesionarios en Estados Unidos. Permite seguir cada vehículo desde que entra hasta que se vende, con datos como el VIN, las fotos, el precio, los costos de reacondicionamiento y los días en el local. Además, el auto aparece de forma automática en la página web del concesionario y se retira apenas se vende, y cada consulta queda vinculada al vehículo que la generó.
+Un ejemplo de este tipo de herramientas es la gestión de inventario de [Autoraptor](https://www.autoraptor.com/dealership-inventory-management) (sitio en inglés), una plataforma usada por concesionarios en Estados Unidos. Permite seguir cada vehículo desde que entra hasta que se vende, con datos como el VIN, las fotos, el precio, los costos de reacondicionamiento y los días en el local. Además, el auto aparece de forma automática en la página web del concesionario y se retira apenas se vende, y cada consulta queda vinculada al vehículo que la generó.
 
 Con un sistema así, el concesionario sabe en todo momento:
 

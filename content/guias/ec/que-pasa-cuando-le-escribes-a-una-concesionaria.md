@@ -3,8 +3,8 @@ title: "Qué pasa después de que le escribes a una concesionaria por un auto"
 meta_title: "Qué pasa después de que le escribes a una concesionaria | Roodos"
 meta_description: "Cómo registran, asignan y dan seguimiento las concesionarias y patios de autos a tu consulta, y cómo lograr una respuesta rápida y una mejor atención."
 slug: que-pasa-cuando-le-escribes-a-una-concesionaria
-published_at: 2026-11-11
-updated_at: 2026-11-11
+published_at: 2026-12-02
+updated_at: 2026-12-02
 ---
 
 Viste un auto usado que te gustó, apretaste el botón de WhatsApp o llenaste el formulario del aviso, y escribiste: "Hola, ¿sigue disponible?". A veces te contestan en cinco minutos con fotos, precio y una propuesta para ir a verlo. Otras veces pasan dos días y nadie responde.
@@ -37,7 +37,7 @@ Cuando este proceso funciona bien, sientes que te atienden rápido y que no tien
 
 ## Cómo lo hacen las concesionarias más organizadas
 
-En mercados con mucha competencia, como Estados Unidos, las concesionarias usan plataformas especializadas para que ningún lead se quede sin atender. Un ejemplo es la [gestión de leads para concesionarias](https://www.autoraptor.com/dealership-lead-management) de Autoraptor (sitio en inglés), que concentra todas las consultas en un solo lugar, las asigna automáticamente a los vendedores por turnos y le muestra al gerente, en una sola pantalla, cada lead, cada tarea y cada cita del día.
+En mercados con mucha competencia, como Estados Unidos, las concesionarias usan plataformas especializadas para que ningún lead se quede sin atender. Un ejemplo es la gestión de leads para concesionarias de [Autoraptor](https://www.autoraptor.com/dealership-lead-management) (sitio en inglés), que concentra todas las consultas en un solo lugar, las asigna automáticamente a los vendedores por turnos y le muestra al gerente, en una sola pantalla, cada lead, cada tarea y cada cita del día.
 
 Este tipo de sistemas también permite buscar en la base de datos a clientes que consultaron hace meses y volver a contactarlos cuando llega un auto que les puede interesar. Y le muestra a la concesionaria qué fuentes le traen los mejores clientes, para que invierta su presupuesto de publicidad donde de verdad vende.
 

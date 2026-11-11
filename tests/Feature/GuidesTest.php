@@ -19,6 +19,9 @@ class GuidesTest extends TestCase
     {
         parent::setUp();
 
+        // After every guide's publication date.
+        $this->travelTo('2026-12-31');
+
         $manticore = Mockery::mock(ManticoreSearchService::class);
         $manticore->shouldReceive('existingCarLandingSlugs')->andReturn(['autos-toyota-usados']);
         $this->app->instance(ManticoreSearchService::class, $manticore);
@@ -85,6 +88,28 @@ class GuidesTest extends TestCase
         $this->get('http://autos.roodos.mx/guias/como-calcula-una-automotora-el-pie-y-las-cuotas')->assertNotFound();
         $this->get('http://autos.roodos.cl/guias/no-existe')->assertNotFound();
         $this->get('http://autos.roodos.lab/guias')->assertNotFound();
+    }
+
+    public function test_guides_stay_hidden_until_their_publication_date(): void
+    {
+        $this->travelTo('2026-11-17 23:59');
+
+        $this->get('http://autos.roodos.cl/guias')->assertOk()
+            ->assertSee('<a href="http://autos.roodos.cl/guias" class="hover:text-gray-900">Guías</a>', false);
+        $this->get('http://autos.roodos.mx/guias')->assertNotFound();
+        $this->get('http://autos.roodos.mx/guias/como-usan-la-tecnologia-las-agencias-de-seminuevos')->assertNotFound();
+        $this->app->make(ManticoreSearchService::class)->shouldReceive('carSearch')->andReturn([
+            'items' => [],
+            'info' => [['Variable_name' => 'total_found', 'Value' => '0']],
+            'make' => [], 'model' => [], 'state' => [], 'city' => [],
+            'fuel' => [], 'transmission' => [], 'body' => [],
+        ]);
+        $this->get('http://autos.roodos.mx/search')->assertOk()->assertDontSee('/guias', false);
+
+        $this->travelTo('2026-11-18');
+
+        $this->get('http://autos.roodos.mx/guias/como-usan-la-tecnologia-las-agencias-de-seminuevos')->assertOk();
+        $this->get('http://autos.roodos.pe/guias')->assertNotFound();
     }
 
     public function test_footer_links_to_the_guides(): void
