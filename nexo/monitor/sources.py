@@ -61,11 +61,13 @@ SOURCES = [
     spider("kovacs_chile", "cl", "Kovacs", ["www.kovacsusados.cl"], "40 4 * * 4"),
     script("mercadolibre_cl", "cl", "MercadoLibre CL", ["auto.mercadolibre.cl"], "20 5 * * 5",
            "scripts/scrape_mercadolibre_cl_challenge.py", "--max-pages", "30"),
-    spider("salfa_chile", "cl", "Salfa", ["salfausados.cl"], "40 5 * * 5"),
+    spider("salfa_chile", "cl", "Salfa", ["salfausados.cl"], "40 5 * * 5", full_crawl=True),
     spider("autocosmos_chile", "cl", "Autocosmos CL", ["www.autocosmos.cl"], "10 4 * * 4"),
     # México
-    spider("seminuevos_mexico", "mx", "Seminuevos", ["www.seminuevos.com"], "50 3 * * 2"),
-    spider("autocosmos_mexico", "mx", "Autocosmos MX", ["www.autocosmos.com.mx"], "20 4 * * 2", timeout_hours=4),
+    # Bloqueada por el desafío de Cloudflare desde oct-2026; sus avisos se desactivaron el 12-11-2026.
+    spider("seminuevos_mexico", "mx", "Seminuevos", ["www.seminuevos.com"], "50 3 * * 2", enabled=False),
+    spider("autocosmos_mexico", "mx", "Autocosmos MX", ["www.autocosmos.com.mx"], "20 4 * * 2", timeout_hours=4,
+           full_crawl=True),
     spider("mercadolibre_mexico", "mx", "MercadoLibre MX", ["auto.mercadolibre.com.mx"], "20 3 * * 2"),
     spider("autos_carplanet_mexico", "mx", "Carplanet", ["carplanet.mx"], "45 4 * * 6"),
     spider("autos_seminuevossonora_mexico", "mx", "Seminuevos Sonora", ["seminuevossonora.com"], "50 4 * * 6"),
@@ -91,9 +93,13 @@ SOURCES = [
     spider("autos_autosummit_pe", "pe", "Autosummit Ford", ["www.autosummitford.pe"], "5 7 * * 3", timeout_hours=2,
            after=peru_sitemap_sync("AutoSummit")),
     # Ecuador
-    spider("patiotuerca_ecuador", "ec", "Patiotuerca", ["ecuador.patiotuerca.com"], "0 3 * * 1", after=EC_BACKFILL),
+    # Bloqueada por el desafío de Cloudflare; sus avisos se desactivaron el 12-11-2026.
+    spider("patiotuerca_ecuador", "ec", "Patiotuerca", ["ecuador.patiotuerca.com"], "0 3 * * 1", after=EC_BACKFILL,
+           enabled=False),
     spider("autos_topmotors_ec", "ec", "Topmotors", ["www.topmotorsusados.com"], "30 3 * * 1", after=EC_BACKFILL),
-    spider("mercadolibre_ecuador", "ec", "MercadoLibre EC", ["auto.mercadolibre.com.ec"], "0 6 * * 6", after=EC_BACKFILL),
+    # MercadoLibre pide iniciar sesión a esta IP y a los proxies; sus avisos se desactivaron el 12-11-2026.
+    spider("mercadolibre_ecuador", "ec", "MercadoLibre EC", ["auto.mercadolibre.com.ec"], "0 6 * * 6", after=EC_BACKFILL,
+           enabled=False),
     spider("autocosmos_ecuador", "ec", "Autocosmos EC", ["www.autocosmos.com.ec"], "30 6 * * 6", after=EC_BACKFILL),
 ]
 

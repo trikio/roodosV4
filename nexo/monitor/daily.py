@@ -25,6 +25,16 @@ def daily():
         if source.enabled:
             stats[source.id] = _source_day(conn, source, now)
 
+    paused = [source.id for source in sources.SOURCES if not source.enabled]
+    if paused:
+        # Una fuente en pausa ya no se revisa: sus alertas abiertas no tienen cómo cerrarse solas.
+        db.execute(
+            conn,
+            f"UPDATE nexo.alerts SET resolved_at=NOW() WHERE resolved_at IS NULL "
+            f"AND source_id IN ({','.join(['%s'] * len(paused))})",
+            tuple(paused),
+        )
+
     system = _system_checks(conn)
     db.execute(conn, "DELETE FROM nexo.image_checks WHERE checked_at < NOW() - INTERVAL 30 DAY")
 

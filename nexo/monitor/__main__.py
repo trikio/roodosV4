@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from . import cron, daily, db, hunt, images, runner, sources
+from . import cars, cron, daily, db, hunt, images, runner, sources
 from .config import ROOT
 from .fmt import day, label, num
 
@@ -22,6 +22,9 @@ def main():
     cron_parser.add_argument("--print", action="store_true", help="solo muestra el crontab resultante")
     commands.add_parser("update", help="trae los cambios del repo y reinstala si hubo")
     commands.add_parser("db-init", help="crea o completa la base nexo")
+    deactivate_parser = commands.add_parser("deactivate", help="desactiva todos los avisos activos de una fuente")
+    deactivate_parser.add_argument("source", choices=sorted(sources.BY_ID))
+    deactivate_parser.add_argument("--yes", action="store_true", help="aplicarlo; sin esto solo cuenta")
     args = parser.parse_args()
 
     if args.command == "run":
@@ -48,6 +51,8 @@ def main():
         update()
     elif args.command == "db-init":
         db_init()
+    elif args.command == "deactivate":
+        deactivate(sources.BY_ID[args.source], args.yes)
 
 
 def list_sources():
@@ -75,6 +80,19 @@ def update():
     # En un proceso nuevo: este todavía tiene cargado el código anterior al pull.
     subprocess.run([ROOT / "bin" / "nexo", "cron"], check=True)
     subprocess.run(["systemctl", "--user", "restart", "nexo-dashboard"])
+
+
+def deactivate(source, apply):
+    """Para fuentes que ya no se pueden actualizar: sus avisos salen de producción en la siguiente reindexación."""
+    conn = db.connect()
+    condition, params = cars.where(source)
+    if apply:
+        affected, _ = db.execute(conn, f"UPDATE cars SET status = 0 WHERE {condition} AND status = 1", params)
+        print(f"{label(source)}: {num(affected)} avisos desactivados")
+    else:
+        row = db.one(conn, f"SELECT COUNT(*) AS n FROM cars WHERE {condition} AND status = 1", params)
+        print(f"{label(source)}: {num(row['n'])} avisos activos (agrega --yes para desactivarlos)")
+    conn.close()
 
 
 def db_init():
