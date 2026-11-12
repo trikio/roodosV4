@@ -305,3 +305,8 @@ pre {
 tr.bad-row td {
   background: var(--red-bg);
 }
+
+tr.group-row td {
+  font-weight: 600;
+  background: var(--green-bg);
+}

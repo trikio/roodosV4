@@ -89,6 +89,28 @@ async function loadStatus() {
 }
 
 const OUTCOME_LABELS = { ok: "ok", empty: "sin avisos", drop: "caída", failed: "falló" };
+const COUNTRY_NAMES = { cl: "Chile", mx: "México", pe: "Perú", ec: "Ecuador" };
+
+async function loadCountries() {
+  const res = await fetch("/api/countries", { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+
+  const total = data.countries.reduce((sum, c) => sum + Number(c.active || 0), 0);
+  text("countries-total", `${num(total)} avisos activos en total`);
+
+  const body = byId("countries-active");
+  body.replaceChildren();
+  for (const c of data.countries) {
+    body.appendChild(row([
+      { value: COUNTRY_NAMES[c.country] || c.country.toUpperCase() },
+      { value: num(c.active), className: "num" },
+      { value: num(c.new_24h), className: "num" },
+      { value: num(c.seen_24h), className: "num" },
+      { value: num(c.seen_7d), className: "num" },
+    ]));
+  }
+}
 
 async function loadNexo() {
   const res = await fetch("/api/nexo", { cache: "no-store" });
@@ -100,7 +122,20 @@ async function loadNexo() {
 
   const sources = byId("nexo-sources");
   sources.replaceChildren();
+  const activeByCountry = {};
+  for (const s of data.sources) activeByCountry[s.country] = (activeByCountry[s.country] || 0) + Number(s.active || 0);
+  let currentCountry = null;
   for (const s of data.sources) {
+    if (s.country !== currentCountry) {
+      currentCountry = s.country;
+      const header = row([
+        { value: COUNTRY_NAMES[s.country] || s.country.toUpperCase() },
+        { value: "" },
+        { value: num(activeByCountry[s.country]), className: "num" },
+      ]);
+      header.className = "group-row";
+      sources.appendChild(header);
+    }
     const run = s.last_run ? `${s.last_run} · ${OUTCOME_LABELS[s.outcome] || s.outcome} (${num(s.last_run_seen)})` : "-";
     const images = s.images_checked ? `${s.images_broken} de ${s.images_checked}` : "-";
     const tr = row([
@@ -218,6 +253,9 @@ byId("refresh-now").addEventListener("click", startRefresh);
 loadStatus().catch((err) => {
   text("generated-at", `Dashboard error: ${err.message}`);
 });
+loadCountries().catch((err) => {
+  text("countries-total", `Error: ${err.message}`);
+});
 loadNexo().catch((err) => {
   text("nexo-summary", `Error: ${err.message}`);
 });
@@ -226,3 +264,4 @@ loadDealers().catch((err) => {
 });
 setInterval(() => loadStatus().catch(() => {}), 15000);
 setInterval(() => loadNexo().catch(() => {}), 60000);
+setInterval(() => loadCountries().catch(() => {}), 60000);

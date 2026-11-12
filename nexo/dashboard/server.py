@@ -213,6 +213,25 @@ def api_nexo():
     return jsonify({"sources": sources, "alerts": alerts, "candidates": candidates})
 
 
+@app.get("/api/countries")
+def api_countries():
+    """Avisos de autos por país: activos (los que ve producción) y movimiento reciente."""
+    rows = fetch_all(
+        """
+        SELECT LOWER(id_country) AS country,
+               SUM(status = 1) AS active,
+               SUM(created >= NOW() - INTERVAL 1 DAY) AS new_24h,
+               SUM(updated >= NOW() - INTERVAL 1 DAY) AS seen_24h,
+               SUM(status = 1 AND updated >= NOW() - INTERVAL 7 DAY) AS seen_7d
+        FROM cars
+        WHERE id_country IN ('cl', 'mx', 'pe', 'ec')
+        GROUP BY LOWER(id_country)
+        ORDER BY active DESC
+        """
+    )
+    return jsonify({"countries": rows})
+
+
 @app.get("/api/dealers")
 def api_dealers():
     """Automotoras chicas con sus avisos activos en roodos.cars."""
