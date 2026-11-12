@@ -69,8 +69,10 @@ SOURCES = [
     spider("mercadolibre_mexico", "mx", "MercadoLibre MX", ["auto.mercadolibre.com.mx"], "20 3 * * 2"),
     spider("autos_carplanet_mexico", "mx", "Carplanet", ["carplanet.mx"], "45 4 * * 6"),
     spider("autos_seminuevossonora_mexico", "mx", "Seminuevos Sonora", ["seminuevossonora.com"], "50 4 * * 6"),
-    spider("autos_kavak_mexico", "mx", "Kavak", ["www.kavak.com"], "55 3 * * 2"),
-    spider("autos_carros_mexico", "mx", "Carros.com", ["www.carros.com"], "35 4 * * 6"),
+    # Sus términos de uso prohíben el scraping; solo se activaría con un acuerdo o feed de Kavak.
+    spider("autos_kavak_mexico", "mx", "Kavak", ["www.kavak.com"], "55 3 * * 2", enabled=False),
+    # Casi todo su listado es de 2019-2022 y nunca expira avisos (revisado en nov-2026).
+    spider("autos_carros_mexico", "mx", "Carros.com", ["www.carros.com"], "35 4 * * 6", enabled=False),
     # Perú
     spider("autos_peruautos_pe", "pe", "Peruautos", ["www.peruautos.pe"], "0 4 * * 3"),
     spider("autocosmos_peru", "pe", "Autocosmos PE", ["www.autocosmos.com.pe"], "0 6 * * 3",

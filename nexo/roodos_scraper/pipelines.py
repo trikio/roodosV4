@@ -225,11 +225,20 @@ class MySQLRoodosPipeline:
             if not url:
                 return item
 
-            d = self._upload_thumb_and_rewrite_images(d, spider)
-
             country_code = (d.get("country") or "EC")[:3]
-            self.cur.execute("SELECT id FROM cars WHERE id_country=%s AND url=%s LIMIT 1", (country_code, url))
-            exists = self.cur.fetchone() is not None
+            self.cur.execute(
+                "SELECT id, image, image_big FROM cars WHERE id_country=%s AND url=%s LIMIT 1", (country_code, url)
+            )
+            existing = self.cur.fetchone()
+            exists = existing is not None
+
+            # Si el aviso ya tiene miniatura en el CDN y la imagen original no cambió, se reutiliza:
+            # descargarla y subirla de nuevo en cada ejecución alargaba horas las fuentes grandes.
+            original = (self._absolutize_image_url(d.get("image_big") or d.get("image"), url) or "")[:255]
+            if existing and self._is_cdn_url(existing["image"]) and original and existing["image_big"] == original:
+                d["image"], d["image_big"] = existing["image"], existing["image_big"]
+            else:
+                d = self._upload_thumb_and_rewrite_images(d, spider)
 
             sql = """
             INSERT INTO cars (

@@ -1263,9 +1263,19 @@ class AutosPortilloChileSpider(scrapy.Spider):
 
 
 class AutosSalfaChileSpider(scrapy.Spider):
+    """
+    Salfa Usados (Chile): https://salfausados.cl/autos/catalogo
+
+    El sitio es Angular SSR. Cada página del catálogo (?page=N, 18 autos) trae
+    el resultado de la API embebido en <script id="ng-state"> (vehicles.items,
+    con total/pages). Se mapea desde ese JSON, sin pedir las fichas: la ficha
+    no tiene og:title/og:image y el JSON ya trae todo.
+    URL del aviso: /autos/vehiculo/{id}; external_id = id numérico limpio.
+    """
+
     name = "salfa_chile"
     allowed_domains = ["salfausados.cl", "www.salfausados.cl"]
-    start_urls = ["https://salfausados.cl/autos/seminuevos"]
+    base_url = "https://salfausados.cl/autos/catalogo"
     custom_settings = {
         "ROBOTSTXT_OBEY": False,
         "DOWNLOAD_DELAY": 1.0,
@@ -1274,49 +1284,126 @@ class AutosSalfaChileSpider(scrapy.Spider):
             "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": 750,
         },
     }
+    max_pages = 200
+
+    def start_requests(self):
+        yield scrapy.Request(f"{self.base_url}?page=1", callback=self.parse, meta={"page_num": 1})
 
     def parse(self, response):
-        for href in response.css("a[href*='/autos/ficha/']::attr(href)").getall():
-            yield response.follow(href, callback=self.parse_detail)
-        for href in response.css("a[href*='?page=']::attr(href)").getall():
-            yield response.follow(href, callback=self.parse)
+        page_num = response.meta.get("page_num", 1)
+        vehicles = self._vehicles_block(response)
+        if vehicles is None:
+            self.logger.warning("No ng-state vehicles block on page %s (%s)", page_num, response.url)
+            return
 
-    def parse_detail(self, response):
-        title = (response.css("meta[property='og:title']::attr(content)").get() or response.css("title::text").get() or "").strip()
-        image = response.css("meta[property='og:image']::attr(content)").get()
-        prices = response.css("*::text").re(r"\$\s*[\d\.]+")
-        price = self._to_int(prices[-1]) if prices else None
-        year = None
-        ym = re.search(r"\b(19\d{2}|20\d{2})\b", title)
-        if ym:
-            year = int(ym.group(1))
-        km = self._to_int(" ".join(response.css("*::text").re(r"[\d\.]+\s*km")))
+        items = vehicles.get("items") or []
+        for v in items:
+            item = self._map_vehicle(v)
+            if item:
+                yield item
 
+        total_pages = self._to_int(vehicles.get("pages")) or page_num
+        if page_num == 1:
+            self.logger.info("Salfa catalog: total=%s pages=%s", vehicles.get("total"), total_pages)
+        if items and page_num < total_pages and page_num < self.max_pages:
+            nxt = page_num + 1
+            yield scrapy.Request(f"{self.base_url}?page={nxt}", callback=self.parse, meta={"page_num": nxt})
+
+    def _vehicles_block(self, response):
+        raw = response.css("script#ng-state::text").get()
+        if not raw:
+            return None
+        try:
+            state = json.loads(raw)
+        except Exception:
+            return None
+        for entry in state.values():
+            if not isinstance(entry, dict):
+                continue
+            body = entry.get("b")
+            if isinstance(body, dict) and isinstance(body.get("vehicles"), dict):
+                return body["vehicles"]
+        return None
+
+    def _map_vehicle(self, v):
+        vid = v.get("id")
+        if not vid:
+            return None
+        status = (v.get("status") or "").strip().lower()
+        if status and status != "activo":
+            return None
+
+        # attributes viene como lista de dicts de una o dos llaves: [{"brand_id":..,"brand":..}, {"year":..}, ...]
+        attrs = {}
+        for a in v.get("attributes") or []:
+            if isinstance(a, dict):
+                attrs.update(a)
+
+        brand = (attrs.get("brand") or "").strip()
+        model = (attrs.get("model") or "").strip()
+        version = (attrs.get("version") or "").strip()
+        year = self._to_int(attrs.get("year"))
+        km = self._to_int(attrs.get("mileage"))
+        # legal_price = "Precio contado"; cash_price = "Precio financiamiento" (contado menos bono).
+        price = self._to_int(attrs.get("legal_price")) or self._to_int(attrs.get("cash_price"))
+
+        images = sorted(
+            [i for i in (v.get("images") or []) if isinstance(i, dict) and i.get("source")],
+            key=lambda i: i.get("order") or 0,
+        )
+        image = images[0]["source"] if images else None
+
+        title = " ".join(p for p in [brand, model, str(year) if year else "", version] if p).strip()
+        fuel = (attrs.get("fuel_type") or "").strip()
+        transmission = (attrs.get("transmission") or "").strip()
+        body = (attrs.get("vehicle_category") or attrs.get("vehicle_type") or "").strip()
+        details = " - ".join(x for x in [body, fuel, transmission] if x) or None
+
+        url = f"https://salfausados.cl/autos/vehiculo/{vid}"
         item = ListingItem()
         item["vertical"] = "car"
         item["source_name"] = self.name
         item["country"] = "CL"
-        item["url"] = response.url[:250]
-        item["slug"] = response.url.rstrip('/').split('/')[-1][:255]
-        item["title"] = title[:250] if title else item["slug"]
+        item["url"] = url
+        item["slug"] = str(vid)
+        item["title"] = title[:250] if title else f"Salfa {vid}"
         item["image"] = image
         item["image_big"] = image
-        item["details"] = None
+        item["details"] = details
         item["price"] = price
         item["year"] = year
         item["km"] = km
-        item["external_id"] = item["slug"][:50]
-        parts = [p for p in re.split(r"\s+", title) if p]
-        item["brand_name"] = parts[0] if parts else None
-        item["model_name"] = " ".join(parts[1:3]) if len(parts) > 1 else None
+        item["external_id"] = str(vid)
+        item["brand_name"] = brand or None
+        item["model_name"] = model or None
         item["id_state"] = None
         item["id_city"] = None
         item["id_car_make"] = None
         item["id_car_model"] = None
-        item["id_fuel"] = None
+        item["id_fuel"] = self._map_fuel(fuel)
         item["id_body"] = None
-        item["id_transmission"] = None
-        yield item
+        item["id_transmission"] = self._map_transmission(transmission)
+        return item
+
+    def _map_fuel(self, value):
+        t = (value or "").lower()
+        if "gasolina" in t or "bencina" in t:
+            return 1
+        if "diesel" in t or "diésel" in t:
+            return 2
+        if "híbr" in t or "hibr" in t:
+            return 4
+        if "eléct" in t or "elect" in t:
+            return 3
+        return None
+
+    def _map_transmission(self, value):
+        t = (value or "").lower()
+        if "auto" in t:
+            return 1
+        if "manual" in t or "mec" in t:
+            return 2
+        return None
 
     def _to_int(self, value):
         if value in (None, ""):
@@ -1326,76 +1413,188 @@ class AutosSalfaChileSpider(scrapy.Spider):
 
 
 class AutosMercadolibreMexicoSpider(scrapy.Spider):
+    """
+    Mexico used cars from MercadoLibre listing pages (no detail crawl).
+
+    - Goes out WITHOUT the Webshare proxies: the Webshare pool is US datacenter
+      IPs and MercadoLibre answers them with a 302 to /gz/account-verification
+      (login wall, "negative_traffic"). From the server's own IP the listing
+      loads normally.
+    - A MercadoLibre search only serves ~2,048 results (offset <= 2001), so the
+      catalogue (~66k) is split into price bands (_PriceRange_) small enough to
+      be paginated completely. Bands with more than SEGMENT_CAP results are
+      split again.
+    - max_pages is a page budget per run (-a max_pages=N; ~1,700 covers the
+      whole site). Requests are prioritised breadth-first (page 1 of every band
+      before page 2, ...) so a partial budget still spreads across all prices.
+    - A 302 to the login wall closes the spider with finish_reason
+      blocked_login_wall (0 items -> the monitor marks the run empty).
+    """
+
     name = "mercadolibre_mexico"
-    allowed_domains = ["autos.mercadolibre.com.mx", "mercadolibre.com.mx"]
+    allowed_domains = ["autos.mercadolibre.com.mx", "mercadolibre.com.mx", "auto.mercadolibre.com.mx"]
     base_url = "https://autos.mercadolibre.com.mx/usados/"
 
     custom_settings = {
         "ROBOTSTXT_OBEY": False,
-        "DOWNLOAD_DELAY": 1.0,
+        "CONCURRENT_REQUESTS": 1,
+        "DOWNLOAD_DELAY": 2.0,
+        "RANDOMIZE_DOWNLOAD_DELAY": True,
+        "AUTOTHROTTLE_ENABLED": True,
+        "AUTOTHROTTLE_START_DELAY": 2.0,
+        "AUTOTHROTTLE_TARGET_CONCURRENCY": 1.0,
+        "DOWNLOADER_MIDDLEWARES": {
+            # Webshare (US datacenter) IPs get the login wall; keep the server IP
+            # and a single, stable browser UA for the whole session.
+            "roodos_scraper.middlewares.WebshareProxyRotationMiddleware": None,
+            "roodos_scraper.middlewares.RandomUserAgentRotationMiddleware": None,
+        },
     }
 
-    max_pages = 250
+    per_page = 48
+    max_offset = 2001          # last _Desde_ that still returns cards
+    SEGMENT_CAP = 2000         # split a price band above this many results
+    target_per_segment = 1800
+    # Initial price bands (MXN). 0 as upper bound = open ended.
+    seed_bounds = [0, 100000, 150000, 200000, 250000, 300000, 350000, 400000,
+                   500000, 650000, 850000, 1200000, 0]
+
+    def __init__(self, max_pages=400, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.max_pages = int(max_pages)
+        self.pages_done = 0
+        self.seen_urls = set()
+
+    # ---------- requests ----------
+    def _segment_url(self, lo, hi, start=1):
+        if lo is None:  # root: whole catalogue, no price filter
+            return self.base_url
+        desde = f"_Desde_{start}" if start > 1 else ""
+        return f"{self.base_url}{desde}_PriceRange_{lo}MXN-{hi}MXN_NoIndex_True"
+
+    def _request(self, lo, hi, start=1, probe=False, priority=0):
+        return scrapy.Request(
+            self._segment_url(lo, hi, start),
+            callback=self.parse,
+            priority=priority,
+            dont_filter=True,
+            meta={
+                "lo": lo, "hi": hi, "start": start, "probe": probe,
+                "dont_redirect": True, "handle_httpstatus_list": [301, 302, 303, 307],
+            },
+        )
 
     def start_requests(self):
-        yield scrapy.Request(self.base_url, callback=self.parse, meta={"page_num": 1})
+        # One root request; the price bands are scheduled from its callback so
+        # they all sit in the (priority) scheduler at once.
+        yield self._request(None, None, probe=True)
 
+    # ---------- parsing ----------
     def parse(self, response):
-        page_num = int(response.meta.get("page_num", 1))
-        cards = response.css("li.ui-search-layout__item")
-        for card in cards:
-            a = card.css("a.poly-component__title::attr(href)").get()
-            title = (card.css("a.poly-component__title::text").get() or "").strip()
-            if not a or not title:
-                continue
-            url = response.urljoin(a.split("#")[0])
-            image = card.css("img.poly-component__picture::attr(src)").get()
-            price_text = "".join(card.css(".poly-price__current *::text").getall())
-            attrs = [x.strip() for x in card.css(".poly-attributes_list__item::text").getall() if x.strip()]
-            year = self._to_int(attrs[0]) if attrs else None
-            km = next((self._to_int(x) for x in attrs if "km" in x.lower()), None)
+        from scrapy.exceptions import CloseSpider
 
-            item = ListingItem()
-            item["vertical"] = "car"
-            item["source_name"] = self.name
-            item["country"] = "MX"
-            item["url"] = url[:250]
-            item["slug"] = url.rstrip("/").split("/")[-1][:255]
-            item["title"] = title[:250]
-            item["image"] = image
-            item["image_big"] = image
-            item["details"] = (" | ".join(attrs)[:2000] if attrs else None)
-            item["price"] = self._to_int(price_text)
-            item["year"] = year
-            item["km"] = km
-            m = re.search(r"/(MLM-\d+)", url)
-            item["external_id"] = m.group(1) if m else item["slug"][:50]
-            t = [p for p in re.split(r"\s+", title) if p]
-            item["brand_name"] = t[0] if t else None
-            item["model_name"] = " ".join(t[1:3]) if len(t) > 1 else None
-            item["id_state"] = None
-            item["id_city"] = None
-            item["id_car_make"] = None
-            item["id_car_model"] = None
-            item["id_fuel"] = None
-            item["id_body"] = None
-            item["id_transmission"] = None
-            yield item
+        if response.status in (301, 302, 303, 307):
+            loc = response.headers.get("Location", b"").decode("utf-8", "ignore")
+            if "account-verification" in loc or "/login" in loc:
+                self.crawler.stats.set_value("mercadolibre/blocked_login_wall", 1)
+                self.logger.error("MercadoLibre MX login wall (302 -> %s)", loc[:120])
+                raise CloseSpider("blocked_login_wall")
+            self.logger.warning("Unexpected redirect %s -> %s", response.url, loc[:120])
+            return
 
-        # Controlled pagination by offset to avoid infinite crawl loops
-        if not cards:
+        self.pages_done += 1
+        lo, hi = response.meta["lo"], response.meta["hi"]
+
+        for card in response.css("li.ui-search-layout__item"):
+            item = self._parse_card(response, card)
+            if item and item["url"] not in self.seen_urls:
+                self.seen_urls.add(item["url"])
+                yield item
+
+        if self.pages_done >= self.max_pages:
+            raise CloseSpider("max_pages_reached")
+
+        if not response.meta.get("probe"):
             return
-        per_page = len(cards) if cards else 48
-        if per_page <= 0:
-            per_page = 48
-        if page_num >= self.max_pages:
+
+        total = self._extract_total_results(response.text) or 0
+        if lo is None:
+            self.crawler.stats.set_value("mercadolibre/site_total", total)
+            self.logger.info("site total=%s", total)
+            b = self.seed_bounds
+            for sub_lo, sub_hi in zip(b[:-1], b[1:]):
+                yield self._request(sub_lo, sub_hi, probe=True, priority=0)
             return
-        next_start = page_num * per_page + 1
-        next_url = f"{self.base_url}_Desde_{next_start}"
-        yield scrapy.Request(next_url, callback=self.parse, meta={"page_num": page_num + 1})
+
+        self.logger.info("segment %s-%s total=%s", lo, hi or "inf", total)
+        subs = self._split(lo, hi, total) if total > self.SEGMENT_CAP else None
+        if subs:
+            for sub_lo, sub_hi in subs:
+                yield self._request(sub_lo, sub_hi, probe=True, priority=0)
+            return
+
+        pages = min((total + self.per_page - 1) // self.per_page,
+                    (self.max_offset - 1) // self.per_page + 1)
+        for page in range(2, pages + 1):
+            # breadth-first: page 1 of every band, then page 2, ...
+            yield self._request(lo, hi, start=(page - 1) * self.per_page + 1, priority=-page)
+
+    def _split(self, lo, hi, total):
+        if hi == 0:  # open ended band
+            return [(lo, lo * 2), (lo * 2, 0)]
+        width = hi - lo
+        parts = max(2, -(-total // self.target_per_segment))
+        step = width // parts
+        if step < 1000:
+            return None  # can't narrow further: crawl the reachable 42 pages
+        cuts = [lo + i * step for i in range(parts)] + [hi]
+        # adjacent bands share their boundary price (no gaps; duplicates are skipped)
+        return list(zip(cuts[:-1], cuts[1:]))
+
+    def _parse_card(self, response, card):
+        a = card.css("a.poly-component__title::attr(href)").get()
+        title = (card.css("a.poly-component__title::text").get() or "").strip()
+        if not a or not title:
+            return None
+        url = response.urljoin(a.split("#")[0])
+        if not url.startswith("https://auto.mercadolibre.com.mx/MLM-"):
+            return None  # tracking / ad links
+        image = card.css("img.poly-component__picture::attr(src)").get()
+        price_text = "".join(card.css(".poly-price__current .andes-money-amount__fraction::text").getall()) \
+            or "".join(card.css(".poly-price__current *::text").getall())
+        attrs = [x.strip() for x in card.css(".poly-attributes_list__item::text").getall() if x.strip()]
+        year = self._to_int(attrs[0]) if attrs else None
+        km = next((self._to_int(x) for x in attrs if "km" in x.lower()), None)
+
+        item = ListingItem()
+        item["vertical"] = "car"
+        item["source_name"] = self.name
+        item["country"] = "MX"
+        item["url"] = url[:250]
+        item["slug"] = url.rstrip("/").split("/")[-1][:255]
+        item["title"] = title[:250]
+        item["image"] = image
+        item["image_big"] = image
+        item["details"] = (" | ".join(attrs)[:2000] if attrs else None)
+        item["price"] = self._to_int(price_text)
+        item["year"] = year
+        item["km"] = km
+        m = re.search(r"/(MLM-\d+)", url)
+        item["external_id"] = m.group(1) if m else item["slug"][:50]
+        t = [p for p in re.split(r"\s+", title) if p]
+        item["brand_name"] = t[0] if t else None
+        item["model_name"] = " ".join(t[1:3]) if len(t) > 1 else None
+        item["id_state"] = None
+        item["id_city"] = None
+        item["id_car_make"] = None
+        item["id_car_model"] = None
+        item["id_fuel"] = None
+        item["id_body"] = None
+        item["id_transmission"] = None
+        return item
 
     def _extract_total_results(self, html):
-        m = re.search(r'"total":\s*(\d+)', html)
+        m = re.search(r'"offset":\d+,"total":(\d+)', html) or re.search(r'"total":\s*(\d+)', html)
         return int(m.group(1)) if m else None
 
     def _to_int(self, value):
@@ -1406,71 +1605,141 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
 
 
 class AutosAutocosmosMexicoSpider(scrapy.Spider):
+    """
+    Mexico used cars from Autocosmos.
+
+    Since ~Sept 2026 autocosmos.com.mx serves a new frontend: cards are
+    `div.card.vehicle-card` (no more `article.listing-card`) and links point to
+    /Publications/Clasified?id=N. The canonical ad URL is
+    /auto/usado/<brand>/<model>/<version>/<id> (the site resolves it by id),
+    so we build it from the card data. Pagination: ?page=N&itemsPerPage=36&sortBy=newest,
+    stops on the first page without cards (~4.6k ads, ~128 pages).
+    """
+
     name = "autocosmos_mexico"
     allowed_domains = ["www.autocosmos.com.mx", "autocosmos.com.mx"]
     start_urls = ["https://www.autocosmos.com.mx/auto/usado"]
-    custom_settings = {"ROBOTSTXT_OBEY": True, "DOWNLOAD_DELAY": 1.0}
+    # robots.txt pide Crawl-delay: 20 (Scrapy no lo aplica solo); el recorrido completo toma ~45 min.
+    custom_settings = {"ROBOTSTXT_OBEY": True, "DOWNLOAD_DELAY": 20}
 
-    max_pages = 400
+    items_per_page = 36
+    max_pages = 1000  # safety net only; the crawl stops when a page has no cards
 
     def start_requests(self):
-        yield scrapy.Request(self.start_urls[0], callback=self.parse, meta={"page_num": 1})
+        yield scrapy.Request(self._page_url(1), callback=self.parse, meta={"page_num": 1})
+
+    def _page_url(self, page_num):
+        # sortBy=newest: the default order is shuffled on every request, so plain
+        # pagination repeats/skips ~40% of the ads.
+        return (
+            f"https://www.autocosmos.com.mx/auto/usado?page={page_num}"
+            f"&itemsPerPage={self.items_per_page}&sortBy=newest"
+        )
 
     def parse(self, response):
         page_num = int(response.meta.get("page_num", 1))
-        cards = response.css("article.card.listing-card")
+        cards = response.css("div.vehicle-card")
+        if page_num == 1:
+            m_total = re.search(r"(\d[\d,\.]*)\s+publicaciones", response.text)
+            if m_total:
+                self.logger.info("autocosmos_mexico: site reports %s listings", m_total.group(1))
+
         for card in cards:
-            href = card.css("a[itemprop='url']::attr(href)").get() or card.css("a::attr(href)").get()
-            title = (card.css("h2::text, h3::text, [itemprop='name']::attr(content)").get() or "").strip()
-            if not href or not title:
-                continue
-            url = response.urljoin(href)
-            # avoid duplicated new-car catalog entries
-            if "/auto/nuevo/" in url:
-                continue
-            image = card.css("img::attr(src), img::attr(data-src)").get()
-            price_raw = card.css("[itemprop='price']::attr(content)").get() or " ".join(card.css(".price *::text, .listing-card__price *::text").getall())
-            meta = " ".join([x.strip() for x in card.css(".card__content *::text, .listing-card__content *::text, .card__specs *::text").getall() if x.strip()])
-            year = None
-            ym = re.search(r"\b(19\d{2}|20\d{2})\b", meta)
-            if ym:
-                year = int(ym.group(1))
-            km = None
-            kmm = re.search(r"([\d\.,]+)\s*(km|kms|kil[oó]metros)", meta, re.I)
-            if kmm:
-                km = self._to_int(kmm.group(1))
+            item = self._parse_card(response, card)
+            if item:
+                yield item
 
-            item = ListingItem()
-            item["vertical"] = "car"
-            item["source_name"] = self.name
-            item["country"] = "MX"
-            item["url"] = url[:250]
-            item["slug"] = url.rstrip("/").split("/")[-1][:255]
-            item["title"] = title[:250]
-            item["image"] = image
-            item["image_big"] = image
-            item["details"] = meta[:2000] if meta else None
-            item["price"] = self._to_int(price_raw)
-            item["year"] = year
-            item["km"] = km
-            item["external_id"] = item["slug"][:50]
-            parts = [p for p in urlparse(item["url"]).path.split("/") if p]
-            item["brand_name"] = parts[2].replace("-", " ") if len(parts) > 2 else None
-            item["model_name"] = parts[3].replace("-", " ") if len(parts) > 3 else None
-            item["id_state"] = None
-            item["id_city"] = None
-            item["id_car_make"] = None
-            item["id_car_model"] = None
-            item["id_fuel"] = None
-            item["id_body"] = None
-            item["id_transmission"] = None
-            yield item
-
-        # Autocosmos MX pagination pattern should stay under /auto/usado?pidx=N
         if cards and page_num < self.max_pages:
             next_num = page_num + 1
-            next_url = f"https://www.autocosmos.com.mx/auto/usado?pidx={next_num}"
-            yield scrapy.Request(next_url, callback=self.parse, meta={"page_num": next_num})
+            yield scrapy.Request(self._page_url(next_num), callback=self.parse, meta={"page_num": next_num})
+        elif not cards:
+            self.logger.info("autocosmos_mexico: no cards on page %s, pagination finished", page_num)
+
+    def _parse_card(self, response, card):
+        href = card.css("a.u-link-v2::attr(href)").get() or card.css("a[href*='Clasified']::attr(href)").get()
+        pub_id = card.css("[data-publication-id]::attr(data-publication-id)").get()
+        if not pub_id and href:
+            m = re.search(r"id=(\d+)", href)
+            pub_id = m.group(1) if m else None
+        if not pub_id:
+            return None
+
+        brand = (card.css(".favorite-btn::attr(data-brand)").get() or "").strip() or None
+        model = (card.css(".favorite-btn::attr(data-serie)").get() or "").strip() or None
+        title_parts = [t.strip() for t in card.css("h6.card-publication-title ::text").getall() if t.strip()]
+        version = title_parts[1] if len(title_parts) > 1 else None
+        title = " ".join(title_parts)
+        if not title:
+            return None
+
+        details_lines = [
+            " ".join(t.strip() for t in p.css("::text").getall() if t.strip())
+            for p in card.css("p.card-publication-detail-text")
+        ]
+        details_lines = [x for x in details_lines if x]
+        specs = details_lines[0] if details_lines else ""  # e.g. "2024 | 21,057 km"
+        location = details_lines[1] if len(details_lines) > 1 else None
+
+        year = None
+        ym = re.search(r"\b(19\d{2}|20\d{2})\b", specs)
+        if ym:
+            year = int(ym.group(1))
+        km = None
+        kmm = re.search(r"([\d\.,]+)\s*(km|kms|kil[oó]metros)\b", specs, re.I)
+        if kmm:
+            km = self._to_int(kmm.group(1))
+
+        price = None
+        price_raw = " ".join(card.css(".grid-card-pricing__price ::text").getall()).strip()
+        pm = re.search(r"\$\s*([\d,]+)", price_raw)
+        if pm:
+            price = self._to_int(pm.group(1))  # drop the ".00" cents
+
+        image = card.css("img.card-img-top::attr(src)").get() or card.css("img::attr(src)").get()
+        if image:
+            image = response.urljoin(image)
+
+        if brand and model:
+            path_parts = [self._slug(brand), self._slug(model)]
+            if version:
+                path_parts.append(self._slug(version))
+            path_parts = [p for p in path_parts if p]
+            url = "https://www.autocosmos.com.mx/auto/usado/" + "/".join(path_parts + [pub_id])
+        else:
+            url = f"https://www.autocosmos.com.mx/Publications/Clasified?id={pub_id}"
+
+        details = " | ".join(x for x in [specs, location] if x) or None
+
+        item = ListingItem()
+        item["vertical"] = "car"
+        item["source_name"] = self.name
+        item["country"] = "MX"
+        item["url"] = url[:250]
+        item["slug"] = "-".join(p for p in [self._slug(title), pub_id] if p)[:255]
+        item["title"] = (f"{title} {year}" if year else title)[:250]
+        item["image"] = image
+        item["image_big"] = image
+        item["details"] = details[:2000] if details else None
+        item["price"] = price
+        item["year"] = year
+        item["km"] = km
+        item["external_id"] = pub_id[:50]
+        item["brand_name"] = brand
+        item["model_name"] = model
+        item["id_state"] = None
+        item["id_city"] = None
+        item["id_car_make"] = None
+        item["id_car_model"] = None
+        item["id_fuel"] = None
+        item["id_body"] = None
+        item["id_transmission"] = None
+        return item
+
+    def _slug(self, value):
+        import unicodedata
+
+        s = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
+        return re.sub(r"[^a-z0-9]+", "-", s).strip("-")
 
     def _to_int(self, value):
         if value in (None, ""):

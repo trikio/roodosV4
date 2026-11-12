@@ -28,6 +28,8 @@ class RandomUserAgentRotationMiddleware:
 
 
 class WebshareProxyRotationMiddleware:
+    MAX_ROTATIONS = 5
+
     def __init__(self, api_token: Optional[str], page_size: int = 100):
         self.api_token = api_token
         self.page_size = page_size
@@ -100,12 +102,16 @@ class WebshareProxyRotationMiddleware:
         request.meta["proxy"] = proxy
 
     def process_response(self, request, response, spider):
-        if response.status in {403, 429, 503} and self.proxies:
+        rotations = request.meta.get("proxy_rotations", 0)
+        # Con un tope: ante un bloqueo de todo el sitio (p. ej. el desafío de Cloudflare en
+        # Patiotuerca) reintentar sin fin dejaba la corrida colgada en vez de terminar.
+        if response.status in {403, 429, 503} and self.proxies and rotations < self.MAX_ROTATIONS:
             # rotate immediately on likely block/rate-limit
             proxy = self.proxies[self._idx % len(self.proxies)]
             self._idx += 1
             retry_req = request.copy()
             retry_req.meta["proxy"] = proxy
+            retry_req.meta["proxy_rotations"] = rotations + 1
             retry_req.dont_filter = True
             return retry_req
         return response
