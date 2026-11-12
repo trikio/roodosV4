@@ -672,16 +672,28 @@ class AutosBrunoFritschChileSpider(scrapy.Spider):
     """
     Chile used cars source from Bruno Fritsch.
     https://www.brunofritsch.cl/autos-usados
+
+    Oracle Commerce Cloud. Cada página del listado (?page=N, 14 autos) trae el
+    resultado de búsqueda completo en `window.state = JSON.parse(decodeURI("..."))`
+    (searchRepository.pages[...].results: totalNumRecs, recsPerPage, records[]
+    con attributes product.* / sku.*). Se mapea desde ese JSON, sin pedir las
+    fichas: ya trae marca, modelo, versión, año, km, precio e imagen.
+    La página posterior a la última viene sin records (y su rel=next vuelve a 1).
+    URL del aviso: https://www.brunofritsch.cl/autos-usados/{patente}
+    (igual que las filas existentes).
     """
 
     name = "brunofritsch_chile"
     allowed_domains = ["www.brunofritsch.cl", "brunofritsch.cl"]
-    start_urls = ["https://www.brunofritsch.cl/autos-usados"]
+    base_url = "https://www.brunofritsch.cl"
+    list_url = "https://www.brunofritsch.cl/autos-usados"
 
     custom_settings = {
         "ROBOTSTXT_OBEY": False,
         "DOWNLOAD_DELAY": 1.0,
-        # Works better direct for this source.
+        "CONCURRENT_REQUESTS": 2,
+        "DOWNLOAD_TIMEOUT": 60,
+        # Sin proxies Webshare (ya era así): el sitio va directo desde la IP de casa.
         "DOWNLOADER_MIDDLEWARES": {
             "roodos_scraper.middlewares.WebshareProxyRotationMiddleware": None,
             "scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware": 750,
@@ -691,72 +703,109 @@ class AutosBrunoFritschChileSpider(scrapy.Spider):
     max_pages = 80
 
     def start_requests(self):
-        yield scrapy.Request("https://www.brunofritsch.cl/autos-usados", callback=self.parse, meta={"page_num": 1})
+        yield scrapy.Request(self.list_url, callback=self.parse, meta={"page_num": 1})
 
     def parse(self, response):
         page_num = int(response.meta.get("page_num", 1))
-        detail_count = 0
+        results = self._results(response)
+        if results is None:
+            self.logger.warning("page=%s sin window.state; markup cambió?", page_num)
+            return
 
-        for href in response.css("a[href^='/autos-usados/']::attr(href)").getall():
-            path = href.split("#")[0]
-            if "?" in path:
-                path = path.split("?", 1)[0]
-            tail = path.replace("/autos-usados/", "").strip("/")
-            if not tail or tail.startswith("page"):
-                continue
-            detail_count += 1
-            yield response.follow(path, callback=self.parse_detail)
+        records = results.get("records") or []
+        total = self._to_int(results.get("totalNumRecs"))
+        per_page = self._to_int(results.get("recsPerPage")) or len(records) or 14
+        last_page = -(-total // per_page) if total else None
+        self.logger.info(
+            "page=%s/%s records=%s total_site=%s", page_num, last_page or "?", len(records), total
+        )
 
-        # pagination by page number (site exposes rel=next and ?page=N even if no anchor)
-        if detail_count > 0 and page_num < self.max_pages:
-            next_page = page_num + 1
-            next_url = f"https://www.brunofritsch.cl/autos-usados?page={next_page}"
-            yield scrapy.Request(next_url, callback=self.parse, meta={"page_num": next_page})
+        for rec in records:
+            item = self._item_from_record(rec)
+            if item:
+                yield item
 
-    def parse_detail(self, response):
-        scripts = response.css("script[type='application/ld+json']::text").getall()
-        product = None
-        for raw in scripts:
-            data = self._safe_json(raw)
-            if not data:
-                continue
-            objs = data if isinstance(data, list) else [data]
-            for obj in objs:
-                if isinstance(obj, dict) and obj.get("@type") == "Product":
-                    product = obj
+        if not records:
+            return
+        if last_page is not None and page_num >= last_page:
+            return
+        if page_num >= self.max_pages:
+            self.logger.warning("max_pages=%s alcanzado antes del final (%s)", self.max_pages, last_page)
+            return
+        next_page = page_num + 1
+        yield scrapy.Request(
+            f"{self.list_url}?page={next_page}", callback=self.parse, meta={"page_num": next_page}
+        )
+
+    def _results(self, response):
+        import json
+        from urllib.parse import unquote
+
+        m = re.search(r'window\.state\s*=\s*JSON\.parse\(decodeURI\("(.*?)"\)\)', response.text, re.S)
+        if not m:
+            return None
+        try:
+            state = json.loads(unquote(m.group(1)))
+        except Exception:
+            return None
+        pages = (state.get("searchRepository") or {}).get("pages") or {}
+        for page in pages.values():
+            results = (page or {}).get("results")
+            if isinstance(results, dict) and "records" in results:
+                return results
+        return None
+
+    def _item_from_record(self, rec):
+        attrs = rec.get("attributes") or {}
+
+        def a(key):
+            v = attrs.get(key)
+            if isinstance(v, list):
+                v = v[0] if v else None
+            return v.strip() if isinstance(v, str) else v
+
+        plate = a("sku.listingId") or a("product.repositoryId")
+        route = a("product.route") or (f"/autos-usados/{plate}" if plate else None)
+        if not route:
+            return None
+        url = self.base_url + route if route.startswith("/") else route
+
+        brand = a("product.x_marca") or a("product.brand")
+        model = a("product.x_modelo")
+        display = a("product.displayName") or ""
+        version = a("product.x_version")
+        title = " ".join(p for p in (brand, display) if p) or plate
+
+        price = self._price(a("sku.activePrice") or a("sku.minActivePrice"))
+        if price is None:
+            for child in rec.get("records") or []:
+                cattrs = child.get("attributes") or {}
+                cp = cattrs.get("sku.activePrice") or cattrs.get("sku.listPrice")
+                price = self._price(cp[0] if isinstance(cp, list) and cp else cp)
+                if price:
                     break
-            if product:
-                break
 
-        if not product:
-            return
+        year = self._price(a("product.x_agno"))
+        if year and not 1950 <= year <= 2100:
+            year = None
+        km = self._price(a("product.x_kilometraje"))
 
-        url = (response.url or (product.get("offers") or {}).get("url") or "")
-        if not url:
-            return
+        image = None
+        img = a("product.primarySmallImageURL") or a("product.primaryFullImageURL")
+        if img:
+            # Sin height/width: la imagen completa (antes venía de og:image de la ficha).
+            img = re.sub(r"&(height|width)=\d+", "", img)
+            image = self.base_url + img if img.startswith("/") else img
 
-        title = (response.css("meta[property='og:title']::attr(content)").get() or product.get("name") or "").strip()
-        image = response.css("meta[property='og:image']::attr(content)").get() or product.get("image")
-        if isinstance(image, list):
-            image = image[0] if image else None
-
-        brand_name = None
-        brand = product.get("brand")
-        if isinstance(brand, dict):
-            brand_name = brand.get("name")
-        elif isinstance(brand, str):
-            brand_name = brand
-
-        model_name = None
-        desc = product.get("description") or ""
-        if brand_name and desc:
-            model_name = re.sub(rf"^{re.escape(brand_name)}\s*-?\s*", "", desc, flags=re.I).strip()
-        if not model_name:
-            model_name = desc[:120] if desc else None
-
-        price = self._to_int((product.get("offers") or {}).get("price"))
-        year = self._extract_year(title + " " + desc)
-        ext = product.get("sku") or url.rstrip("/").split("/")[-1]
+        details = []
+        if version:
+            details.append(f"version:{version}")
+        if a("product.x_combustible"):
+            details.append(f"fuel:{a('product.x_combustible')}")
+        if a("product.x_transmision"):
+            details.append(f"trans:{a('product.x_transmision')}")
+        if a("product.x_tipo"):
+            details.append(f"body:{a('product.x_tipo')}")
 
         item = ListingItem()
         item["vertical"] = "car"
@@ -764,17 +813,16 @@ class AutosBrunoFritschChileSpider(scrapy.Spider):
         item["country"] = "CL"
         item["url"] = url[:250]
         item["slug"] = url.rstrip("/").split("/")[-1][:255]
-        item["title"] = (title or item["slug"] or "Sin título")[:250]
+        item["title"] = (title or "Sin título")[:250]
         item["image"] = image
         item["image_big"] = image
-        item["details"] = (desc[:1000] if desc else None)
+        item["details"] = " | ".join(details)[:1000] if details else None
         item["price"] = price
         item["year"] = year
-        item["km"] = None
-        item["external_id"] = str(ext)[:50] if ext else None
-
-        item["brand_name"] = brand_name[:80] if brand_name else None
-        item["model_name"] = model_name[:120] if model_name else None
+        item["km"] = km
+        item["external_id"] = str(plate)[:50] if plate else None
+        item["brand_name"] = brand[:80] if brand else None
+        item["model_name"] = (model or display)[:120] if (model or display) else None
         item["id_state"] = None
         item["id_city"] = None
         item["id_car_make"] = None
@@ -782,24 +830,23 @@ class AutosBrunoFritschChileSpider(scrapy.Spider):
         item["id_fuel"] = None
         item["id_body"] = None
         item["id_transmission"] = None
-        yield item
+        return item
 
-    def _safe_json(self, raw):
-        import json
-        try:
-            return json.loads(raw)
-        except Exception:
+    def _price(self, value):
+        """'9990000.000000' -> 9990000; '2026.0' -> 2026."""
+        if value in (None, ""):
             return None
+        try:
+            n = int(float(str(value).replace(",", "")))
+        except ValueError:
+            return self._to_int(value)
+        return n if n > 0 else None
 
     def _to_int(self, value):
         if value in (None, ""):
             return None
         digits = "".join(ch for ch in str(value) if ch.isdigit())
         return int(digits) if digits else None
-
-    def _extract_year(self, text):
-        m = re.search(r"\b(19\d{2}|20\d{2})\b", text or "")
-        return int(m.group(1)) if m else None
 
 
 class AutosAutocosmosChileSpider(scrapy.Spider):

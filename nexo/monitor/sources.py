@@ -62,12 +62,14 @@ def dealers(country, schedule):
 
 SOURCES = [
     # Chile
+    # Pide el listado ordenado por precio (sin orden lo baraja cada hora) y lo recorre completo.
     script("autosusados_cl", "cl", "Autosusados", ["autosusados.cl"], "50 4 * * 4",
-           "scripts/scrape_autosusados_cl.py", "--max-pages", "120"),
+           "scripts/scrape_autosusados_cl.py", full_crawl=True),
     spider("portillo_chile", "cl", "Portillo", ["www.portillo.cl", "www.clicar.cl"], "10 5 * * 5"),
     script("auto_cl", "cl", "Auto.cl", ["www.auto.cl"], "30 5 * * 5",
            "scripts/scrape_auto_cl_challenge.py", "--max-pages", "80"),
-    spider("brunofritsch_chile", "cl", "Bruno Fritsch", ["www.brunofritsch.cl"], "40 3 * * 4"),
+    # Akamai retiene las conexiones de Scrapy (curl y requests sí pasan); en pausa hasta decidir (12-11-2026).
+    spider("brunofritsch_chile", "cl", "Bruno Fritsch", ["www.brunofritsch.cl"], "40 3 * * 4", enabled=False),
     spider("kovacs_chile", "cl", "Kovacs", ["www.kovacsusados.cl"], "40 4 * * 4"),
     # Sin proxies (MercadoLibre manda las IPs de datacenter a verificar cuenta) y por tramos de precio.
     # La primera ejecución sube ~27.000 miniaturas; después se reutilizan.
