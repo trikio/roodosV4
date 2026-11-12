@@ -56,7 +56,6 @@ run_python() {
   run_python sync_peru_auto_sitemap_status_leonford scripts/sync_peru_auto_sitemap_status.py --source LeonFord
   run_scrapy autos_autosummit_pe
   run_python sync_peru_auto_sitemap_status_autosummit scripts/sync_peru_auto_sitemap_status.py --source AutoSummit
-  run_python mercadolibre_pe_challenge scripts/scrape_mercadolibre_pe_challenge.py --max-pages 30
 
 
   echo "===== $(date -u '+%Y-%m-%d %H:%M:%S UTC') PERU CONTENT REFRESH END =====" >> "$LOG_FILE"

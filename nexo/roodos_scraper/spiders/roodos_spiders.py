@@ -469,226 +469,6 @@ class AutosMercadolibreEcuadorSpider(scrapy.Spider):
         return int(digits) if digits else None
 
 
-class AutosMercadolibreChileSpider(scrapy.Spider):
-    """
-    Chile used vehicles from MercadoLibre listing pages (no detail crawl).
-    """
-
-    name = "mercadolibre_chile"
-    allowed_domains = ["autos.mercadolibre.cl", "mercadolibre.cl"]
-    base_url = "https://autos.mercadolibre.cl/usado/"
-
-    custom_settings = {
-        "ROBOTSTXT_OBEY": False,
-        "DOWNLOAD_DELAY": 1.0,
-    }
-
-    def start_requests(self):
-        yield scrapy.Request(self.base_url, callback=self.parse, meta={"page_seeded": False})
-
-    def parse(self, response):
-        cards = response.css("li.ui-search-layout__item")
-
-        for card in cards:
-            item = self._parse_card(response, card)
-            if item:
-                yield item
-
-        if response.meta.get("page_seeded"):
-            return
-
-        total = self._extract_total_results(response.text)
-        per_page = len(cards) if len(cards) > 0 else 48
-        if not total or total <= per_page:
-            return
-
-        start = per_page + 1
-        while start <= total:
-            next_url = f"{self.base_url}_Desde_{start}"
-            yield scrapy.Request(next_url, callback=self.parse, meta={"page_seeded": True})
-            start += per_page
-
-    def _parse_card(self, response, card):
-        a = card.css("a.poly-component__title::attr(href)").get()
-        title = (card.css("a.poly-component__title::text").get() or "").strip()
-        if not a or not title:
-            return None
-
-        url = response.urljoin(a.split("#")[0])
-        image = card.css("img.poly-component__picture::attr(src)").get()
-
-        price_text = "".join(card.css(".poly-price__current *::text").getall())
-        price = self._to_int(price_text)
-
-        attrs = [x.strip() for x in card.css(".poly-attributes_list__item::text").getall() if x.strip()]
-        year = self._to_int(attrs[0]) if len(attrs) > 0 else None
-        km = None
-        for atext in attrs:
-            if "km" in atext.lower() or "milla" in atext.lower():
-                km = self._to_int(atext)
-                break
-
-        details = " | ".join(attrs) if attrs else None
-
-        ext = None
-        m = re.search(r"/(MLC-\d+)", url)
-        if m:
-            ext = m.group(1)
-
-        item = ListingItem()
-        item["vertical"] = "car"
-        item["source_name"] = self.name
-        item["country"] = "CL"
-        item["url"] = url
-        item["slug"] = (url.rstrip("/").split("/")[-1])[:255]
-        item["title"] = title[:250]
-        item["image"] = image
-        item["image_big"] = image
-        item["details"] = details
-        item["price"] = price
-        item["year"] = year
-        item["km"] = km
-        item["external_id"] = ext
-
-        t_parts = [p for p in re.split(r"\s+", title) if p]
-        item["brand_name"] = t_parts[0] if t_parts else None
-        item["model_name"] = " ".join(t_parts[1:3]) if len(t_parts) > 1 else None
-
-        item["id_state"] = None
-        item["id_city"] = None
-        item["id_car_make"] = None
-        item["id_car_model"] = None
-        item["id_fuel"] = None
-        item["id_body"] = None
-        item["id_transmission"] = None
-        return item
-
-    def _extract_total_results(self, html):
-        m = re.search(r'"total":\s*(\d+)', html)
-        if not m:
-            return None
-        try:
-            return int(m.group(1))
-        except Exception:
-            return None
-
-    def _to_int(self, value):
-        if value in (None, ""):
-            return None
-        digits = "".join(ch for ch in str(value) if ch.isdigit())
-        return int(digits) if digits else None
-
-
-class AutosMercadolibrePeruSpider(scrapy.Spider):
-    """
-    Peru used vehicles from MercadoLibre listing pages (no detail crawl).
-    """
-
-    name = "mercadolibre_peru"
-    allowed_domains = ["autos.mercadolibre.com.pe", "mercadolibre.com.pe", "listado.mercadolibre.com.pe"]
-    base_url = "https://listado.mercadolibre.com.pe/vehiculos/"
-
-    custom_settings = {
-        "ROBOTSTXT_OBEY": False,
-        "DOWNLOAD_DELAY": 1.0,
-    }
-
-    def start_requests(self):
-        yield scrapy.Request(self.base_url, callback=self.parse, meta={"page_seeded": False})
-
-    def parse(self, response):
-        cards = response.css("li.ui-search-layout__item")
-
-        for card in cards:
-            item = self._parse_card(response, card)
-            if item:
-                yield item
-
-        if response.meta.get("page_seeded"):
-            return
-
-        total = self._extract_total_results(response.text)
-        per_page = len(cards) if len(cards) > 0 else 48
-        if not total or total <= per_page:
-            return
-
-        start = per_page + 1
-        while start <= total:
-            next_url = f"{self.base_url}_Desde_{start}"
-            yield scrapy.Request(next_url, callback=self.parse, meta={"page_seeded": True})
-            start += per_page
-
-    def _parse_card(self, response, card):
-        a = card.css("a.poly-component__title::attr(href)").get()
-        title = (card.css("a.poly-component__title::text").get() or "").strip()
-        if not a or not title:
-            return None
-
-        url = response.urljoin(a.split("#")[0])
-        image = card.css("img.poly-component__picture::attr(src)").get()
-
-        price_text = "".join(card.css(".poly-price__current *::text").getall())
-        price = self._to_int(price_text)
-
-        attrs = [x.strip() for x in card.css(".poly-attributes_list__item::text").getall() if x.strip()]
-        year = self._to_int(attrs[0]) if len(attrs) > 0 else None
-        km = None
-        for atext in attrs:
-            if "km" in atext.lower() or "milla" in atext.lower():
-                km = self._to_int(atext)
-                break
-
-        details = " | ".join(attrs) if attrs else None
-
-        ext = None
-        m = re.search(r"/(MPE-\d+)", url)
-        if m:
-            ext = m.group(1)
-
-        item = ListingItem()
-        item["vertical"] = "car"
-        item["source_name"] = self.name
-        item["country"] = "PE"
-        item["url"] = url
-        item["slug"] = (url.rstrip("/").split("/")[-1])[:255]
-        item["title"] = title[:250]
-        item["image"] = image
-        item["image_big"] = image
-        item["details"] = details
-        item["price"] = price
-        item["year"] = year
-        item["km"] = km
-        item["external_id"] = ext
-
-        t_parts = [p for p in re.split(r"\s+", title) if p]
-        item["brand_name"] = t_parts[0] if t_parts else None
-        item["model_name"] = " ".join(t_parts[1:3]) if len(t_parts) > 1 else None
-
-        item["id_state"] = None
-        item["id_city"] = None
-        item["id_car_make"] = None
-        item["id_car_model"] = None
-        item["id_fuel"] = None
-        item["id_body"] = None
-        item["id_transmission"] = None
-        return item
-
-    def _extract_total_results(self, html):
-        m = re.search(r'"total":\s*(\d+)', html)
-        if not m:
-            return None
-        try:
-            return int(m.group(1))
-        except Exception:
-            return None
-
-    def _to_int(self, value):
-        if value in (None, ""):
-            return None
-        digits = "".join(ch for ch in str(value) if ch.isdigit())
-        return int(digits) if digits else None
-
-
 class AutosAutocosmosEcuadorSpider(scrapy.Spider):
     """
     Ecuador used cars from Autocosmos listing cards.
@@ -1412,28 +1192,38 @@ class AutosSalfaChileSpider(scrapy.Spider):
         return int(digits) if digits else None
 
 
-class AutosMercadolibreMexicoSpider(scrapy.Spider):
+class MercadolibreListingSpider(scrapy.Spider):
     """
-    Mexico used cars from MercadoLibre listing pages (no detail crawl).
+    Used cars from MercadoLibre listing pages (no detail crawl). Base class: each
+    site (MX, CL, PE) is a subclass that only sets the site parameters below.
+    It has no `name`, so Scrapy does not register it as a spider.
 
     - Goes out WITHOUT the Webshare proxies: the Webshare pool is US datacenter
       IPs and MercadoLibre answers them with a 302 to /gz/account-verification
-      (login wall, "negative_traffic"). From the server's own IP the listing
-      loads normally.
+      (login wall, "negative_traffic") or with an empty challenge page. From the
+      server's own IP the listing loads normally (MX and CL; PE shows the login
+      wall to the server IP too, as of 12-11-2026).
     - A MercadoLibre search only serves ~2,048 results (offset <= 2001), so the
-      catalogue (~66k) is split into price bands (_PriceRange_) small enough to
-      be paginated completely. Bands with more than SEGMENT_CAP results are
-      split again.
-    - max_pages is a page budget per run (-a max_pages=N; ~1,700 covers the
-      whole site). Requests are prioritised breadth-first (page 1 of every band
-      before page 2, ...) so a partial budget still spreads across all prices.
+      catalogue is split into price bands (_PriceRange_{lo}{CUR}-{hi}{CUR}) small
+      enough to be paginated completely. Bands with more than SEGMENT_CAP results
+      are split again.
+    - max_pages is a page budget per run (-a max_pages=N; default
+      default_max_pages of each site). Requests are
+      prioritised breadth-first (page 1 of every band before page 2, ...) so a
+      partial budget still spreads across all prices.
     - A 302 to the login wall closes the spider with finish_reason
       blocked_login_wall (0 items -> the monitor marks the run empty).
     """
 
-    name = "mercadolibre_mexico"
-    allowed_domains = ["autos.mercadolibre.com.mx", "mercadolibre.com.mx", "auto.mercadolibre.com.mx"]
-    base_url = "https://autos.mercadolibre.com.mx/usados/"
+    # ---- site parameters (set by each subclass) ----
+    country = None        # "MX"
+    base_url = None       # listing URL, ends in "/"
+    ad_host = None        # host of the ad URLs, e.g. "auto.mercadolibre.com.mx"
+    item_prefix = None    # item id prefix: "MLM", "MLC", "MPE"
+    currency = None       # currency code used in _PriceRange_: "MXN", "CLP", "PEN"
+    # Initial price bands in the site currency. 0 as upper bound = open ended.
+    seed_bounds = []
+    min_band_width = 1000  # don't split a band narrower than this (site currency)
 
     custom_settings = {
         "ROBOTSTXT_OBEY": False,
@@ -1455,22 +1245,24 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
     max_offset = 2001          # last _Desde_ that still returns cards
     SEGMENT_CAP = 2000         # split a price band above this many results
     target_per_segment = 1800
-    # Initial price bands (MXN). 0 as upper bound = open ended.
-    seed_bounds = [0, 100000, 150000, 200000, 250000, 300000, 350000, 400000,
-                   500000, 650000, 850000, 1200000, 0]
 
-    def __init__(self, max_pages=400, *args, **kwargs):
+    default_max_pages = 400
+
+    def __init__(self, max_pages=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.max_pages = int(max_pages)
+        self.max_pages = int(max_pages) if max_pages else self.default_max_pages
         self.pages_done = 0
         self.seen_urls = set()
+        self.ad_prefix = f"https://{self.ad_host}/{self.item_prefix}-"
+        self.id_re = re.compile(rf"/({self.item_prefix}-\d+)")
 
     # ---------- requests ----------
     def _segment_url(self, lo, hi, start=1):
         if lo is None:  # root: whole catalogue, no price filter
             return self.base_url
         desde = f"_Desde_{start}" if start > 1 else ""
-        return f"{self.base_url}{desde}_PriceRange_{lo}MXN-{hi}MXN_NoIndex_True"
+        cur = self.currency
+        return f"{self.base_url}{desde}_PriceRange_{lo}{cur}-{hi}{cur}_NoIndex_True"
 
     def _request(self, lo, hi, start=1, probe=False, priority=0):
         return scrapy.Request(
@@ -1497,7 +1289,7 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
             loc = response.headers.get("Location", b"").decode("utf-8", "ignore")
             if "account-verification" in loc or "/login" in loc:
                 self.crawler.stats.set_value("mercadolibre/blocked_login_wall", 1)
-                self.logger.error("MercadoLibre MX login wall (302 -> %s)", loc[:120])
+                self.logger.error("MercadoLibre %s login wall (302 -> %s)", self.country, loc[:120])
                 raise CloseSpider("blocked_login_wall")
             self.logger.warning("Unexpected redirect %s -> %s", response.url, loc[:120])
             return
@@ -1545,7 +1337,7 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
         width = hi - lo
         parts = max(2, -(-total // self.target_per_segment))
         step = width // parts
-        if step < 1000:
+        if step < self.min_band_width:
             return None  # can't narrow further: crawl the reachable 42 pages
         cuts = [lo + i * step for i in range(parts)] + [hi]
         # adjacent bands share their boundary price (no gaps; duplicates are skipped)
@@ -1557,7 +1349,7 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
         if not a or not title:
             return None
         url = response.urljoin(a.split("#")[0])
-        if not url.startswith("https://auto.mercadolibre.com.mx/MLM-"):
+        if not url.startswith(self.ad_prefix):
             return None  # tracking / ad links
         image = card.css("img.poly-component__picture::attr(src)").get()
         price_text = "".join(card.css(".poly-price__current .andes-money-amount__fraction::text").getall()) \
@@ -1569,7 +1361,7 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
         item = ListingItem()
         item["vertical"] = "car"
         item["source_name"] = self.name
-        item["country"] = "MX"
+        item["country"] = self.country
         item["url"] = url[:250]
         item["slug"] = url.rstrip("/").split("/")[-1][:255]
         item["title"] = title[:250]
@@ -1579,7 +1371,7 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
         item["price"] = self._to_int(price_text)
         item["year"] = year
         item["km"] = km
-        m = re.search(r"/(MLM-\d+)", url)
+        m = self.id_re.search(url)
         item["external_id"] = m.group(1) if m else item["slug"][:50]
         t = [p for p in re.split(r"\s+", title) if p]
         item["brand_name"] = t[0] if t else None
@@ -1602,6 +1394,59 @@ class AutosMercadolibreMexicoSpider(scrapy.Spider):
             return None
         d = "".join(ch for ch in str(value) if ch.isdigit())
         return int(d) if d else None
+
+
+class AutosMercadolibreMexicoSpider(MercadolibreListingSpider):
+    """MercadoLibre México (~66k ads; ~1,700 pages cover the whole site)."""
+
+    name = "mercadolibre_mexico"
+    allowed_domains = ["autos.mercadolibre.com.mx", "mercadolibre.com.mx", "auto.mercadolibre.com.mx"]
+    country = "MX"
+    base_url = "https://autos.mercadolibre.com.mx/usados/"
+    ad_host = "auto.mercadolibre.com.mx"
+    item_prefix = "MLM"
+    currency = "MXN"
+    seed_bounds = [0, 100000, 150000, 200000, 250000, 300000, 350000, 400000,
+                   500000, 650000, 850000, 1200000, 0]
+    min_band_width = 1000
+
+
+class AutosMercadolibreChileSpider(MercadolibreListingSpider):
+    """MercadoLibre Chile, Autos y Camionetas usados (~27.7k ads; ~650 pages cover the whole site)."""
+
+    name = "mercadolibre_chile"
+    allowed_domains = ["autos.mercadolibre.cl", "mercadolibre.cl", "auto.mercadolibre.cl"]
+    country = "CL"
+    base_url = "https://autos.mercadolibre.cl/usado/"
+    ad_host = "auto.mercadolibre.cl"
+    item_prefix = "MLC"
+    currency = "CLP"
+    default_max_pages = 700  # full site in one run (~650 pages, ~27 min at ~2.5 s/page)
+    # Leaf bands of a run on 12-11-2026 (each < 2,000 ads, so no extra split probes).
+    seed_bounds = [0, 4000000, 5500000, 6250000, 7000000, 8000000, 9000000, 10000000, 11000000,
+                   11750000, 12500000, 13250000, 14000000, 15000000, 16000000, 17250000, 18500000,
+                   20250000, 22000000, 27000000, 35000000, 70000000, 0]
+    min_band_width = 50000
+
+
+class AutosMercadolibrePeruSpider(MercadolibreListingSpider):
+    """
+    MercadoLibre Perú, autos y camionetas usados.
+
+    As of 12-11-2026 MercadoLibre sends the server IP to the login wall
+    (/gz/account-verification) for this site, so the spider closes at once with
+    blocked_login_wall. Keep its source disabled until that changes.
+    """
+
+    name = "mercadolibre_peru"
+    allowed_domains = ["listado.mercadolibre.com.pe", "mercadolibre.com.pe", "auto.mercadolibre.com.pe"]
+    country = "PE"
+    base_url = "https://listado.mercadolibre.com.pe/autos/autos-camionetas/usados/"
+    ad_host = "auto.mercadolibre.com.pe"
+    item_prefix = "MPE"
+    currency = "PEN"
+    seed_bounds = [0, 25000, 35000, 45000, 55000, 65000, 80000, 100000, 130000, 180000, 0]
+    min_band_width = 200
 
 
 class AutosAutocosmosMexicoSpider(scrapy.Spider):

@@ -69,8 +69,10 @@ SOURCES = [
            "scripts/scrape_auto_cl_challenge.py", "--max-pages", "80"),
     spider("brunofritsch_chile", "cl", "Bruno Fritsch", ["www.brunofritsch.cl"], "40 3 * * 4"),
     spider("kovacs_chile", "cl", "Kovacs", ["www.kovacsusados.cl"], "40 4 * * 4"),
-    script("mercadolibre_cl", "cl", "MercadoLibre CL", ["auto.mercadolibre.cl"], "20 5 * * 5",
-           "scripts/scrape_mercadolibre_cl_challenge.py", "--max-pages", "30"),
+    # Sin proxies (MercadoLibre manda las IPs de datacenter a verificar cuenta) y por tramos de precio.
+    # La primera ejecución sube ~27.000 miniaturas; después se reutilizan.
+    spider("mercadolibre_chile", "cl", "MercadoLibre CL", ["auto.mercadolibre.cl"], "20 5 * * 5",
+           timeout_hours=12, full_crawl=True),
     spider("salfa_chile", "cl", "Salfa", ["salfausados.cl"], "40 5 * * 5", full_crawl=True),
     spider("autocosmos_chile", "cl", "Autocosmos CL", ["www.autocosmos.cl"], "10 4 * * 4"),
     # México
@@ -78,7 +80,8 @@ SOURCES = [
     spider("seminuevos_mexico", "mx", "Seminuevos", ["www.seminuevos.com"], "50 3 * * 2", enabled=False),
     spider("autocosmos_mexico", "mx", "Autocosmos MX", ["www.autocosmos.com.mx"], "20 4 * * 2", timeout_hours=4,
            full_crawl=True),
-    spider("mercadolibre_mexico", "mx", "MercadoLibre MX", ["auto.mercadolibre.com.mx"], "20 3 * * 2"),
+    spider("mercadolibre_mexico", "mx", "MercadoLibre MX", ["auto.mercadolibre.com.mx"], "20 3 * * 2",
+           timeout_hours=12),
     spider("autos_carplanet_mexico", "mx", "Carplanet", ["carplanet.mx"], "45 4 * * 6"),
     spider("autos_seminuevossonora_mexico", "mx", "Seminuevos Sonora", ["seminuevossonora.com"], "50 4 * * 6"),
     # Sus términos de uso prohíben el scraping; solo se activaría con un acuerdo o feed de Kavak.
@@ -89,8 +92,9 @@ SOURCES = [
     spider("autos_peruautos_pe", "pe", "Peruautos", ["www.peruautos.pe"], "0 4 * * 3"),
     spider("autocosmos_peru", "pe", "Autocosmos PE", ["www.autocosmos.com.pe"], "0 6 * * 3",
            after=peru_sitemap_sync("Autocosmos")),
-    script("mercadolibre_pe", "pe", "MercadoLibre PE", ["auto.mercadolibre.com.pe"], "0 5 * * 3",
-           "scripts/scrape_mercadolibre_pe_challenge.py", "--max-pages", "30"),
+    # MercadoLibre pide iniciar sesión a esta IP y a los proxies (12-11-2026).
+    spider("mercadolibre_peru", "pe", "MercadoLibre PE", ["auto.mercadolibre.com.pe"], "0 5 * * 3",
+           enabled=False),
     spider("autos_koopa_pe", "pe", "Koopa", ["koopa.pe"], "30 4 * * 3"),
     spider("autos_autosell_pe", "pe", "Autosell", ["www.autosell.pe"], "35 6 * * 3", timeout_hours=2),
     spider("autos_tuauto_pe", "pe", "TuAuto", ["tuauto.com.pe"], "40 6 * * 3", timeout_hours=2),
