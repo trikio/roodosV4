@@ -49,6 +49,8 @@ class DealersSpider(scrapy.Spider):
         "DOWNLOAD_DELAY": 1.0,
         "CONCURRENT_REQUESTS": 8,
         "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
+        # Reparte el turno entre sitios: con la cola por defecto un sitio grande acapara el crawl.
+        "SCHEDULER_PRIORITY_QUEUE": "scrapy.pqueues.DownloaderAwarePriorityQueue",
         "DOWNLOAD_TIMEOUT": 30,
         "RETRY_TIMES": 1,
         # Sitios chicos: van con la IP propia, sin rotar proxies.

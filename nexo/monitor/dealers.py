@@ -9,7 +9,6 @@ la lista para aprobar, que se aprueba desde el dashboard o con `bin/nexo dealers
 import json
 import subprocess
 import tempfile
-from collections import defaultdict
 from pathlib import Path
 
 from . import db, telegram
@@ -17,7 +16,8 @@ from .config import DASHBOARD_URL, ROOT, SCRAPY
 
 MIN_TEST_ITEMS = 5
 PROBE_PER_DAY = 25
-PROBE_SECONDS = 900
+PROBE_SECONDS = 180
+PROBE_ITEMS = 30
 
 
 def probe(limit=PROBE_PER_DAY):
@@ -27,53 +27,45 @@ def probe(limit=PROBE_PER_DAY):
         "SELECT host, country FROM nexo.candidates WHERE status='new' ORDER BY score DESC, first_seen LIMIT %s",
         (limit,),
     )
-    by_country = defaultdict(list)
+    # De a un sitio: en una pasada conjunta un sitio grande se lleva todo el tiempo de la prueba.
     for row in rows:
-        by_country[row["country"]].append(row["host"])
-
-    for country, hosts in by_country.items():
-        items = _test_crawl(country, hosts)
-        for host in hosts:
-            found = items.get(host, [])
-            if len(found) >= MIN_TEST_ITEMS:
-                sample = [{k: item.get(k) for k in ("title", "price", "year", "km", "url")} for item in found[:3]]
-                db.execute(
-                    conn,
-                    """
-                    INSERT INTO nexo.dealer_sites (host, country, name, status, test_items, sample, tested_at)
-                    VALUES (%s, %s, %s, 'review', %s, %s, NOW())
-                    ON DUPLICATE KEY UPDATE test_items=VALUES(test_items), sample=VALUES(sample), tested_at=NOW()
-                    """,
-                    (host, country, (found[0].get("source_label") or host)[:100], len(found),
-                     json.dumps(sample, ensure_ascii=False)),
-                )
-                status = "dealer"
-            else:
-                status = "manual"
-            db.execute(conn, "UPDATE nexo.candidates SET status=%s WHERE host=%s", (status, host))
-            print(f"{host} ({country}): {len(found)} avisos -> {status}")
+        host, country = row["host"], row["country"]
+        found = _test_crawl(country, host)
+        if len(found) >= MIN_TEST_ITEMS:
+            sample = [{k: item.get(k) for k in ("title", "price", "year", "km", "url")} for item in found[:3]]
+            db.execute(
+                conn,
+                """
+                INSERT INTO nexo.dealer_sites (host, country, name, status, test_items, sample, tested_at)
+                VALUES (%s, %s, %s, 'review', %s, %s, NOW())
+                ON DUPLICATE KEY UPDATE test_items=VALUES(test_items), sample=VALUES(sample), tested_at=NOW()
+                """,
+                (host, country, (found[0].get("source_label") or host)[:100], len(found),
+                 json.dumps(sample, ensure_ascii=False)),
+            )
+            status = "dealer"
+        else:
+            status = "manual"
+        db.execute(conn, "UPDATE nexo.candidates SET status=%s WHERE host=%s", (status, host))
+        print(f"{host} ({country}): {len(found)} avisos -> {status}")
     conn.close()
 
 
-def _test_crawl(country, hosts):
-    """Avisos válidos por host en una pasada de prueba, sin pipeline (no escribe en la base)."""
+def _test_crawl(country, host):
+    """Avisos válidos (sin repetir URL) de una pasada de prueba, sin pipeline (no escribe en la base)."""
     with tempfile.TemporaryDirectory() as tmp:
         output = Path(tmp) / "items.json"
-        subprocess.run(
-            [SCRAPY, "crawl", "dealers", "-a", f"country={country}", "-a", f"hosts={','.join(hosts)}",
-             "-s", "ITEM_PIPELINES={}", "-s", f"CLOSESPIDER_TIMEOUT={PROBE_SECONDS}", "-O", str(output),
-             "-L", "WARNING"],
-            cwd=ROOT, capture_output=True, timeout=PROBE_SECONDS + 300,
-        )
         try:
+            subprocess.run(
+                [SCRAPY, "crawl", "dealers", "-a", f"country={country}", "-a", f"hosts={host}",
+                 "-s", "ITEM_PIPELINES={}", "-s", f"CLOSESPIDER_TIMEOUT={PROBE_SECONDS}",
+                 "-s", f"CLOSESPIDER_ITEMCOUNT={PROBE_ITEMS}", "-O", str(output), "-L", "WARNING"],
+                cwd=ROOT, capture_output=True, timeout=PROBE_SECONDS + 120,
+            )
             items = json.loads(output.read_text())
-        except (OSError, ValueError):
+        except (subprocess.TimeoutExpired, OSError, ValueError):
             items = []
-    by_host = defaultdict(dict)
-    for item in items:
-        host = item.get("source_name", "").removeprefix("dealer:")
-        by_host[host][item["url"]] = item
-    return {host: list(found.values()) for host, found in by_host.items()}
+    return list({item["url"]: item for item in items}.values())
 
 
 def review():
