@@ -72,7 +72,8 @@ def update():
     if head() == before:
         return
     print(f"actualizado {before[:7]} -> {head()[:7]}")
-    cron.install()
+    # En un proceso nuevo: este todavía tiene cargado el código anterior al pull.
+    subprocess.run([ROOT / "bin" / "nexo", "cron"], check=True)
     subprocess.run(["systemctl", "--user", "restart", "nexo-dashboard"])
 
 
