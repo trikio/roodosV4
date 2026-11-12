@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Roodos Autos Ops</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Roodos Autos Ops</h1>
+        <p id="generated-at">Loading...</p>
+      </div>
+      <div class="actions">
+        <button id="refresh-now" type="button" title="Start emergency refresh">Run</button>
+        <button id="reload" type="button" title="Reload dashboard">Reload</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="metrics" aria-label="Summary metrics">
+        <article>
+          <span>Total autos</span>
+          <strong id="total">-</strong>
+        </article>
+        <article>
+          <span>Fresh 24h</span>
+          <strong id="fresh-1d">-</strong>
+        </article>
+        <article>
+          <span>Fresh 7d</span>
+          <strong id="fresh-7d">-</strong>
+        </article>
+        <article>
+          <span>Stale 7d+</span>
+          <strong id="stale-7d">-</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Fuentes de autos</h2>
+          <span id="nexo-summary" class="muted">-</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fuente</th>
+                <th>País</th>
+                <th>Activos</th>
+                <th>Última vez vista</th>
+                <th>Última ejecución</th>
+                <th>Vistos 24h</th>
+                <th>Nuevos 24h</th>
+                <th>Sin verse 30d</th>
+                <th>Imágenes rotas</th>
+              </tr>
+            </thead>
+            <tbody id="nexo-sources"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Alertas abiertas</h2>
+          </div>
+          <ul id="nexo-alerts" class="steps"></ul>
+        </div>
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Fuentes candidatas</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sitio</th>
+                  <th>País</th>
+                  <th>Puntaje</th>
+                  <th>Estado</th>
+                  <th>Encontrada</th>
+                </tr>
+              </thead>
+              <tbody id="nexo-candidates"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="status-row">
+        <div class="panel service-panel">
+          <div class="panel-title">
+            <h2>Refresh Service</h2>
+            <span id="service-pill" class="pill">-</span>
+          </div>
+          <dl class="service-grid">
+            <dt>Main PID</dt>
+            <dd id="main-pid">-</dd>
+            <dt>Started</dt>
+            <dd id="started-at">-</dd>
+            <dt>Max updated</dt>
+            <dd id="max-updated">-</dd>
+          </dl>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Current Step</h2>
+          </div>
+          <p id="current-step" class="current-step">-</p>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Countries</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Country</th>
+                  <th>Total</th>
+                  <th>24h</th>
+                  <th>3d</th>
+                  <th>7d</th>
+                  <th>Max updated</th>
+                </tr>
+              </thead>
+              <tbody id="countries"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Sources</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Country</th>
+                  <th>Total</th>
+                  <th>24h</th>
+                  <th>7d</th>
+                  <th>Max updated</th>
+                </tr>
+              </thead>
+              <tbody id="sources"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid lower">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Run Steps</h2>
+          </div>
+          <ol id="steps" class="steps"></ol>
+        </div>
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Log Tail</h2>
+          </div>
+          <pre id="log-tail"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

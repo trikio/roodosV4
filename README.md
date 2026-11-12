@@ -55,6 +55,10 @@ La base MySQL de roodos no está en el servidor de producción: una máquina apa
 - **Octane:** corre como servicio, [server-conf/service_systemd/octane.service](server-conf/service_systemd/octane.service) (`systemctl restart octane`), y se levanta solo si muere. El deploy lo instala y reinicia. Salida en `/var/log/octane.log`.
 - **Logs de Laravel:** un archivo por día en `storage/logs/laravel-AAAA-MM-DD.log`, 14 días, desde nivel `warning`.
 
+## Scrapers (nexo)
+
+Los avisos los scrapea una máquina de la casa, nexo, con el código de [nexo/](nexo/README.md): spiders, registro de fuentes, crontab, monitoreo (base `nexo` en su MySQL), alertas por Telegram y dashboard local. Producción no ejecuta nada de esa carpeta; nexo se actualiza solo desde `main`.
+
 ## Desarrollo
 
 ```bash

@@ -1,0 +1,9 @@
+scrapy==2.11.2
+mysql-connector-python==9.0.0
+python-dotenv==1.0.1
+w3lib==2.4.0
+requests==2.32.3
+Pillow==10.4.0
+boto3==1.35.36
+scrapling==0.4.1
+Flask==3.0.3

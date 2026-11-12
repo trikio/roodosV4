@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+logs/
+
+# Local/non-Roodos experiments kept in this working folder.
+scripts/*nde*
+scripts/download_pexels_collections.py
+scripts/send_trikio_*.sh
+scripts/check_licencias_renovacion_alert.py

@@ -1,0 +1,14 @@
+# Servicio de usuario (trikio, con linger activo): systemctl --user enable --now <esta ruta>
+[Unit]
+Description=Dashboard de nexo (scrapers de Roodos) en el puerto 8765
+
+[Service]
+WorkingDirectory=/home/trikio/roodos_v4/nexo
+Environment=ROODOS_DASHBOARD_HOST=0.0.0.0
+Environment=ROODOS_DASHBOARD_PORT=8765
+ExecStart=/usr/bin/python3 /home/trikio/roodos_v4/nexo/dashboard/server.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
