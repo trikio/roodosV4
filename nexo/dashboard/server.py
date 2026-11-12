@@ -213,6 +213,45 @@ def api_nexo():
     return jsonify({"sources": sources, "alerts": alerts, "candidates": candidates})
 
 
+@app.get("/api/dealers")
+def api_dealers():
+    """Automotoras chicas con sus avisos activos en roodos.cars."""
+    sites = fetch_all(
+        """
+        SELECT d.host, d.country, d.name, d.status, d.test_items, d.sample,
+               DATE_FORMAT(d.tested_at, '%Y-%m-%d') AS tested_at,
+               COALESCE(c.active, 0) AS active, DATE_FORMAT(c.last_seen, '%Y-%m-%d') AS last_seen
+        FROM nexo.dealer_sites d
+        LEFT JOIN (
+          SELECT REPLACE(SUBSTRING_INDEX(SUBSTRING_INDEX(url, '/', 3), '/', -1), 'www.', '') AS host,
+                 SUM(status = 1) AS active, MAX(updated) AS last_seen
+          FROM cars GROUP BY host
+        ) c ON c.host = d.host
+        WHERE d.status <> 'rejected'
+        ORDER BY FIELD(d.status, 'review', 'active', 'paused'), d.country, d.test_items DESC
+        """
+    )
+    return jsonify({"sites": sites})
+
+
+@app.post("/api/dealers/<host>/<action>")
+def api_dealer_action(host: str, action: str):
+    status = {"approve": "active", "reject": "rejected", "pause": "paused"}.get(action)
+    if not status:
+        return jsonify({"ok": False, "error": "acción desconocida"}), 400
+    conn = db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE nexo.dealer_sites SET status=%s, approved_at=IF(%s='active', NOW(), approved_at) WHERE host=%s",
+            (status, status, host),
+        )
+        conn.commit()
+        return jsonify({"ok": cur.rowcount > 0})
+    finally:
+        conn.close()
+
+
 @app.post("/api/refresh")
 def api_refresh():
     state = service_state()

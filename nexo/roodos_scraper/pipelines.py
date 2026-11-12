@@ -312,6 +312,8 @@ class MySQLRoodosPipeline:
                 source_label = "Salfa"
             elif "seminuevos" in source_name:
                 source_label = "Seminuevos"
+            if d.get("source_label"):
+                source_label = d["source_label"]
 
             params = (
                 country_code,

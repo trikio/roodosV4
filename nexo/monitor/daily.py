@@ -22,7 +22,8 @@ def daily():
 
     stats = {}
     for source in sources.SOURCES:
-        if source.enabled:
+        # Una fuente de automotoras sin sitios aprobados todavía no tiene nada que revisar.
+        if source.enabled and not (source.dealers and cars.hosts(conn, source) == ("-",)):
             stats[source.id] = _source_day(conn, source, now)
 
     paused = [source.id for source in sources.SOURCES if not source.enabled]

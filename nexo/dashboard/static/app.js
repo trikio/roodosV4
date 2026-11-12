@@ -141,6 +141,60 @@ async function loadNexo() {
   }
 }
 
+const DEALER_STATUS = { review: "por aprobar", active: "activa", paused: "en pausa" };
+
+function actionButton(label, host, action) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = label;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    await fetch(`/api/dealers/${encodeURIComponent(host)}/${action}`, { method: "POST" });
+    await loadDealers();
+  });
+  return btn;
+}
+
+async function loadDealers() {
+  const res = await fetch("/api/dealers", { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+
+  const pending = data.sites.filter((s) => s.status === "review").length;
+  const active = data.sites.filter((s) => s.status === "active").length;
+  text("dealers-summary", `${active} activas · ${pending} por aprobar`);
+
+  const body = byId("dealers");
+  body.replaceChildren();
+  for (const s of data.sites) {
+    let sample = "-";
+    try {
+      const first = JSON.parse(s.sample || "[]")[0];
+      if (first) sample = `${first.title} · ${num(first.price)}`;
+    } catch (err) {}
+    const tr = row([
+      { value: s.name && s.name !== s.host ? `${s.name} (${s.host})` : s.host },
+      { value: s.country.toUpperCase() },
+      { value: DEALER_STATUS[s.status] || s.status },
+      { value: num(s.test_items), className: "num" },
+      { value: num(s.active), className: "num" },
+      { value: s.last_seen },
+      { value: sample },
+    ]);
+    const actions = document.createElement("td");
+    if (s.status === "review") {
+      actions.append(actionButton("Aprobar", s.host, "approve"), " ", actionButton("Descartar", s.host, "reject"));
+    } else if (s.status === "active") {
+      actions.append(actionButton("Pausar", s.host, "pause"));
+    } else {
+      actions.append(actionButton("Activar", s.host, "approve"));
+    }
+    tr.appendChild(actions);
+    body.appendChild(tr);
+  }
+  if (!data.sites.length) body.textContent = "Todavía no hay automotoras probadas.";
+}
+
 async function startRefresh() {
   const btn = byId("refresh-now");
   btn.disabled = true;
@@ -166,6 +220,9 @@ loadStatus().catch((err) => {
 });
 loadNexo().catch((err) => {
   text("nexo-summary", `Error: ${err.message}`);
+});
+loadDealers().catch((err) => {
+  text("dealers-summary", `Error: ${err.message}`);
 });
 setInterval(() => loadStatus().catch(() => {}), 15000);
 setInterval(() => loadNexo().catch(() => {}), 60000);

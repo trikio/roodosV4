@@ -4,6 +4,7 @@ import scrapy
 class ListingItem(scrapy.Item):
     vertical = scrapy.Field()  # car | house
     source_name = scrapy.Field()
+    source_label = scrapy.Field()  # nombre de la fuente que muestra producción (cars.nexo_id)
     source_id = scrapy.Field()
     country = scrapy.Field()  # CL/EC/PE/MX
 

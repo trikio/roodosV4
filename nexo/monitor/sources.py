@@ -34,6 +34,7 @@ class Source:
     full_crawl: bool = False
     enabled: bool = True
     vertical: str = "autos"
+    dealers: bool = False  # sus hosts son los sitios activos del país en nexo.dealer_sites
 
     @property
     def max_age_days(self):
@@ -48,6 +49,15 @@ def spider(id, country, name, hosts, schedule, **kwargs):
 
 def script(id, country, name, hosts, schedule, *args, **kwargs):
     return Source(id, country, name, tuple(hosts), schedule, (PYTHON, *args), **kwargs)
+
+
+def dealers(country, schedule):
+    """Las automotoras chicas de un país, todas con el spider genérico `dealers`. Recorre sus sitemaps
+    completos, y la regla de vencidos se aplica sitio por sitio (ver cars.deactivate_stale)."""
+    return Source(
+        f"automotoras_{country}", country, f"Automotoras {country.upper()}", (), schedule,
+        (SCRAPY, "crawl", "dealers", "-a", f"country={country}", "-L", "INFO"), dealers=True, full_crawl=True,
+    )
 
 
 SOURCES = [
@@ -103,6 +113,14 @@ SOURCES = [
     spider("autocosmos_ecuador", "ec", "Autocosmos EC", ["www.autocosmos.com.ec"], "30 6 * * 6", after=EC_BACKFILL),
 ]
 
+# Automotoras con sitio propio (nexo.dealer_sites), dos veces por semana.
+SOURCES += [
+    dealers("cl", "0 1 * * 0,3"),
+    dealers("mx", "30 1 * * 0,3"),
+    dealers("pe", "0 2 * * 0,3"),
+    dealers("ec", "30 2 * * 0,3"),
+]
+
 BY_ID = {source.id: source for source in SOURCES}
 
 
@@ -135,7 +153,8 @@ def sync(conn):
             ON DUPLICATE KEY UPDATE vertical=VALUES(vertical), country=VALUES(country), name=VALUES(name),
               hosts=VALUES(hosts), schedule=VALUES(schedule), full_crawl=VALUES(full_crawl), enabled=VALUES(enabled)
             """,
-            (s.id, s.vertical, s.country, s.name, ",".join(s.hosts), s.schedule, s.full_crawl, s.enabled),
+            (s.id, s.vertical, s.country, s.name, "nexo.dealer_sites" if s.dealers else ",".join(s.hosts),
+             s.schedule, s.full_crawl, s.enabled),
         )
     placeholders = ",".join(["%s"] * len(SOURCES))
     db.execute(conn, f"DELETE FROM nexo.sources WHERE id NOT IN ({placeholders})", tuple(BY_ID))

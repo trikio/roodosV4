@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from . import cars, cron, daily, db, hunt, images, runner, sources
+from . import cars, cron, daily, db, dealers, hunt, images, runner, sources
 from .config import ROOT
 from .fmt import day, label, num
 
@@ -18,6 +18,10 @@ def main():
     commands.add_parser("daily", help="foto diaria, vencidos, alertas y resumen por Telegram")
     commands.add_parser("images", help="revisa por muestreo las imágenes de los avisos activos")
     commands.add_parser("hunt", help="busca fuentes candidatas en internet")
+    dealers_parser = commands.add_parser("dealers", help="automotoras chicas: probar, listar, aprobar")
+    dealers_parser.add_argument("action", choices=["probe", "review", "list", "approve", "reject", "pause"])
+    dealers_parser.add_argument("hosts", nargs="*")
+    dealers_parser.add_argument("--all", action="store_true", help="con approve: todas las que están en revisión")
     cron_parser = commands.add_parser("cron", help="instala el bloque de nexo en el crontab")
     cron_parser.add_argument("--print", action="store_true", help="solo muestra el crontab resultante")
     commands.add_parser("update", help="trae los cambios del repo y reinstala si hubo")
@@ -41,6 +45,18 @@ def main():
         images.run()
     elif args.command == "hunt":
         hunt.run()
+    elif args.command == "dealers":
+        if args.action == "probe":
+            dealers.probe()
+        elif args.action == "review":
+            dealers.review()
+        elif args.action == "list":
+            dealers.list_sites()
+        elif args.action == "approve" and args.all:
+            dealers.approve_all_review()
+        else:
+            status = {"approve": "active", "reject": "rejected", "pause": "paused"}[args.action]
+            dealers.set_status(args.hosts, status)
     elif args.command == "cron":
         if args.print:
             current = subprocess.run(["crontab", "-l"], capture_output=True, text=True).stdout
@@ -85,7 +101,7 @@ def update():
 def deactivate(source, apply):
     """Para fuentes que ya no se pueden actualizar: sus avisos salen de producción en la siguiente reindexación."""
     conn = db.connect()
-    condition, params = cars.where(source)
+    condition, params = cars.where(conn, source)
     if apply:
         affected, _ = db.execute(conn, f"UPDATE cars SET status = 0 WHERE {condition} AND status = 1", params)
         print(f"{label(source)}: {num(affected)} avisos desactivados")

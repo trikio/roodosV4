@@ -35,6 +35,8 @@ def block():
         f"0 6 * * * {nexo} images {log}",
         f"0 8 * * * {nexo} daily {log}",
         f"30 9 * * * {nexo} hunt {log}",
+        f"0 10 * * * {nexo} dealers probe {log}",
+        f"0 9 * * 1 {nexo} dealers review {log}",
         f"*/10 * * * * {nexo} update {log}",
         "# Casas y mantenimiento",
         f"20 2 * * * {ROOT}/run_houses_doomos_cl.sh",

@@ -16,6 +16,18 @@ Todas las fuentes de autos están en [monitor/sources.py](monitor/sources.py): p
 
 Cada aviso se reconoce por su país (`cars.id_country`) y el host de su URL; `cars` no tiene una columna de fuente. Todos los scrapers ponen `updated = NOW()` en cada aviso que guardan, así que "visto" significa `updated` reciente.
 
+## Automotoras chicas
+
+Las automotoras con sitio propio no tienen un spider cada una: las recorre el spider genérico [roodos_scraper/spiders/dealers.py](roodos_scraper/spiders/dealers.py), que encuentra las fichas por los sitemaps y los enlaces de la portada y solo arma un aviso si la ficha publica datos estructurados de schema.org (JSON-LD o microdatos; precio y km también desde `og:description`, como en la plataforma RT Automotriz). Descarta listados, avisos sin precio o año, y monedas que no son del país.
+
+Hay una fuente por país (`automotoras_cl`, `_mx`, `_pe`, `_ec`) que corre los domingos y miércoles sobre los sitios activos de `nexo.dealer_sites`. La regla de vencidos se aplica sitio por sitio: si un sitio falla, sus avisos no se dan por vencidos.
+
+El flujo:
+
+1. `hunt` (9:30) busca "automotora + ciudad" y variantes, en rotación semanal, y deja los sitios en `nexo.candidates`.
+2. `dealers probe` (10:00) prueba hasta 25 candidatas con el spider genérico, sin escribir en la base. Con 5 avisos válidos o más pasan a `nexo.dealer_sites` como `review`; si no, quedan como `manual` (necesitan un spider propio, que se escribe a pedido).
+3. Los lunes (9:00) llega por Telegram la lista para aprobar, y se aprueban en el dashboard o con `bin/nexo dealers approve <host>` (o `--all`).
+
 ## Comandos
 
 ```bash
@@ -24,6 +36,8 @@ bin/nexo sources        # fuentes con su última ejecución
 bin/nexo daily          # foto diaria, vencidos, alertas y resumen por Telegram (8:00)
 bin/nexo images         # revisa por muestreo las imágenes de los avisos activos (6:00)
 bin/nexo hunt           # busca sitios candidatos en internet (9:30)
+bin/nexo dealers probe|review|list|approve|reject|pause [hosts] [--all]   # automotoras chicas
+bin/nexo deactivate <fuente> [--yes]   # desactiva los avisos de una fuente que ya no se puede actualizar
 bin/nexo cron [--print] # instala el bloque de nexo en el crontab
 bin/nexo update         # git pull y reinstalación si hubo cambios (cada 10 min)
 bin/nexo db-init        # crea o completa la base nexo

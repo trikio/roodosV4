@@ -84,3 +84,16 @@ CREATE TABLE IF NOT EXISTS nexo.candidates (
   first_seen  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+-- Automotoras con sitio propio que recorre el spider genérico `dealers` (una fuente por país).
+CREATE TABLE IF NOT EXISTS nexo.dealer_sites (
+  host         VARCHAR(190) NOT NULL PRIMARY KEY,  -- sin www.
+  country      VARCHAR(3)   NOT NULL,
+  name         VARCHAR(100) NULL,
+  status       VARCHAR(10)  NOT NULL DEFAULT 'review',  -- review | active | rejected | paused
+  test_items   INT          NOT NULL DEFAULT 0,          -- avisos válidos en la prueba
+  sample       TEXT         NULL,                        -- 3 avisos de ejemplo de la prueba
+  tested_at    DATETIME     NULL,
+  approved_at  DATETIME     NULL,
+  KEY idx_dealer_sites (country, status)
+);

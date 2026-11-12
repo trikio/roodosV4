@@ -15,6 +15,13 @@ TIMEOUT_EXIT = 124
 
 
 def run(source):
+    conn = db.connect()
+    no_sites = source.dealers and cars.hosts(conn, source) == ("-",)
+    conn.close()
+    if no_sites:
+        print(f"{source.id}: no hay sitios activos")
+        return None
+
     lock = open(f"/tmp/nexo-run-{source.id}.lock", "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
