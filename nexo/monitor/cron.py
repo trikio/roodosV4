@@ -13,7 +13,7 @@ BEGIN = "# BEGIN NEXO (generado por bin/nexo cron; se edita en nexo/monitor/cron
 END = "# END NEXO"
 
 # Líneas del crontab anterior (OpenClaw) que este bloque reemplaza.
-LEGACY_MARKER = "/.openclaw/workspace/roodos_scraper/"
+LEGACY_MARKER = "/.openclaw/workspace/roodos_scraper"
 LEGACY_KEEP = "send_trikio_"
 LEGACY_COMMENTS = {
     "# --- Houses (daily) ---",
