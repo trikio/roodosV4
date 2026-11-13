@@ -120,6 +120,10 @@ SOURCES = [
     # /buy/ trae todo el stock en una página; la paginación es del navegador (13-11-2026).
     spider("autos_bravoauto_pe", "pe", "Bravoauto", ["www.bravoauto.com.pe"], "15 7 * * 3", timeout_hours=1,
            full_crawl=True),
+    # Akamai bloquea a los clientes HTTP; navegador real (scrapling) y la API headless de Liferay,
+    # que trae el catálogo completo (13-11-2026).
+    script("divemotor_peru", "pe", "Divemotor", ["diveusados.divemotor.com"], "20 7 * * 3",
+           "scripts/scrape_divemotor_pe.py", timeout_hours=1, full_crawl=True),
     # Ecuador
     # Desafío clásico de Cloudflare; cloudscraper (ya usado en Auto.cl) lo resuelve. Vuelve con el
     # markup nuevo del sitio (ItemList/Vehicle en vez de Car) y paginación ?page=N (12-11-2026).

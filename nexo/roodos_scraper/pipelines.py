@@ -193,9 +193,14 @@ class MySQLRoodosPipeline:
             return d
 
         try:
-            r = requests.get(original, timeout=25, headers={"User-Agent": "Mozilla/5.0"})
-            r.raise_for_status()
-            thumb = self._center_crop_150(r.content)
+            # Las fuentes que bloquean a los clientes HTTP (p. ej. Akamai en Divemotor) bajan la imagen
+            # con el navegador y la pasan en `image_bytes`.
+            content = d.get("image_bytes")
+            if content is None:
+                r = requests.get(original, timeout=25, headers={"User-Agent": "Mozilla/5.0"})
+                r.raise_for_status()
+                content = r.content
+            thumb = self._center_crop_150(content)
 
             now = datetime.utcnow()
             country = (d.get("country") or "ec").lower()
