@@ -105,7 +105,8 @@ SOURCES = [
     spider("autos_koopa_pe", "pe", "Koopa", ["koopa.pe"], "30 4 * * 3"),
     spider("autos_autosell_pe", "pe", "Autosell", ["www.autosell.pe"], "35 6 * * 3", timeout_hours=2),
     spider("autos_tuauto_pe", "pe", "TuAuto", ["tuauto.com.pe"], "40 6 * * 3", timeout_hours=2),
-    spider("autos_neoauto_pe", "pe", "Neoauto", ["neoauto.com"], "45 6 * * 3", timeout_hours=2),
+    # Por sus sitemaps de avisos: los listados paginan con ?page=N, que robots.txt prohíbe (12-11-2026).
+    spider("autos_neoauto_pe", "pe", "Neoauto", ["neoauto.com"], "45 6 * * 3", timeout_hours=4, full_crawl=True),
     spider("autos_wigo_pe", "pe", "Wigo Motors", ["www.wigomotors.com"], "50 6 * * 3", timeout_hours=2,
            after=peru_sitemap_sync("Wigo")),
     spider("autos_autoland_pe", "pe", "Autoland", ["www.autoland.com.pe"], "55 6 * * 3", timeout_hours=2),

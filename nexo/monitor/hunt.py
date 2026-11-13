@@ -18,7 +18,8 @@ from . import db, sources
 QUERIES = {
     "cl": ["autos usados chile", "venta autos usados santiago automotora", "seminuevos chile concesionario"],
     "mx": ["autos seminuevos mexico", "venta autos usados mexico agencia", "seminuevos cdmx autos"],
-    "pe": ["autos usados peru", "venta autos usados lima concesionario", "seminuevos peru autos"],
+    "pe": ["autos usados peru", "venta autos usados lima concesionario", "seminuevos peru autos",
+           "seminuevos certificados lima", "autos usados con garantía concesionario peru"],
     "ec": ["autos usados ecuador", "venta autos usados quito guayaquil", "patio de autos ecuador"],
 }
 # Automotoras chicas: "automotora + ciudad" y variantes por país, en rotación diaria.
