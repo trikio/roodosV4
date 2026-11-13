@@ -114,6 +114,12 @@ SOURCES = [
            after=peru_sitemap_sync("LeonFord")),
     spider("autos_autosummit_pe", "pe", "Autosummit Ford", ["www.autosummitford.pe"], "5 7 * * 3", timeout_hours=2,
            after=peru_sitemap_sync("AutoSummit")),
+    # Su API devuelve el catálogo completo en una respuesta (pide el Referer del sitio) (13-11-2026).
+    spider("autos_mitsui_pe", "pe", "Mitsui Seminuevos", ["mitsuiseminuevos.com"], "10 7 * * 3", timeout_hours=1,
+           full_crawl=True),
+    # /buy/ trae todo el stock en una página; la paginación es del navegador (13-11-2026).
+    spider("autos_bravoauto_pe", "pe", "Bravoauto", ["www.bravoauto.com.pe"], "15 7 * * 3", timeout_hours=1,
+           full_crawl=True),
     # Ecuador
     # Desafío clásico de Cloudflare; cloudscraper (ya usado en Auto.cl) lo resuelve. Vuelve con el
     # markup nuevo del sitio (ItemList/Vehicle en vez de Car) y paginación ?page=N (12-11-2026).
