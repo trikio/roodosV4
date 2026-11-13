@@ -68,8 +68,10 @@ SOURCES = [
     spider("portillo_chile", "cl", "Portillo", ["www.portillo.cl", "www.clicar.cl"], "10 5 * * 5"),
     script("auto_cl", "cl", "Auto.cl", ["www.auto.cl"], "30 5 * * 5",
            "scripts/scrape_auto_cl_challenge.py", "--max-pages", "80"),
-    # Akamai retiene las conexiones de Scrapy (curl y requests sí pasan); en pausa hasta decidir (12-11-2026).
-    spider("brunofritsch_chile", "cl", "Bruno Fritsch", ["www.brunofritsch.cl"], "40 3 * * 4", enabled=False),
+    # Akamai resetea las conexiones de curl/requests/Scrapy; un navegador real (scrapling
+    # StealthySession) pasa. Recorre el listado completo (12-11-2026).
+    script("brunofritsch_chile", "cl", "Bruno Fritsch", ["www.brunofritsch.cl"], "40 3 * * 4",
+           "scripts/scrape_brunofritsch_cl.py"),
     spider("kovacs_chile", "cl", "Kovacs", ["www.kovacsusados.cl"], "40 4 * * 4"),
     # Sin proxies (MercadoLibre manda las IPs de datacenter a verificar cuenta) y por tramos de precio.
     # La primera ejecución sube ~27.000 miniaturas; después se reutilizan.
@@ -78,8 +80,11 @@ SOURCES = [
     spider("salfa_chile", "cl", "Salfa", ["salfausados.cl"], "40 5 * * 5", full_crawl=True),
     spider("autocosmos_chile", "cl", "Autocosmos CL", ["www.autocosmos.cl"], "10 4 * * 4"),
     # México
-    # Bloqueada por el desafío de Cloudflare desde oct-2026; sus avisos se desactivaron el 12-11-2026.
-    spider("seminuevos_mexico", "mx", "Seminuevos", ["www.seminuevos.com"], "50 3 * * 2", enabled=False),
+    # Cloudflare Managed Challenge (Turnstile) desde oct-2026; cloudscraper no la resuelve, pero
+    # scrapling StealthySession con solve_cloudflare=True sí. Vuelve con el markup nuevo del sitio
+    # (ItemList/Vehicle en vez de Car) (12-11-2026).
+    script("seminuevos_mexico", "mx", "Seminuevos", ["www.seminuevos.com"], "50 3 * * 2",
+           "scripts/scrape_seminuevos_mx.py"),
     spider("autocosmos_mexico", "mx", "Autocosmos MX", ["www.autocosmos.com.mx"], "20 4 * * 2", timeout_hours=4,
            full_crawl=True),
     spider("mercadolibre_mexico", "mx", "MercadoLibre MX", ["auto.mercadolibre.com.mx"], "20 3 * * 2",
@@ -109,9 +114,10 @@ SOURCES = [
     spider("autos_autosummit_pe", "pe", "Autosummit Ford", ["www.autosummitford.pe"], "5 7 * * 3", timeout_hours=2,
            after=peru_sitemap_sync("AutoSummit")),
     # Ecuador
-    # Bloqueada por el desafío de Cloudflare; sus avisos se desactivaron el 12-11-2026.
-    spider("patiotuerca_ecuador", "ec", "Patiotuerca", ["ecuador.patiotuerca.com"], "0 3 * * 1", after=EC_BACKFILL,
-           enabled=False),
+    # Desafío clásico de Cloudflare; cloudscraper (ya usado en Auto.cl) lo resuelve. Vuelve con el
+    # markup nuevo del sitio (ItemList/Vehicle en vez de Car) y paginación ?page=N (12-11-2026).
+    script("patiotuerca_ecuador", "ec", "Patiotuerca", ["ecuador.patiotuerca.com"], "0 3 * * 1",
+           "scripts/scrape_patiotuerca_ec.py", after=EC_BACKFILL),
     spider("autos_topmotors_ec", "ec", "Topmotors", ["www.topmotorsusados.com"], "30 3 * * 1", after=EC_BACKFILL),
     # MercadoLibre pide iniciar sesión a esta IP y a los proxies; sus avisos se desactivaron el 12-11-2026.
     spider("mercadolibre_ecuador", "ec", "MercadoLibre EC", ["auto.mercadolibre.com.ec"], "0 6 * * 6", after=EC_BACKFILL,

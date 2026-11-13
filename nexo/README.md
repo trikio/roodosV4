@@ -73,6 +73,7 @@ Un aviso activo que su fuente no ve en 30 días pasa a `status = 0` y sale de Ma
 git clone --filter=blob:none --sparse git@github.com:trikio/roodosV4.git ~/roodos_v4
 cd ~/roodos_v4 && git sparse-checkout set nexo server-conf/tunnel
 pip install --user -r nexo/requirements.txt
+~/.local/bin/patchright install chromium   # browser de scrapling para Seminuevos, Bruno Fritsch
 cp nexo/.env.example nexo/.env    # y completarlo
 nexo/bin/nexo db-init && nexo/bin/nexo cron
 systemctl --user enable --now ~/roodos_v4/nexo/systemd/nexo-dashboard.service   # requiere loginctl enable-linger
