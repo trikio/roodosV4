@@ -15,6 +15,14 @@ return [
         'MX' => '$',
         'LAB' => '$',
     ],
+    // Guide price tables: prices below this are another currency (UF in Chile) or junk. A country
+    // whose ads mix currencies that the index cannot tell apart (Peru: soles and dollars) has none.
+    'guide_price_floor' => [
+        'CL' => 500000,
+        'MX' => 20000,
+        'EC' => 1000,
+        'LAB' => 1000,
+    ],
     'autos_home' => [
         'locations' => [
             'EC' => ['Quito', 'Guayaquil', 'Cuenca', 'Ambato', 'Manta', 'Santo Domingo', 'Portoviejo', 'Machala', 'Loja', 'Ibarra', 'Riobamba', 'Esmeraldas'],

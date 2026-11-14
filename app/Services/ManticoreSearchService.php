@@ -214,6 +214,49 @@ class ManticoreSearchService
         ];
     }
 
+    /**
+     * Price summary per year of a model, newest first, only for years with at least $minAds ads.
+     *
+     * @return array<int, array{year: int, total: int, avg: int, min: int, max: int}>
+     */
+    public function carModelPricesByYear($searchIndex, int $modelId, int $minPrice = 1, int $minAds = 3, int $years = 12): array
+    {
+        try {
+            $rows = (new SphinxQL($this->connection))
+                ->select(
+                    'year_int',
+                    SphinxQL::expr('COUNT(*) AS total'),
+                    SphinxQL::expr('AVG(price) AS avg_price'),
+                    SphinxQL::expr('MIN(price) AS min_price'),
+                    SphinxQL::expr('MAX(price) AS max_price')
+                )
+                ->from($searchIndex)
+                ->where('id_car_model', $modelId)
+                ->where('price', '>=', max(1, $minPrice))
+                ->where('year_int', '>', 0)
+                ->groupBy('year_int')
+                ->orderBy('year_int', 'DESC')
+                ->limit(0, 60)
+                ->execute()
+                ->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+
+        return collect($rows)
+            ->filter(fn ($row) => (int) $row['total'] >= $minAds)
+            ->take($years)
+            ->map(fn ($row) => [
+                'year' => (int) $row['year_int'],
+                'total' => (int) $row['total'],
+                'avg' => (int) round((float) $row['avg_price']),
+                'min' => (int) $row['min_price'],
+                'max' => (int) $row['max_price'],
+            ])
+            ->values()
+            ->all();
+    }
+
     public function getCarMakeBySlug(string $slug): ?array
     {
         try {

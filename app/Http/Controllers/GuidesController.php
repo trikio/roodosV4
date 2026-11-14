@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GuidePriceTables;
 use App\Services\LandingLinks;
 use App\Support\Guides;
 use Illuminate\Support\Str;
@@ -10,7 +11,7 @@ class GuidesController extends Controller
 {
     private const COUNTRY_NAMES = ['cl' => 'Chile', 'mx' => 'México', 'pe' => 'Perú', 'ec' => 'Ecuador'];
 
-    public function __construct(private LandingLinks $links)
+    public function __construct(private LandingLinks $links, private GuidePriceTables $priceTables)
     {
     }
 
@@ -33,6 +34,7 @@ class GuidesController extends Controller
         $country = $this->countryCode($country);
         $guide = Guides::find($country, $slug);
         abort_if($guide === null, 404);
+        $guide['html'] = $this->priceTables->render($country, $guide['html']);
 
         // The same make links as the home: the make's landing when it exists, otherwise its page.
         $makeLinks = [];

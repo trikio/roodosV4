@@ -118,4 +118,61 @@ class GuidesTest extends TestCase
             ->assertOk()
             ->assertSee('<a href="http://autos.roodos.ec/guias" class="hover:text-gray-900">Guías</a>', false);
     }
+
+    public function test_price_table_comes_from_the_country_index(): void
+    {
+        $manticore = $this->app->make(ManticoreSearchService::class);
+        $manticore->shouldReceive('getCarModelBySlug')->with('chevrolet-aveo')
+            ->andReturn(['id' => 262, 'model_name' => 'Aveo', 'id_car_make' => 35]);
+        $manticore->shouldReceive('getCarMakeById')->with(35)->andReturn(['id' => 35, 'name' => 'Chevrolet']);
+        $manticore->shouldReceive('carModelPricesByYear')->once()->with('car_ec', 262, 1000)->andReturn([
+            ['year' => 2015, 'total' => 7, 'avg' => 9450, 'min' => 7900, 'max' => 11500],
+        ]);
+
+        $this->get('http://autos.roodos.ec/guias/cuanto-cuesta-un-chevrolet-aveo-usado')
+            ->assertOk()
+            ->assertSee('<td>2015</td>', false)
+            ->assertSee('$ 9.450')
+            ->assertSee('$ 7.900 – $ 11.500')
+            ->assertSee('href="http://autos.roodos.ec/modelo/chevrolet-aveo"', false)
+            ->assertDontSee('[[precios', false);
+    }
+
+    public function test_price_table_says_so_when_there_are_too_few_ads(): void
+    {
+        $manticore = $this->app->make(ManticoreSearchService::class);
+        $manticore->shouldReceive('getCarModelBySlug')->andReturn(['id' => 1758, 'model_name' => 'Swift', 'id_car_make' => 167]);
+        $manticore->shouldReceive('getCarMakeById')->andReturn(['id' => 167, 'name' => 'Suzuki']);
+        $manticore->shouldReceive('carModelPricesByYear')->with('car_cl', 1758, 500000)->andReturn([]);
+
+        $this->get('http://autos.roodos.cl/guias/cuanto-cuesta-un-suzuki-swift-usado')
+            ->assertOk()
+            ->assertSee('Hoy no hay suficientes avisos de Suzuki Swift')
+            ->assertDontSee('<table>', false);
+    }
+
+    public function test_price_tables_are_off_where_ads_mix_currencies(): void
+    {
+        $html = $this->app->make(\App\Services\GuidePriceTables::class)->render('pe', '<p>[[precios:toyota-yaris]]</p>');
+
+        $this->assertSame('', $html);
+    }
+
+    public function test_links_between_guides_point_to_guides_already_published(): void
+    {
+        foreach (['cl', 'mx', 'pe', 'ec'] as $country) {
+            foreach (glob(base_path("content/guias/{$country}/*.md")) as $file) {
+                $text = file_get_contents($file);
+                preg_match('/^published_at: (\S+)$/m', $text, $date);
+                preg_match_all('#\]\(/guias/([a-z0-9-]+)\)#', $text, $links);
+
+                foreach ($links[1] as $slug) {
+                    $target = base_path("content/guias/{$country}/{$slug}.md");
+                    $this->assertFileExists($target, basename($file));
+                    preg_match('/^published_at: (\S+)$/m', file_get_contents($target), $targetDate);
+                    $this->assertLessThanOrEqual($date[1], $targetDate[1], basename($file) . ' -> ' . $slug);
+                }
+            }
+        }
+    }
 }
