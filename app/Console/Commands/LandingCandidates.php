@@ -179,45 +179,46 @@ class LandingCandidates extends Command
     }
 
     /**
-     * One landing per new model and year. A row with the same slug (removed or redirected
-     * earlier) is brought back rather than duplicated. Its content carries the filters the page
-     * lists and the creation date landings:clean counts the grace period from.
+     * One landing per new model and year. car_landings is unique by (country_id, slug), so a row
+     * with that slug (removed or redirected earlier) is brought back instead of duplicated. The
+     * table is MyISAM, without transactions: each statement stands alone and can be run again.
+     * The content carries the filters the page lists and the date landings:clean counts the grace
+     * period from.
      */
     private function buildSql(string $country, array $new): string
     {
         $q = fn (string $value) => "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], $value) . "'";
         $countryName = self::COUNTRY_NAMES[$country] ?? ucfirst($country);
         $today = date('Y-m-d');
+        $columns = ['country_id', 'slug', 'title', 'title_h1', 'meta_title', 'meta_description', 'content', 'id_car_make', 'id_car_model', 'id_state', 'id_city', 'redirect', 'activo'];
+        $update = implode(', ', array_map(fn ($column) => "{$column} = new.{$column}", array_slice($columns, 2)));
 
-        $sql = ["-- Landings marca + modelo + año nuevas para '{$country}' (" . count($new) . ') - ' . date('Y-m-d H:i:s'), 'START TRANSACTION;', ''];
+        $sql = ["-- Landings marca + modelo + año nuevas para '{$country}' (" . count($new) . ') - ' . date('Y-m-d H:i:s'), 'SET NAMES utf8mb4;', ''];
         foreach ($new as $landing) {
             $model = $landing['model'];
             $content = json_encode([
                 'breadcrumb' => ['make' => $model['make_slug'], 'model' => $model['slug']],
                 'generated' => ['make' => $model['make_id'], 'model' => $landing['model_id'], 'year' => $landing['year'], 'created' => $today],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $description = "{$landing['title']} en {$countryName}: compara precios, kilometraje y avisos de concesionarios y particulares en Roodos.";
 
             $values = [
-                'title' => $q($landing['title']),
-                'meta_description' => $q($description),
-                'content' => $q($content),
-                'id_car_make' => $model['make_id'],
-                'id_car_model' => $landing['model_id'],
-                'id_state' => 0,
-                'id_city' => 0,
-                'redirect' => "''",
-                'activo' => 1,
+                $q($country),
+                $q($landing['slug']),
+                $q($landing['title']),
+                $q($landing['title']),
+                $q("{$landing['title']} en {$countryName}"),
+                $q("{$landing['title']} en {$countryName}: compara precios, kilometraje y avisos de concesionarios y particulares en Roodos."),
+                $q($content),
+                $model['make_id'],
+                $landing['model_id'],
+                0,
+                0,
+                "''",
+                1,
             ];
-            $where = 'country_id = ' . $q($country) . ' AND slug = ' . $q($landing['slug']);
 
-            $sql[] = 'UPDATE car_landings SET ' . implode(', ', array_map(fn ($column, $value) => "{$column} = {$value}", array_keys($values), $values)) . " WHERE {$where};";
-            $sql[] = 'INSERT INTO car_landings (country_id, slug, ' . implode(', ', array_keys($values)) . ') SELECT '
-                . $q($country) . ', ' . $q($landing['slug']) . ', ' . implode(', ', $values)
-                . " FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM car_landings WHERE {$where});";
+            $sql[] = 'INSERT INTO car_landings (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ") AS new ON DUPLICATE KEY UPDATE {$update};";
         }
-        $sql[] = '';
-        $sql[] = 'COMMIT;';
 
         return implode("\n", $sql) . "\n";
     }

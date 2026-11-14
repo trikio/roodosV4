@@ -79,20 +79,25 @@ Deja SQL, CSV y JSON de cada paso en `logs/landings/`. Crear y bajar landings so
 
 Freno: si en un país la limpieza quiere redirigir o eliminar más del 2% de las landings activas, no se aplica (salvo `--apply-clean --force`). La primera limpieza de un país que nunca se limpió supera eso de lejos y se aplica a mano, revisando el CSV. Cada limpieza aplicada respalda las landings del país en `car_landings_backup_{país}_{fecha}` (el SQL trae cómo revertir); los respaldos de más de 8 semanas se borran.
 
-La lógica vive en los comandos de Laravel del repo, así que nexo necesita el repo completo, PHP y su propio Manticore (una vez):
+La lógica vive en los comandos de Laravel del repo, así que nexo tiene el repo completo, PHP y su propio Manticore. Así quedó instalado (noviembre de 2026, sin `sudo`):
+
+- **PHP 8.4** (`/usr/bin/php8.4`) corre los comandos: el proyecto pide 8.4 y el `php` por defecto (8.5) no tiene `mysqli`. A 8.4 le faltan `mbstring` (lo cubre `symfony/polyfill-mbstring`), `dom` (solo para correos) y `zip`.
+- **Composer** en `~/.local/share/composer/composer.phar`, corrido con **PHP 8.3**, que sí tiene `zip`.
+- En `nexo/.env`: `NEXO_PHP=php8.4`, `NEXO_COMPOSER=php8.3 ~/.local/share/composer/composer.phar` y `COMPOSER_IGNORE_PLATFORM_REQ=php,ext-mbstring,ext-dom`.
+- `.env` de Laravel en la raíz del repo: `APP_KEY`, `CACHE_STORE=file`, `MANTICORE_HOST=127.0.0.1`, `MANTICORE_PORT=9306`.
+- Manticore como servicio de usuario, `nexo-manticore` (el de sistema sigue apagado).
+
+Para rehacerlo en otra máquina:
 
 ```bash
 cd ~/roodos_v4 && git sparse-checkout disable          # el repo completo, no solo nexo/
-sudo apt install php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml php8.4-curl composer manticore
-composer install --no-dev
-printf 'APP_ENV=production\nAPP_KEY=\nCACHE_STORE=file\nMANTICORE_HOST=127.0.0.1\nMANTICORE_PORT=9306\n' > .env
-php artisan key:generate                               # .env de Laravel en nexo: solo lee su Manticore local
-sudo systemctl disable --now manticore                 # el de sistema no se usa; corre como servicio de usuario
+# Composer (verificar la firma del instalador) en ~/.local/share/composer/composer.phar
+COMPOSER_IGNORE_PLATFORM_REQ=php,ext-mbstring,ext-dom php8.3 ~/.local/share/composer/composer.phar install --no-dev
+printf 'APP_ENV=production\nAPP_KEY=\nCACHE_STORE=file\nMANTICORE_HOST=127.0.0.1\nMANTICORE_PORT=9306\n' > .env && php8.4 artisan key:generate
 nexo/bin/nexo landings --setup                         # nexo/manticore/manticore.conf desde la de producción
-indexer --config nexo/manticore/manticore.conf --all   # primera indexación, antes de levantar searchd
+indexer --config nexo/manticore/manticore.conf car_make car_model car_cl car_mx car_pe car_ec car_landings_cl car_landings_mx car_landings_pe car_landings_ec
 systemctl --user enable --now ~/roodos_v4/nexo/systemd/nexo-manticore.service
 nexo/bin/nexo cron                                     # agrega la línea del domingo (solo con la config ya generada)
-nexo/bin/nexo landings --countries ec                  # prueba: solo reporta
 ```
 
 `bin/nexo update` corre `composer install` cuando cambia `composer.lock` y regenera la config de Manticore cuando cambia la de producción.

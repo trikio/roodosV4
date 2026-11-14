@@ -87,13 +87,13 @@ class CleanLandingsCommandTest extends TestCase
         $this->assertStringContainsString('COMMIT;', $sql);
 
         // Duplicates, and junk naming a make, go to the landing that stays.
-        $this->assertStringContainsString("SET redirect = '/autos-honda-usados' WHERE country_id = 'pe' AND redirect = '' AND id IN (1,3,5);", $sql);
+        $this->assertStringContainsString("SET redirect = '/autos-honda-usados' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (1,3,5);", $sql);
         // Ad text with known words goes to the closest kept landing.
-        $this->assertStringContainsString("SET redirect = '/autos-chevrolet-usados' WHERE country_id = 'pe' AND redirect = '' AND id IN (7);", $sql);
+        $this->assertStringContainsString("SET redirect = '/autos-chevrolet-usados' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (7);", $sql);
         // A real search with too few ads goes one level up (model without the city).
-        $this->assertStringContainsString("SET redirect = '/autos-honda-civic-usados' WHERE country_id = 'pe' AND redirect = '' AND id IN (10);", $sql);
+        $this->assertStringContainsString("SET redirect = '/autos-honda-civic-usados' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (10);", $sql);
         // No real search and nothing above it: deactivated, so the page returns 410.
-        $this->assertStringContainsString("SET activo = 0 WHERE country_id = 'pe' AND redirect = '' AND id IN (6,13);", $sql);
+        $this->assertStringContainsString("SET activo = 0 WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (6,13);", $sql);
         // A kept landing whose ids the slug does not confirm gets them reset.
         $this->assertStringContainsString("SET id_car_make = 0, id_car_model = 0 WHERE country_id = 'pe' AND id IN (14);", $sql);
         // An old redirect to the make page now goes straight to its landing.
@@ -121,10 +121,10 @@ class CleanLandingsCommandTest extends TestCase
         ], ['lima toyota' => 20, 'lima' => 50]);
 
         // The city goes last, so "ends with usados" is not required.
-        $this->assertStringContainsString("SET redirect = '/autos-toyota-usados-lima' WHERE country_id = 'pe' AND redirect = '' AND id IN (1);", $sql);
-        $this->assertStringContainsString("SET redirect = '/autos-lima' WHERE country_id = 'pe' AND redirect = '' AND id IN (3);", $sql);
+        $this->assertStringContainsString("SET redirect = '/autos-toyota-usados-lima' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (1);", $sql);
+        $this->assertStringContainsString("SET redirect = '/autos-lima' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (3);", $sql);
         // Country-wide landings are deduplicated too, one per type and condition.
-        $this->assertStringContainsString("SET redirect = '/autos-usados-peru' WHERE country_id = 'pe' AND redirect = '' AND id IN (5);", $sql);
+        $this->assertStringContainsString("SET redirect = '/autos-usados-peru' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (5);", $sql);
         $this->assertDoesNotMatchRegularExpression('/id IN \\([^)]*\\b(2|4|6|7)\\b/', $sql);
     }
 
@@ -156,7 +156,7 @@ class CleanLandingsCommandTest extends TestCase
         $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp, '--no-sitemaps' => true])->assertSuccessful();
 
         $sql = file_get_contents(glob($this->tmp . '/*.sql')[0]);
-        $this->assertStringContainsString("SET redirect = '/modelo/honda-civic' WHERE country_id = 'pe' AND redirect = '' AND id IN (2);", $sql);
+        $this->assertStringContainsString("SET redirect = '/modelo/honda-civic' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (2);", $sql);
         $this->assertStringNotContainsString('SET activo = 0', $sql);
 
         $summary = json_decode(file_get_contents(glob($this->tmp . '/*.json')[0]), true);

@@ -109,7 +109,12 @@ def update():
     changed = subprocess.run(["git", "-C", repo, "diff", "--name-only", before, "HEAD"], capture_output=True, text=True).stdout.split()
     # Las landings usan los comandos de Laravel del repo (solo si ya se instaló, ver README).
     if "composer.lock" in changed and (repo / "vendor").is_dir():
-        subprocess.run(["composer", "install", "--no-dev", "--no-interaction", "--quiet"], cwd=repo, check=True)
+        # NEXO_COMPOSER: cómo correr Composer en nexo (p. ej. "php8.3 ~/.local/share/composer/composer.phar").
+        # COMPOSER_IGNORE_PLATFORM_REQ, si hace falta, va en el mismo .env y Composer lo lee del entorno.
+        composer = os.path.expanduser(os.getenv("NEXO_COMPOSER", "composer")).split()
+        result = subprocess.run([*composer, "install", "--no-dev", "--no-interaction", "--quiet"], cwd=repo)
+        if result.returncode != 0:
+            print(f"composer install falló ({result.returncode}); las landings usan las dependencias anteriores")
     if "server-conf/manticoresearch/manticore.conf" in changed and landings.MANTICORE_CONF.exists():
         landings.setup()
     # En un proceso nuevo: este todavía tiene cargado el código anterior al pull.

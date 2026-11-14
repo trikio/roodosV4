@@ -42,12 +42,11 @@ class LandingCandidatesCommandTest extends TestCase
             ['Toyota', 'Hilux', '2018', '9', 'toyota-hilux-2018', 'Toyota Hilux 2018 usados', 'otro_tipo', 'camionetas-toyota-hilux-2018'],
         ], array_slice($rows, 1));
 
-        // Only the new one is written, as an update of a removed row with its slug or an insert.
+        // Only the new one is written: created, or brought back when a row already has its slug.
         $sql = file_get_contents(glob($output . '/landings_candidates_ec_*.sql')[0]);
         $this->assertSame(1, substr_count($sql, 'INSERT INTO car_landings'));
         $content = '{"breadcrumb":{"make":"toyota","model":"toyota-yaris"},"generated":{"make":176,"model":2217,"year":2024,"created":"' . date('Y-m-d') . '"}}';
-        $this->assertStringContainsString("UPDATE car_landings SET title = 'Toyota Yaris 2024 usados', meta_description = 'Toyota Yaris 2024 usados en Ecuador: compara precios, kilometraje y avisos de concesionarios y particulares en Roodos.', content = '{$content}', id_car_make = 176, id_car_model = 2217, id_state = 0, id_city = 0, redirect = '', activo = 1 WHERE country_id = 'ec' AND slug = 'toyota-yaris-2024';", $sql);
-        $this->assertStringContainsString("FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM car_landings WHERE country_id = 'ec' AND slug = 'toyota-yaris-2024');", $sql);
+        $this->assertStringContainsString("INSERT INTO car_landings (country_id, slug, title, title_h1, meta_title, meta_description, content, id_car_make, id_car_model, id_state, id_city, redirect, activo) VALUES ('ec', 'toyota-yaris-2024', 'Toyota Yaris 2024 usados', 'Toyota Yaris 2024 usados', 'Toyota Yaris 2024 usados en Ecuador', 'Toyota Yaris 2024 usados en Ecuador: compara precios, kilometraje y avisos de concesionarios y particulares en Roodos.', '{$content}', 176, 2217, 0, 0, '', 1) AS new ON DUPLICATE KEY UPDATE title = new.title, title_h1 = new.title_h1, meta_title = new.meta_title, meta_description = new.meta_description, content = new.content, id_car_make = new.id_car_make, id_car_model = new.id_car_model, id_state = new.id_state, id_city = new.id_city, redirect = new.redirect, activo = new.activo;", $sql);
 
         $summary = json_decode(file_get_contents(glob($output . '/landings_candidates_ec_*.json')[0]), true);
         $this->assertSame([1, 3, ['Toyota Yaris 2024 usados']], [$summary['create'], $summary['candidates'], $summary['titles']]);

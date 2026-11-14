@@ -442,15 +442,16 @@ class CleanLandings extends Command
             }
         };
 
-        // "redirect = ''" keeps the script idempotent and never overwrites a redirect set by hand.
+        // Only landings without a redirect: keeps the script idempotent and never overwrites a redirect
+        // set by hand. Landings without one hold NULL (all of them in 2026), not ''.
         $sql[] = '';
         $sql[] = '-- 2. Duplicadas y landings que solo acotan a otra: 301 hacia la landing que se queda.';
-        $byTarget($actions['redirect'], " AND redirect = ''");
+        $byTarget($actions['redirect'], " AND (redirect IS NULL OR redirect = '')");
 
         $sql[] = '';
         $sql[] = '-- 3. Sin búsqueda real ni landing superior (texto de avisos, basura, pocos avisos): se desactivan y pasan a 410.';
         foreach (array_chunk(array_keys($actions['deactivate']), self::SQL_CHUNK) as $chunk) {
-            $sql[] = "UPDATE car_landings SET activo = 0 WHERE {$scope} AND redirect = '' AND id IN (" . implode(',', $chunk) . ');';
+            $sql[] = "UPDATE car_landings SET activo = 0 WHERE {$scope} AND (redirect IS NULL OR redirect = '') AND id IN (" . implode(',', $chunk) . ');';
         }
 
         $sql[] = '';
