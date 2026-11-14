@@ -40,7 +40,7 @@
 @section('page_title', $car->title)
 @section('html_title', $car->title . ($car->price > 0 ? ' - ' . $money($car->price) : '') . ' - Roodos Autos')
 @section('meta_description', trim($car->title . ' ' . implode(' · ', array_slice($specs, 0, 3))))
-@section('robots_content', 'noindex,nofollow')
+@section('robots_content', 'noindex,follow')
 
 @section('content')
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -181,6 +181,17 @@
                         </a>
                     @endforeach
                 </div>
+            </section>
+            @endif
+
+            @if(count($landingLinks) > 0)
+            <section class="bg-white rounded-lg shadow p-5 sm:p-6">
+                <h2 class="text-lg font-bold text-gray-900 mb-3">Búsquedas relacionadas</h2>
+                <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                    @foreach($landingLinks as $link)
+                        <li><a href="{{ $link['url'] }}" class="text-sm text-[#008bea] hover:underline">{{ $link['title'] }}</a></li>
+                    @endforeach
+                </ul>
             </section>
             @endif
 

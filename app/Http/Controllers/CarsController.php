@@ -475,11 +475,20 @@ class CarsController extends Controller
                 'makeUrl' => $makeSlug !== '' ? url('/marca/' . $makeSlug) : null,
                 'modelUrl' => $modelSlug !== '' ? url('/modelo/' . $modelSlug) : null,
                 'similar' => $similar,
+                'landingLinks' => $this->links->forCar($countryCode, [
+                    'make_id' => $makeId,
+                    'model_id' => $modelId,
+                    'city_id' => (int) ($car['id_city'] ?? 0),
+                    'make' => (string) ($car['make_name'] ?? ''),
+                    'model' => (string) ($car['model_name'] ?? ''),
+                    'city' => (string) ($car['city_name'] ?? ''),
+                ]),
                 'priceStats' => $priceStats,
                 'yearSpan' => $year > 0 ? [$year - 2, $year + 2] : null,
             ])
-            // Listing data copied from the sources and short-lived: kept out of the index.
-            ->header('X-Robots-Tag', 'noindex, nofollow');
+            // Listing data copied from the sources and short-lived: kept out of the index, but its
+            // links to landings are followed.
+            ->header('X-Robots-Tag', 'noindex, follow');
     }
 
     private function carSummary(array $item): object

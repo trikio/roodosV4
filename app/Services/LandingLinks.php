@@ -18,6 +18,10 @@ class LandingLinks
     /** Links from a make or model page to its landings. */
     public const HUB = 30;
 
+    /** Links from a car detail page, and how many of them may be of its city. */
+    public const PER_CAR = 8;
+    private const PER_CAR_CITY = 3;
+
     /** Links from the home when the country has no curated list: per main city. */
     private const PER_CITY = 2;
 
@@ -80,6 +84,42 @@ class LandingLinks
         $terms = implode(' ', LandingClassifier::words($name));
 
         return $this->pick($this->bestFirst($this->manticore->similarCarLandings($countryCode, $terms, true, 150)), self::HUB);
+    }
+
+    /**
+     * Landings for a car detail page, most specific first: its model in its city, its model (no
+     * city), then its make (no model, no city). Each level looks the landings up by the ids they are tagged with and, when
+     * that is not enough (most landings have no model or city id), by the names in their title.
+     *
+     * @param array{make_id: int, model_id: int, city_id: int, make: string, model: string, city: string} $car
+     * @return array<int, array{title: string, url: string}>
+     */
+    public function forCar(string $countryCode, array $car): array
+    {
+        $makeModel = trim($car['make'] . ' ' . $car['model']);
+        $levels = [
+            [['id_car_model' => $car['model_id'], 'id_city' => $car['city_id']], $car['model'] !== '' && $car['city'] !== '' ? $makeModel . ' ' . $car['city'] : '', self::PER_CAR_CITY, $car['model_id'] > 0 && $car['city_id'] > 0],
+            [['id_car_model' => $car['model_id'], 'id_city' => 0], $car['model'] !== '' ? $makeModel : '', self::PER_CAR, $car['model_id'] > 0],
+            [['id_car_make' => $car['make_id'], 'id_car_model' => 0, 'id_city' => 0], $car['make'], self::PER_CAR, $car['make_id'] > 0],
+        ];
+
+        $links = [];
+        foreach ($levels as [$ids, $name, $limit, $hasIds]) {
+            $rows = $hasIds ? $this->bestFirst($this->manticore->carLandingsByIds($countryCode, $ids, 150)) : [];
+            if (count($this->pickRows($rows, $limit)) < $limit && trim($name) !== '') {
+                $terms = implode(' ', LandingClassifier::words($name));
+                $rows = array_merge($rows, $this->bestFirst($this->manticore->similarCarLandings($countryCode, $terms, true, 150)));
+            }
+
+            foreach ($this->pick($rows, $limit) as $link) {
+                $links[LandingClassifier::groupKey($link['title'])] ??= $link;
+                if (count($links) === self::PER_CAR) {
+                    return array_values($links);
+                }
+            }
+        }
+
+        return array_values($links);
     }
 
     /**

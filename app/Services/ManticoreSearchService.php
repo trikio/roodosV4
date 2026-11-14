@@ -531,6 +531,33 @@ class ManticoreSearchService
     }
 
     /**
+     * Active, non-redirecting landings tagged with exactly these ids, e.g. ['id_car_model' => 1842,
+     * 'id_city' => 0] for the model's landings without a city. Only the LANDING_FILTER_ATTRIBUTES
+     * columns are accepted, and at least one id must be set.
+     */
+    public function carLandingsByIds(string $countryCode, array $ids, int $limit): array
+    {
+        $ids = array_intersect_key($ids, array_flip(self::LANDING_FILTER_ATTRIBUTES));
+        if (array_filter($ids, fn ($id) => (int) $id > 0) === []) {
+            return [];
+        }
+
+        try {
+            $query = (new SphinxQL($this->connection))
+                ->select('id', 'slug', 'title')
+                ->from('car_landings_' . $countryCode)
+                ->where('redirect', '');
+            foreach ($ids as $column => $id) {
+                $query->where($column, (int) $id);
+            }
+
+            return $query->limit(0, $limit)->option('max_matches', $limit)->execute()->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
      * Which of $slugs are active, non-redirecting car landings of the country.
      */
     public function existingCarLandingSlugs(string $countryCode, array $slugs): array

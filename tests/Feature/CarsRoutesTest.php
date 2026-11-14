@@ -132,7 +132,7 @@ class CarsRoutesTest extends TestCase
             'price' => $price, 'year_int' => 2007, 'km' => 199928, 'state_name' => 'Pichincha', 'city_name' => 'Quito',
             'transmission_name' => 'Manual', 'fuel_name' => '', 'body_name' => '',
             'image' => 'https://img.roodos.com/x.jpg', 'url' => 'https://fuente.example/aviso-' . $id,
-            'nexo_id' => 'Patiotuerca', 'id_car_make' => 176, 'id_car_model' => 1842,
+            'nexo_id' => 'Patiotuerca', 'id_car_make' => 176, 'id_car_model' => 1842, 'id_city' => 12,
         ], $overrides);
     }
 
@@ -147,9 +147,28 @@ class CarsRoutesTest extends TestCase
         $manticore->shouldReceive('carModelPriceStats')->with('car_ec', 1842, 2007)
             ->andReturn(['total' => 11, 'avg' => 17000, 'min' => 8900, 'max' => 19900]);
 
+        // Model + city and model by id; the make level falls back to its name (no make landings by id).
+        $manticore->shouldReceive('carLandingsByIds')->with('ec', ['id_car_model' => 1842, 'id_city' => 12], 150)
+            ->andReturn([['id' => 1, 'slug' => 'toyota-hilux-quito', 'title' => 'Toyota Hilux en Quito']]);
+        $manticore->shouldReceive('carLandingsByIds')->with('ec', ['id_car_model' => 1842, 'id_city' => 0], 150)
+            ->andReturn([
+                ['id' => 1, 'slug' => 'toyota-hilux-quito', 'title' => 'Toyota Hilux en Quito'],
+                ['id' => 2, 'slug' => 'autos-toyota-hilux-usados', 'title' => 'Autos Toyota Hilux usados'],
+            ]);
+        $manticore->shouldReceive('carLandingsByIds')->with('ec', ['id_car_make' => 176, 'id_car_model' => 0, 'id_city' => 0], 150)->andReturn([]);
+        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota hilux quito', true, 150)->andReturn([]);
+        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota hilux', true, 150)->andReturn([]);
+        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota', true, 150)
+            ->andReturn([['id' => 3, 'slug' => 'autos-toyota-usados', 'title' => 'Autos Toyota usados']]);
+
+        $html = $this->get('http://autos.roodos.ec/auto/38282')->getContent();
+        preg_match_all('#<li><a href="http://autos\.roodos\.ec/([a-z-]+)"#', $html, $landings);
+        $this->assertSame(['toyota-hilux-quito', 'autos-toyota-hilux-usados', 'autos-toyota-usados'], $landings[1]);
+
         $this->get('http://autos.roodos.ec/auto/38282')
             ->assertOk()
-            ->assertHeader('X-Robots-Tag', 'noindex, nofollow')
+            ->assertHeader('X-Robots-Tag', 'noindex, follow')
+            ->assertSee('<meta name="robots" content="noindex,follow">', false)
             ->assertSee('href="https://fuente.example/aviso-38282"', false)
             ->assertSee('Ver aviso en Patiotuerca')
             ->assertSee('$ 14.900')
@@ -168,6 +187,7 @@ class CarsRoutesTest extends TestCase
         $manticore->shouldReceive('getCarById')->andReturn($this->carRow(1, 5600, [
             'make_name' => '', 'model_name' => '', 'id_car_make' => 0, 'id_car_model' => 0, 'nexo_id' => '',
         ]));
+        $manticore->shouldReceive('carLandingsByIds')->never();
         $manticore->shouldReceive('getCarMakeById')->never();
         $manticore->shouldReceive('carModelsByIds')->never();
         $manticore->shouldReceive('similarCars')->andReturn([]);
@@ -176,6 +196,7 @@ class CarsRoutesTest extends TestCase
         $this->get('http://autos.roodos.ec/auto/1')
             ->assertOk()
             ->assertSee('Ver aviso en fuente externa')
+            ->assertDontSee('Búsquedas relacionadas')
             ->assertDontSee('similares')
             ->assertDontSee('/marca/', false);
     }
