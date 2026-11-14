@@ -22,6 +22,9 @@ class LandingLinks
     public const PER_CAR = 8;
     private const PER_CAR_CITY = 3;
 
+    /** Vehicle types never linked from a car detail page. */
+    private const NOT_CAR_TYPES = ['buses', 'motos', 'camiones'];
+
     /** Links from the home when the country has no curated list: per main city. */
     private const PER_CITY = 2;
 
@@ -98,17 +101,19 @@ class LandingLinks
     {
         $makeModel = trim($car['make'] . ' ' . $car['model']);
         $levels = [
-            [['id_car_model' => $car['model_id'], 'id_city' => $car['city_id']], $car['model'] !== '' && $car['city'] !== '' ? $makeModel . ' ' . $car['city'] : '', self::PER_CAR_CITY, $car['model_id'] > 0 && $car['city_id'] > 0],
-            [['id_car_model' => $car['model_id'], 'id_city' => 0], $car['model'] !== '' ? $makeModel : '', self::PER_CAR, $car['model_id'] > 0],
-            [['id_car_make' => $car['make_id'], 'id_car_model' => 0, 'id_city' => 0], $car['make'], self::PER_CAR, $car['make_id'] > 0],
+            [['id_car_model' => $car['model_id'], 'id_city' => $car['city_id']], $car['model'] !== '' && $car['city'] !== '' ? $makeModel . ' ' . $car['city'] : '', self::PER_CAR_CITY, $car['model_id'] > 0 && $car['city_id'] > 0, true],
+            [['id_car_model' => $car['model_id'], 'id_city' => 0], $car['model'] !== '' ? $makeModel : '', self::PER_CAR, $car['model_id'] > 0, true],
+            [['id_car_make' => $car['make_id'], 'id_car_model' => 0, 'id_city' => 0], $car['make'], self::PER_CAR, $car['make_id'] > 0, false],
         ];
 
         $links = [];
-        foreach ($levels as [$ids, $name, $limit, $hasIds]) {
-            $rows = $hasIds ? $this->bestFirst($this->manticore->carLandingsByIds($countryCode, $ids, 150)) : [];
+        foreach ($levels as [$ids, $name, $limit, $hasIds, $withYears]) {
+            $fits = fn ($rows) => array_filter($rows, fn ($row) => $this->fitsCar((string) $row['title'], $name, $withYears));
+            $rows = $hasIds ? $fits($this->bestFirst($this->manticore->carLandingsByIds($countryCode, $ids, 150))) : [];
             if (count($this->pickRows($rows, $limit)) < $limit && trim($name) !== '') {
+                // Most title matches name more than the level (other models, towns), hence the margin.
                 $terms = implode(' ', LandingClassifier::words($name));
-                $rows = array_merge($rows, $this->bestFirst($this->manticore->similarCarLandings($countryCode, $terms, true, 150)));
+                $rows = array_merge($rows, $fits($this->bestFirst($this->manticore->similarCarLandings($countryCode, $terms, true, 500))));
             }
 
             foreach ($this->pick($rows, $limit) as $link) {
@@ -120,6 +125,29 @@ class LandingLinks
         }
 
         return array_values($links);
+    }
+
+    /**
+     * Whether a landing fits a car detail level: not about buses, motorbikes or trucks, and naming
+     * nothing beyond the level's make, model and city, plus years on the model levels. Without
+     * that, a rare make filled up with "Buses Alfa Romeo nuevos", "Alfa Romeo 1926" or another
+     * town's landing.
+     */
+    private function fitsCar(string $title, string $levelName, bool $withYears): bool
+    {
+        $info = LandingClassifier::classify($title);
+        if (in_array($info['type'], self::NOT_CAR_TYPES, true)) {
+            return false;
+        }
+
+        $allowed = LandingClassifier::words($levelName);
+        foreach ($info['terms'] as $term) {
+            if (!in_array($term, $allowed, true) && !($withYears && preg_match('/^(19|20)\d{2}$/', $term))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

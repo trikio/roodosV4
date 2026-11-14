@@ -156,9 +156,9 @@ class CarsRoutesTest extends TestCase
                 ['id' => 2, 'slug' => 'autos-toyota-hilux-usados', 'title' => 'Autos Toyota Hilux usados'],
             ]);
         $manticore->shouldReceive('carLandingsByIds')->with('ec', ['id_car_make' => 176, 'id_car_model' => 0, 'id_city' => 0], 150)->andReturn([]);
-        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota hilux quito', true, 150)->andReturn([]);
-        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota hilux', true, 150)->andReturn([]);
-        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota', true, 150)
+        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota hilux quito', true, 500)->andReturn([]);
+        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota hilux', true, 500)->andReturn([]);
+        $manticore->shouldReceive('similarCarLandings')->with('ec', 'toyota', true, 500)
             ->andReturn([['id' => 3, 'slug' => 'autos-toyota-usados', 'title' => 'Autos Toyota usados']]);
 
         $html = $this->get('http://autos.roodos.ec/auto/38282')->getContent();

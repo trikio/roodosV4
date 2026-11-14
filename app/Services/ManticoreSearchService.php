@@ -257,6 +257,29 @@ class ManticoreSearchService
             ->all();
     }
 
+    /**
+     * Ads per model and year (from $minYear on), only for the pairs with at least $minAds ads.
+     *
+     * @return array<int, array{id_car_model: string, year_int: string, total: string}>
+     */
+    public function carCountsByModelAndYear($searchIndex, int $minYear, int $minAds): array
+    {
+        $limit = 200000;
+
+        return (new SphinxQL($this->connection))
+            ->select('id_car_model', 'year_int', SphinxQL::expr('COUNT(*) AS total'))
+            ->from($searchIndex)
+            ->where('id_car_model', '>', 0)
+            ->where('year_int', '>=', $minYear)
+            ->groupBy('id_car_model')
+            ->groupBy('year_int')
+            ->having('total', '>=', $minAds)
+            ->limit(0, $limit)
+            ->option('max_matches', $limit)
+            ->execute()
+            ->fetchAllAssoc();
+    }
+
     public function getCarMakeBySlug(string $slug): ?array
     {
         try {
@@ -509,7 +532,7 @@ class ManticoreSearchService
     /**
      * Model slugs and names for the given model ids.
      *
-     * @return array<int, array{id: string, slug: string, model_name: string}>
+     * @return array<int, array{id: string, slug: string, model_name: string, id_car_make: string}>
      */
     public function carModelsByIds(array $ids): array
     {
@@ -519,7 +542,7 @@ class ManticoreSearchService
 
         try {
             return (new SphinxQL($this->connection))
-                ->select('id', 'slug', 'model_name')
+                ->select('id', 'slug', 'model_name', 'id_car_make')
                 ->from('car_model')
                 ->where('id', 'IN', array_map('intval', array_values($ids)))
                 ->limit(0, count($ids))
