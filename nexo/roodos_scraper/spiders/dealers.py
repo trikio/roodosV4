@@ -34,6 +34,9 @@ VEHICLE_PATH = re.compile(
     r"cars?|carros?|ficha|detalle|catalogo|unidades|camionetas?)(/|$)",
     re.I,
 )
+# Fichas con el tipo pegado al slug y un id al final: /autos-chevrolet-sail-42907 (Feria de Carros).
+# Solo livianos: camiones, buses y maquinaria quedan fuera.
+VEHICLE_SLUG = re.compile(r"^/(autos?|carros?|suvs?|camionetas?|furgonetas?|vehiculos?)-[a-z0-9-]+-\d{3,}/?$", re.I)
 VEHICLE_SITEMAP = re.compile(r"(listing|vehic|auto|car|stock|inventor|product|seminuevo|usado|unidad)", re.I)
 SKIP_SITEMAP = re.compile(r"(post|page|categor|tag|author|attachment|blog|news|noticia|elementor)", re.I)
 VEHICLE_TYPES = {"Car", "Vehicle", "MotorVehicle", "BusOrCoach", "Motorcycle"}
@@ -174,7 +177,7 @@ class DealersSpider(scrapy.Spider):
         path = urlparse(url).path
         if re.search(r"\.(jpe?g|png|webp|gif|pdf|xml|css|js)$", path, re.I):
             return False
-        if VEHICLE_PATH.search(path):
+        if VEHICLE_PATH.search(path) or VEHICLE_SLUG.match(path):
             return True
         return vehicle_sitemap and len([s for s in path.split("/") if s]) >= 1
 

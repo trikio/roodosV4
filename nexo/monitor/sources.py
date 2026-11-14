@@ -128,7 +128,7 @@ SOURCES = [
     # Desafío clásico de Cloudflare; cloudscraper (ya usado en Auto.cl) lo resuelve. Vuelve con el
     # markup nuevo del sitio (ItemList/Vehicle en vez de Car) y paginación ?page=N (12-11-2026).
     script("patiotuerca_ecuador", "ec", "Patiotuerca", ["ecuador.patiotuerca.com"], "0 3 * * 1",
-           "scripts/scrape_patiotuerca_ec.py", after=EC_BACKFILL),
+           "scripts/scrape_patiotuerca_ec.py", after=EC_BACKFILL, full_crawl=True),  # 282 págs (13-11-2026)
     spider("autos_topmotors_ec", "ec", "Topmotors", ["www.topmotorsusados.com"], "30 3 * * 1", after=EC_BACKFILL),
     # MercadoLibre pide iniciar sesión a esta IP y a los proxies; sus avisos se desactivaron el 12-11-2026.
     spider("mercadolibre_ecuador", "ec", "MercadoLibre EC", ["auto.mercadolibre.com.ec"], "0 6 * * 6", after=EC_BACKFILL,
