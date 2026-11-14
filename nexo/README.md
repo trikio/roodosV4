@@ -83,7 +83,7 @@ La lógica vive en los comandos de Laravel del repo, así que nexo tiene el repo
 
 - **PHP 8.4** (`/usr/bin/php8.4`) corre los comandos: el proyecto pide 8.4 y el `php` por defecto (8.5) no tiene `mysqli`. A 8.4 le faltan `mbstring` (lo cubre `symfony/polyfill-mbstring`), `dom` (solo para correos) y `zip`.
 - **Composer** en `~/.local/share/composer/composer.phar`, corrido con **PHP 8.3**, que sí tiene `zip`.
-- En `nexo/.env`: `NEXO_PHP=php8.4`, `NEXO_COMPOSER=php8.3 ~/.local/share/composer/composer.phar` y `COMPOSER_IGNORE_PLATFORM_REQ=php,ext-mbstring,ext-dom`.
+- En `nexo/.env`: `NEXO_PHP=php8.4`, `NEXO_COMPOSER="php8.3 /home/trikio/.local/share/composer/composer.phar"` (con comillas: varios `.sh` hacen `source .env`, y sin ellas bash ejecuta Composer) y `COMPOSER_IGNORE_PLATFORM_REQ=php,ext-mbstring,ext-dom`.
 - `.env` de Laravel en la raíz del repo: `APP_KEY`, `CACHE_STORE=file`, `MANTICORE_HOST=127.0.0.1`, `MANTICORE_PORT=9306`.
 - Manticore como servicio de usuario, `nexo-manticore` (el de sistema sigue apagado).
 

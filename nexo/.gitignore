@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .env
+.env.bak-*
 logs/
 # Config generada por bin/nexo landings --setup (lleva la clave de MySQL) e índices locales.
 manticore/
