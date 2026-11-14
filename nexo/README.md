@@ -63,6 +63,40 @@ El dashboard está en `http://192.168.1.27:8765` (solo red local), como servicio
 
 Un aviso activo que su fuente no ve en 30 días pasa a `status = 0` y sale de Manticore en la siguiente reindexación. Solo se aplica a fuentes con `full_crawl=True`, y solo si la fuente está al día. Con tope de páginas, los avisos que quedan más allá del tope nunca se ven y se darían por vencidos sin estarlo, así que cada fuente se marca después de confirmar que recorre su listado completo.
 
+## Landings (semanal)
+
+Los domingos a la 1:00, `bin/nexo landings` hace el ciclo de las landings de autos de cada país, sobre la base `roodos` de nexo:
+
+1. Reindexa el Manticore de nexo (`car_make`, `car_model`, `car_{país}`, `car_landings_{país}`).
+2. `php artisan landings:candidates {país} --sql`: crea, o reactiva si el slug ya existía, una landing por cada modelo y año con 8 avisos o más que todavía no tiene la suya (`/kia-sportage-2024`). Guardan en `content` sus filtros y su fecha de creación, y la web lista exactamente ese modelo y año.
+3. `php artisan landings:clean {país}`: deja solo las búsquedas reales con 5 avisos o más; el resto va con 301 a su padre o con 410. Las creadas en el paso 2 tienen 4 semanas de gracia y después, con menos de 5 avisos, van con 301 a su modelo.
+4. Manda el resumen por Telegram. Producción toma los cambios en su reindexación de las 3:00 y en los sitemaps de las 3:30.
+
+Deja SQL, CSV y JSON de cada paso en `logs/landings/`. Crear y bajar landings son permisos separados:
+
+- **Crear** las nuevas: activado. Con `LANDINGS_AUTO_APPLY=0` en `.env` el cron solo reporta, y se crean a mano con `bin/nexo landings --apply`.
+- **Bajar** landings (301 o 410): desactivado. La limpieza solo informa qué haría; se aplica con `bin/nexo landings --apply-clean`, o `LANDINGS_AUTO_CLEAN=1` para que el cron lo haga solo.
+
+Freno: si en un país la limpieza quiere redirigir o eliminar más del 2% de las landings activas, no se aplica (salvo `--apply-clean --force`). La primera limpieza de un país que nunca se limpió supera eso de lejos y se aplica a mano, revisando el CSV. Cada limpieza aplicada respalda las landings del país en `car_landings_backup_{país}_{fecha}` (el SQL trae cómo revertir); los respaldos de más de 8 semanas se borran.
+
+La lógica vive en los comandos de Laravel del repo, así que nexo necesita el repo completo, PHP y su propio Manticore (una vez):
+
+```bash
+cd ~/roodos_v4 && git sparse-checkout disable          # el repo completo, no solo nexo/
+sudo apt install php8.4-cli php8.4-mysql php8.4-mbstring php8.4-xml php8.4-curl composer manticore
+composer install --no-dev
+printf 'APP_ENV=production\nAPP_KEY=\nCACHE_STORE=file\nMANTICORE_HOST=127.0.0.1\nMANTICORE_PORT=9306\n' > .env
+php artisan key:generate                               # .env de Laravel en nexo: solo lee su Manticore local
+sudo systemctl disable --now manticore                 # el de sistema no se usa; corre como servicio de usuario
+nexo/bin/nexo landings --setup                         # nexo/manticore/manticore.conf desde la de producción
+indexer --config nexo/manticore/manticore.conf --all   # primera indexación, antes de levantar searchd
+systemctl --user enable --now ~/roodos_v4/nexo/systemd/nexo-manticore.service
+nexo/bin/nexo cron                                     # agrega la línea del domingo (solo con la config ya generada)
+nexo/bin/nexo landings --countries ec                  # prueba: solo reporta
+```
+
+`bin/nexo update` corre `composer install` cuando cambia `composer.lock` y regenera la config de Manticore cuando cambia la de producción.
+
 ## Configuración
 
 `.env` no está en el repo; las claves están en [.env.example](.env.example): MySQL local, proxies de Webshare, Cloudflare R2 para las miniaturas y Telegram.

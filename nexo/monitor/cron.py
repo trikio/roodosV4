@@ -6,7 +6,7 @@ Solo se toca lo que está entre BEGIN NEXO y END NEXO; el resto del crontab del 
 import subprocess
 from datetime import datetime
 
-from . import sources
+from . import landings, sources
 from .config import LOG_DIR, ROOT
 
 BEGIN = "# BEGIN NEXO (generado por bin/nexo cron; se edita en nexo/monitor/cron.py y sources.py)"
@@ -37,6 +37,11 @@ def block():
         f"30 9 * * * {nexo} hunt {log}",
         f"0 10 * * * {nexo} dealers probe {log}",
         f"0 9 * * 1 {nexo} dealers review {log}",
+        # Solo cuando nexo ya tiene PHP y su Manticore (bin/nexo landings --setup, ver README).
+        *([
+            "# Landings: el domingo antes de que producción reindexe las landings (3:00)",
+            f"0 1 * * 0 {nexo} landings {log}",
+        ] if landings.MANTICORE_CONF.exists() else []),
         f"*/10 * * * * {nexo} update {log}",
         "# Casas y mantenimiento",
         f"20 2 * * * {ROOT}/run_houses_doomos_cl.sh",

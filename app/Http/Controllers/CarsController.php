@@ -194,7 +194,15 @@ class CarsController extends Controller
         $widened = false;
         $resultsQuery = $searchQuery;
 
-        if ($filters !== []) {
+        // Landings created from the inventory list exactly their model and year, not every car
+        // that shares a word with the title.
+        $generated = LandingClassifier::generated($landing['content'] ?? null);
+        if ($generated !== null) {
+            $filters = ['make' => $generated['make'] ?: '', 'model' => $generated['model'], 'min_year' => $generated['year'], 'max_year' => $generated['year']];
+            $resultsQuery = '';
+        }
+
+        if ($filters !== [] && $generated === null) {
             $level = $this->resolveLandingLevel($countryCode, (string) $slug, $searchQuery, $filters, $breadcrumbSlugs);
             $filters = $level['filters'];
             $canonicalUrl = $level['canonical'] ?? $canonicalUrl;

@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from . import cars, cron, daily, db, dealers, hunt, images, runner, sources
+from . import cars, cron, daily, db, dealers, hunt, images, landings, runner, sources
 from .config import ROOT
 from .fmt import day, label, num
 
@@ -24,6 +24,12 @@ def main():
     dealers_parser.add_argument("--all", action="store_true", help="con approve: todas las que están en revisión")
     cron_parser = commands.add_parser("cron", help="instala el bloque de nexo en el crontab")
     cron_parser.add_argument("--print", action="store_true", help="solo muestra el crontab resultante")
+    landings_parser = commands.add_parser("landings", help="crea landings marca + modelo + año y limpia las demás (semanal)")
+    landings_parser.add_argument("--apply", action="store_true", help="crear las landings nuevas (el cron ya lo hace, salvo LANDINGS_AUTO_APPLY=0)")
+    landings_parser.add_argument("--apply-clean", action="store_true", help="bajar landings con 301/410 (sin esto solo reporta, salvo LANDINGS_AUTO_CLEAN=1)")
+    landings_parser.add_argument("--force", action="store_true", help="con --apply-clean: aplicar aunque la limpieza supere el freno")
+    landings_parser.add_argument("--countries", help="países separados por coma (por defecto cl,mx,pe,ec)")
+    landings_parser.add_argument("--setup", action="store_true", help="solo genera la config de Manticore de nexo")
     commands.add_parser("update", help="trae los cambios del repo y reinstala si hubo")
     commands.add_parser("db-init", help="crea o completa la base nexo")
     deactivate_parser = commands.add_parser("deactivate", help="desactiva todos los avisos activos de una fuente")
@@ -63,6 +69,13 @@ def main():
             print(cron.merged(current), end="")
         else:
             cron.install()
+    elif args.command == "landings":
+        if args.setup:
+            landings.setup()
+        else:
+            countries = args.countries.split(",") if args.countries else None
+            landings.run(countries, apply=True if args.apply else None,
+                         apply_clean=True if args.apply_clean else None, force=args.force)
     elif args.command == "update":
         update()
     elif args.command == "db-init":
@@ -93,6 +106,12 @@ def update():
     if head() == before:
         return
     print(f"actualizado {before[:7]} -> {head()[:7]}")
+    changed = subprocess.run(["git", "-C", repo, "diff", "--name-only", before, "HEAD"], capture_output=True, text=True).stdout.split()
+    # Las landings usan los comandos de Laravel del repo (solo si ya se instaló, ver README).
+    if "composer.lock" in changed and (repo / "vendor").is_dir():
+        subprocess.run(["composer", "install", "--no-dev", "--no-interaction", "--quiet"], cwd=repo, check=True)
+    if "server-conf/manticoresearch/manticore.conf" in changed and landings.MANTICORE_CONF.exists():
+        landings.setup()
     # En un proceso nuevo: este todavía tiene cargado el código anterior al pull.
     subprocess.run([ROOT / "bin" / "nexo", "cron"], check=True)
     subprocess.run(["systemctl", "--user", "restart", "nexo-dashboard"])

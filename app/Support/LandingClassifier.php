@@ -133,17 +133,47 @@ class LandingClassifier
     }
 
     /**
-     * Make/model slugs of the landing breadcrumb, stored as JSON in its content.
+     * Filters of a landing created from the inventory by landings:candidates, stored in its content
+     * as "generated": {"make": id, "model": id, "year": 2024, "created": "2026-11-15"}. Null for
+     * legacy landings, which search by their title.
      *
-     * @return array{make: string, model: string}
+     * @return array{make: int, model: int, year: int, created: string}|null
      */
-    public static function breadcrumbSlugs(mixed $content): array
+    public static function generated(mixed $content): ?array
+    {
+        $content = self::decodeContent($content);
+        $generated = is_array($content) ? ($content['generated'] ?? null) : null;
+        if (!is_array($generated) || (int) ($generated['model'] ?? 0) <= 0 || (int) ($generated['year'] ?? 0) <= 0) {
+            return null;
+        }
+
+        return [
+            'make' => (int) ($generated['make'] ?? 0),
+            'model' => (int) $generated['model'],
+            'year' => (int) $generated['year'],
+            'created' => (string) ($generated['created'] ?? ''),
+        ];
+    }
+
+    private static function decodeContent(mixed $content): mixed
     {
         if (is_string($content)) {
             $decoded = json_decode(trim($content), true);
             // Some rows hold the JSON double encoded.
             $content = is_string($decoded) ? json_decode($decoded, true) : $decoded;
         }
+
+        return $content;
+    }
+
+    /**
+     * Make/model slugs of the landing breadcrumb, stored as JSON in its content.
+     *
+     * @return array{make: string, model: string}
+     */
+    public static function breadcrumbSlugs(mixed $content): array
+    {
+        $content = self::decodeContent($content);
 
         $breadcrumb = is_array($content) ? ($content['breadcrumb'] ?? null) : null;
         if (!is_array($breadcrumb)) {

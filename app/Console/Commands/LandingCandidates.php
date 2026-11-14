@@ -18,9 +18,12 @@ class LandingCandidates extends Command
                             {--min-ads=8 : Avisos mínimos para proponer una landing}
                             {--min-year=2005 : Año más antiguo}
                             {--output= : Carpeta del CSV (por defecto storage/app/landings)}
+                            {--sql : Además, escribir el SQL que crea (o reactiva) las landings nuevas}
                             {--memory=2G : Límite de memoria de PHP}';
 
     protected $description = 'Reporte (solo lectura) de landings marca + modelo + año que el inventario actual justifica.';
+
+    private const COUNTRY_NAMES = ['cl' => 'Chile', 'mx' => 'México', 'pe' => 'Perú', 'ec' => 'Ecuador', 'lab' => 'Laboratorio'];
 
     /** Statuses, in the order the summary lists them. */
     private const STATUSES = [
@@ -50,6 +53,7 @@ class LandingCandidates extends Command
         [$byKey, $byTerms, $bySlug] = $this->existingLandings($manticore, $country);
 
         $rows = [];
+        $new = [];
         foreach ($groups as $group) {
             $model = $names[(int) $group['id_car_model']] ?? null;
             if ($model === null) {
@@ -70,12 +74,28 @@ class LandingCandidates extends Command
             };
 
             $rows[] = [$model['make'], $model['model'], $year, (int) $group['total'], $slug, $title, $status, $existing];
+            if ($status === 'nueva') {
+                $new[] = ['model' => $model, 'model_id' => (int) $group['id_car_model'], 'year' => $year, 'slug' => $slug, 'title' => $title];
+            }
         }
 
         usort($rows, fn ($a, $b) => [$b[3], $a[4]] <=> [$a[3], $b[4]]);
         $path = $this->writeCsv($country, $rows);
         $this->printSummary($country, $rows, $minAds, $minYear);
         $this->info("Detalle: {$path}");
+
+        if ($this->option('sql')) {
+            $sqlPath = substr($path, 0, -4) . '.sql';
+            file_put_contents($sqlPath, $this->buildSql($country, $new));
+            file_put_contents(substr($path, 0, -4) . '.json', json_encode([
+                'country' => $country,
+                'sql' => $sqlPath,
+                'create' => count($new),
+                'candidates' => count($rows),
+                'titles' => array_column(array_slice($new, 0, 20), 'title'),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $this->info("SQL: {$sqlPath}");
+        }
 
         return self::SUCCESS;
     }
@@ -87,6 +107,7 @@ class LandingCandidates extends Command
     {
         $names = [];
         $makes = [];
+        $makeSlugs = [];
         foreach (array_chunk(array_values($modelIds), 500) as $chunk) {
             foreach ($manticore->carModelsByIds($chunk) as $model) {
                 $names[(int) $model['id']] = $model;
@@ -96,13 +117,19 @@ class LandingCandidates extends Command
         $result = [];
         foreach ($names as $id => $model) {
             $makeId = (int) ($model['id_car_make'] ?? 0);
-            $makes[$makeId] ??= (string) ($manticore->getCarMakeById($makeId)['name'] ?? '');
+            if (!isset($makes[$makeId])) {
+                $make = $manticore->getCarMakeById($makeId);
+                $makes[$makeId] = (string) ($make['name'] ?? '');
+                $makeSlugs[$makeId] = (string) ($make['slug'] ?? '');
+            }
             $modelName = trim((string) $model['model_name']);
             if ($makes[$makeId] === '' || $modelName === '' || empty($model['slug'])) {
                 continue;
             }
 
             $result[$id] = [
+                'make_id' => $makeId,
+                'make_slug' => $makeSlugs[$makeId],
                 'make' => $makes[$makeId],
                 'model' => $modelName,
                 'name' => $makes[$makeId] . ' ' . $modelName,
@@ -149,6 +176,50 @@ class LandingCandidates extends Command
         sort($terms);
 
         return implode(' ', $terms);
+    }
+
+    /**
+     * One landing per new model and year. A row with the same slug (removed or redirected
+     * earlier) is brought back rather than duplicated. Its content carries the filters the page
+     * lists and the creation date landings:clean counts the grace period from.
+     */
+    private function buildSql(string $country, array $new): string
+    {
+        $q = fn (string $value) => "'" . str_replace(['\\', "'"], ['\\\\', "\\'"], $value) . "'";
+        $countryName = self::COUNTRY_NAMES[$country] ?? ucfirst($country);
+        $today = date('Y-m-d');
+
+        $sql = ["-- Landings marca + modelo + año nuevas para '{$country}' (" . count($new) . ') - ' . date('Y-m-d H:i:s'), 'START TRANSACTION;', ''];
+        foreach ($new as $landing) {
+            $model = $landing['model'];
+            $content = json_encode([
+                'breadcrumb' => ['make' => $model['make_slug'], 'model' => $model['slug']],
+                'generated' => ['make' => $model['make_id'], 'model' => $landing['model_id'], 'year' => $landing['year'], 'created' => $today],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $description = "{$landing['title']} en {$countryName}: compara precios, kilometraje y avisos de concesionarios y particulares en Roodos.";
+
+            $values = [
+                'title' => $q($landing['title']),
+                'meta_description' => $q($description),
+                'content' => $q($content),
+                'id_car_make' => $model['make_id'],
+                'id_car_model' => $landing['model_id'],
+                'id_state' => 0,
+                'id_city' => 0,
+                'redirect' => "''",
+                'activo' => 1,
+            ];
+            $where = 'country_id = ' . $q($country) . ' AND slug = ' . $q($landing['slug']);
+
+            $sql[] = 'UPDATE car_landings SET ' . implode(', ', array_map(fn ($column, $value) => "{$column} = {$value}", array_keys($values), $values)) . " WHERE {$where};";
+            $sql[] = 'INSERT INTO car_landings (country_id, slug, ' . implode(', ', array_keys($values)) . ') SELECT '
+                . $q($country) . ', ' . $q($landing['slug']) . ', ' . implode(', ', $values)
+                . " FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM car_landings WHERE {$where});";
+        }
+        $sql[] = '';
+        $sql[] = 'COMMIT;';
+
+        return implode("\n", $sql) . "\n";
     }
 
     private function writeCsv(string $country, array $rows): string

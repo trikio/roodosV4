@@ -127,4 +127,40 @@ class CleanLandingsCommandTest extends TestCase
         $this->assertStringContainsString("SET redirect = '/autos-usados-peru' WHERE country_id = 'pe' AND redirect = '' AND id IN (5);", $sql);
         $this->assertDoesNotMatchRegularExpression('/id IN \\([^)]*\\b(2|4|6|7)\\b/', $sql);
     }
+
+    public function test_generated_landings_follow_their_model_and_year(): void
+    {
+        $generated = fn (int $id, string $slug, int $model, int $year, string $created) => [
+            'id' => (string) $id, 'slug' => $slug, 'title' => ucwords(str_replace('-', ' ', $slug)) . ' usados', 'redirect' => '',
+            'content' => json_encode([
+                'breadcrumb' => ['make' => 'honda', 'model' => 'honda-civic'],
+                'generated' => ['make' => 76, 'model' => $model, 'year' => $year, 'created' => $created],
+            ]),
+            'id_car_make' => '76', 'id_car_model' => (string) $model,
+        ];
+        $rows = [
+            $generated(1, 'honda-civic-2024', 500, 2024, date('Y-m-d')),
+            $generated(2, 'honda-civic-2019', 500, 2019, '2020-01-01'),
+            $generated(3, 'honda-civic-2021', 500, 2021, '2020-01-01'),
+        ];
+
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('carVocabulary')->andReturn(['makes' => ['honda'], 'models' => ['honda-civic'], 'places' => []]);
+        $manticore->shouldReceive('iterateCarLandings')->andReturnUsing(fn () => (fn () => yield from $rows)());
+        // The landing in its grace period is not counted at all.
+        $manticore->shouldReceive('countCars')->twice()
+            ->withArgs(fn ($index, $options) => $index === 'car_pe' && $options['model'] === 500 && $options['min_year'] === $options['max_year'])
+            ->andReturnUsing(fn ($index, $options) => $options['min_year'] === 2019 ? 2 : 9);
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+
+        $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp, '--no-sitemaps' => true])->assertSuccessful();
+
+        $sql = file_get_contents(glob($this->tmp . '/*.sql')[0]);
+        $this->assertStringContainsString("SET redirect = '/modelo/honda-civic' WHERE country_id = 'pe' AND redirect = '' AND id IN (2);", $sql);
+        $this->assertStringNotContainsString('SET activo = 0', $sql);
+
+        $summary = json_decode(file_get_contents(glob($this->tmp . '/*.json')[0]), true);
+        $this->assertSame([3, 1, 0, 2, 1], [$summary['active'], $summary['redirect'], $summary['deactivate'], $summary['generated_kept'], $summary['generated_redirect']]);
+        $this->assertFileDoesNotExist($this->tmp . '/storage/app/sitemaps/pe/removed-1.xml');
+    }
 }

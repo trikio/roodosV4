@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .env
 logs/
+# Config generada por bin/nexo landings --setup (lleva la clave de MySQL) e índices locales.
+manticore/
 
 # Local/non-Roodos experiments kept in this working folder.
 scripts/*nde*

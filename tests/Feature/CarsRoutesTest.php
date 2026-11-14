@@ -207,4 +207,27 @@ class CarsRoutesTest extends TestCase
 
         $this->get('http://autos.roodos.ec/auto/999')->assertNotFound();
     }
+
+    public function test_generated_landing_lists_exactly_its_model_and_year(): void
+    {
+        $manticore = $this->mockManticore();
+        $manticore->shouldReceive('getLandingBySlug')->with('ec', 'kia-sportage-2024')->andReturn([
+            'id' => 9, 'slug' => 'kia-sportage-2024', 'title' => 'Kia Sportage 2024 usados', 'redirect' => '',
+            'meta_description' => '', 'id_car_make' => 92, 'id_car_model' => 956,
+            'content' => json_encode([
+                'breadcrumb' => ['make' => 'kia', 'model' => 'kia-sportage'],
+                'generated' => ['make' => 92, 'model' => 956, 'year' => 2024, 'created' => '2026-11-15'],
+            ]),
+        ]);
+        $manticore->shouldReceive('carSearch')->once()
+            ->withArgs(fn ($index, $options) => $index === 'car_ec' && $options['q'] === ''
+                && $options['make'] === 92 && $options['model'] === 956
+                && $options['min_year'] === 2024 && $options['max_year'] === 2024)
+            ->andReturn($this->emptySearchResult(12));
+
+        $this->get('http://autos.roodos.ec/kia-sportage-2024')
+            ->assertOk()
+            ->assertSee('<link rel="canonical" href="http://autos.roodos.ec/kia-sportage-2024">', false)
+            ->assertSee('href="http://autos.roodos.ec/modelo/kia-sportage"', false);
+    }
 }

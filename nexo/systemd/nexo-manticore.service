@@ -1,0 +1,13 @@
+# Servicio de usuario (trikio, con linger activo): systemctl --user enable --now <esta ruta>
+# Manticore de nexo, solo para el ciclo semanal de landings (bin/nexo landings). La config la genera
+# `bin/nexo landings --setup` desde la de producción; escucha en 127.0.0.1 (9306 y 9312).
+[Unit]
+Description=Manticore de nexo para el ciclo de landings
+
+[Service]
+ExecStart=/usr/bin/searchd --config /home/trikio/roodos_v4/nexo/manticore/manticore.conf --nodetach
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

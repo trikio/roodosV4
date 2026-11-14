@@ -18,6 +18,8 @@ class CleanLandings extends Command
     protected $signature = 'landings:clean
                             {country : Código de país (pe, cl, ec, mx, lab) o "all" para todos menos lab}
                             {--min-ads=5 : Avisos mínimos para que una landing se quede}
+                            {--grace-days=28 : Días en que una landing creada por landings:candidates no se toca}
+                            {--no-sitemaps : No escribir los sitemaps de URLs eliminadas (en nexo: los sirve el servidor web)}
                             {--output= : Carpeta del SQL y CSV (por defecto storage/app/landings)}
                             {--memory=2G : Límite de memoria de PHP (México, con ~2 millones de landings, usa ~4G)}';
 
@@ -44,6 +46,9 @@ class CleanLandings extends Command
 
     /** @var array<string, ?string> group key => redirect target, shared by every landing of the group */
     private array $parentTargets = [];
+
+    /** @var array<int, array{slug: string, model_slug: string, generated: array}> landings created from the inventory */
+    private array $generated = [];
 
     public function handle(ManticoreSearchService $manticore): int
     {
@@ -76,12 +81,15 @@ class CleanLandings extends Command
         $vocabulary = LandingVocabulary::forCountry($this->manticore, $country);
         $this->groups = [];
         $this->parentTargets = [];
+        $this->generated = [];
         [$landings, $redirected] = $this->loadLandings($country, $vocabulary);
 
         $this->info("[{$country}] Contando avisos por grupo (" . count($landings) . ' landings)...');
         $keepers = $this->pickKeepers($country, $landings);
         $actions = $this->planActions($landings, $keepers, $vocabulary);
         $actions['rewrite'] = $this->rewriteHubRedirects($redirected, $landings, $actions);
+        $actions['generated'] = $this->planGenerated($country);
+        $actions['redirect'] += $actions['generated']['redirect'];
 
         $directory = $this->option('output') ?: storage_path('app/landings');
         if (!is_dir($directory)) {
@@ -89,15 +97,32 @@ class CleanLandings extends Command
         }
         $basename = $directory . '/landings_clean_' . $country . '_' . date('Ymd_His');
 
-        $summary = $this->summary($country, count($landings), count($redirected), $actions);
+        $active = count($landings) + count($this->generated);
+        $summary = $this->summary($country, $active, count($redirected), $actions);
         file_put_contents($basename . '.sql', $this->buildSql($country, $summary, $actions));
+        // Read by nexo's weekly run to decide whether the SQL is safe to apply on its own.
+        file_put_contents($basename . '.json', json_encode([
+            'country' => $country,
+            'sql' => $basename . '.sql',
+            'active' => $active,
+            'redirect' => count($actions['redirect']),
+            'deactivate' => count($actions['deactivate']),
+            'fix_ids' => count($actions['fix_ids']),
+            'rewrite' => count($actions['rewrite']),
+            'generated_kept' => $actions['generated']['kept'],
+            'generated_redirect' => count($actions['generated']['redirect']),
+            'summary' => $summary,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $this->writeCsv($basename . '.csv', $country, $landings, $actions);
-        $sitemaps = $this->writeRemovedSitemaps($country, $landings, $actions);
+        $sitemaps = $this->option('no-sitemaps') ? null : $this->writeRemovedSitemaps($country, $landings, $actions);
 
         $this->line($summary);
         $this->info("SQL: {$basename}.sql");
         $this->info("Detalle por landing: {$basename}.csv");
-        $this->info("Sitemaps de URLs eliminadas: {$sitemaps} archivo(s) en " . Sitemap::directory($country));
+        $this->info("Resumen: {$basename}.json");
+        if ($sitemaps !== null) {
+            $this->info("Sitemaps de URLs eliminadas: {$sitemaps} archivo(s) en " . Sitemap::directory($country));
+        }
     }
 
     /**
@@ -120,6 +145,13 @@ class CleanLandings extends Command
             }
 
             $breadcrumb = LandingClassifier::breadcrumbSlugs($row['content']);
+            // Created from the inventory: judged by their own model and year, in planGenerated.
+            $generated = LandingClassifier::generated($row['content']);
+            if ($generated !== null) {
+                $this->generated[$id] = ['slug' => $slug, 'model_slug' => $breadcrumb['model'], 'generated' => $generated];
+                continue;
+            }
+
             $confirmed = LandingClassifier::confirmedNames($slug, $breadcrumb['make'], $breadcrumb['model']);
 
             [$key, $real] = $this->group(LandingClassifier::groupKey($title), $vocabulary);
@@ -296,6 +328,39 @@ class CleanLandings extends Command
     }
 
     /**
+     * Landings created by landings:candidates stay through their grace period, then while their
+     * model and year have enough ads. Below that they 301 to their model page, and
+     * landings:candidates brings them back when the ads return.
+     *
+     * @return array{kept: int, redirect: array<int, string>}
+     */
+    private function planGenerated(string $country): array
+    {
+        $graceStart = date('Y-m-d', strtotime('-' . (int) $this->option('grace-days') . ' days'));
+        $minAds = (int) $this->option('min-ads');
+        $result = ['kept' => 0, 'redirect' => []];
+
+        foreach ($this->generated as $id => $landing) {
+            $generated = $landing['generated'];
+            $inGrace = $generated['created'] !== '' && $generated['created'] > $graceStart;
+            $ads = $inGrace ? $minAds : $this->manticore->countCars('car_' . $country, [
+                'make' => $generated['make'] ?: '',
+                'model' => $generated['model'],
+                'min_year' => $generated['year'],
+                'max_year' => $generated['year'],
+            ]);
+
+            if ($ads >= $minAds || $landing['model_slug'] === '') {
+                $result['kept']++;
+            } else {
+                $result['redirect'][$id] = '/modelo/' . $landing['model_slug'];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Existing redirects to "/marca/x" or "/modelo/x" now go straight to the kept
      * "autos-x-usados" landing, since those pages 301 there.
      *
@@ -347,6 +412,7 @@ class CleanLandings extends Command
             '  Redirigidas (301):                ' . count($redirects) . ' (hacia ' . count(array_unique($redirects)) . ' landings)',
             '  Eliminadas (activo = 0 -> 410):   ' . count($actions['deactivate']) . ($reasonText !== '' ? " ({$reasonText})" : ''),
             '  Con ids corregidos a 0:           ' . count($actions['fix_ids']),
+            '  Generadas (modelo + año):         ' . ($actions['generated']['kept'] + count($actions['generated']['redirect'])) . ' (' . count($actions['generated']['redirect']) . ' bajan a 301 por pocos avisos)',
             "  Ya tenían redirect:               {$alreadyRedirected} (" . count($actions['rewrite']) . ' reapuntadas a su landing autos-x-usados)',
         ]);
     }
@@ -416,6 +482,11 @@ class CleanLandings extends Command
         $fixIds = array_flip($actions['fix_ids']);
         foreach ($this->manticore->iterateCarLandings($country) as $row) {
             $id = (int) $row['id'];
+            if (isset($this->generated[$id])) {
+                $result = isset($actions['redirect'][$id]) ? ['redirigir', $actions['redirect'][$id], 'generada_pocos_avisos'] : ['mantener', '', 'generada'];
+                fputcsv($handle, array_merge([$id, $this->generated[$id]['slug'], (string) $row['title']], $result));
+                continue;
+            }
             if (!isset($landings[$id])) {
                 continue;
             }
@@ -452,7 +523,7 @@ class CleanLandings extends Command
         $ids = array_merge(array_keys($actions['redirect']), array_keys($actions['deactivate']));
         $files = 0;
         foreach (array_chunk($ids, self::SITEMAP_SIZE) as $chunk) {
-            $urls = array_map(fn ($id) => Sitemap::landingUrl($country, $landings[$id][self::SLUG]), $chunk);
+            $urls = array_map(fn ($id) => Sitemap::landingUrl($country, $landings[$id][self::SLUG] ?? $this->generated[$id]['slug']), $chunk);
             file_put_contents($directory . '/removed-' . (++$files) . '.xml', Sitemap::urlset($urls));
         }
 
