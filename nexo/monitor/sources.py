@@ -134,6 +134,9 @@ SOURCES = [
     spider("mercadolibre_ecuador", "ec", "MercadoLibre EC", ["auto.mercadolibre.com.ec"], "0 6 * * 6", after=EC_BACKFILL,
            enabled=False),
     spider("autocosmos_ecuador", "ec", "Autocosmos EC", ["www.autocosmos.com.ec"], "30 6 * * 6", after=EC_BACKFILL),
+    # WooCommerce: la Store API trae el stock completo y la descripción los datos (13-11-2026).
+    spider("autos_carreraautos_ec", "ec", "Carrera Autos", ["carreraautos.com"], "45 3 * * 1", timeout_hours=1,
+           full_crawl=True, after=EC_BACKFILL),
 ]
 
 # Automotoras con sitio propio (nexo.dealer_sites), dos veces por semana.
