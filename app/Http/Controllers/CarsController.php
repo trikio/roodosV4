@@ -447,13 +447,59 @@ class CarsController extends Controller
             abort(404);
         }
 
-        $targetUrl = (string) $car['url'];
-        $source = (string) ($car['nexo_id'] ?? 'fuente externa');
+        $makeId = (int) ($car['id_car_make'] ?? 0);
+        $modelId = (int) ($car['id_car_model'] ?? 0);
+        $price = (int) ($car['price'] ?? 0);
+        $year = (int) ($car['year_int'] ?? 0);
 
-        $country = $countryCode;
+        $makeSlug = $makeId > 0 ? (string) ($this->manticore->getCarMakeById($makeId)['slug'] ?? '') : '';
+        $modelSlug = $modelId > 0 ? (string) ($this->manticore->carModelsByIds([$modelId])[0]['slug'] ?? '') : '';
+
+        $similar = collect($this->manticore->similarCars($searchIndex, $carId, $makeId, $modelId, $price))
+            ->map(fn ($item) => $this->carSummary($item))
+            ->all();
+
+        // A comparison against two or three ads says nothing; below this it is not shown.
+        $priceStats = $this->manticore->carModelPriceStats($searchIndex, $modelId, $year);
+        if ($priceStats && $priceStats['total'] < 3) {
+            $priceStats = null;
+        }
+
         return response()
-            ->view('cars.show', compact('targetUrl', 'source', 'country') + ['adId' => $carId])
+            ->view('cars.show', [
+                'car' => $this->carSummary($car),
+                'adId' => $carId,
+                'country' => $countryCode,
+                'source' => (string) (($car['nexo_id'] ?? '') ?: 'fuente externa'),
+                'targetUrl' => (string) $car['url'],
+                'makeUrl' => $makeSlug !== '' ? url('/marca/' . $makeSlug) : null,
+                'modelUrl' => $modelSlug !== '' ? url('/modelo/' . $modelSlug) : null,
+                'similar' => $similar,
+                'priceStats' => $priceStats,
+                'yearSpan' => $year > 0 ? [$year - 2, $year + 2] : null,
+            ])
+            // Listing data copied from the sources and short-lived: kept out of the index.
             ->header('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    private function carSummary(array $item): object
+    {
+        return (object) [
+            'id' => (int) $item['id'],
+            'title' => (string) ($item['title'] ?? ''),
+            'brand' => (string) ($item['make_name'] ?? ''),
+            'model' => (string) ($item['model_name'] ?? ''),
+            'price' => (int) ($item['price'] ?? 0),
+            'year' => (int) ($item['year_int'] ?? 0) ?: null,
+            'kilometers' => isset($item['km']) && (int) $item['km'] > 0 ? (int) $item['km'] : null,
+            'location' => (string) ($item['state_name'] ?? ''),
+            'city' => (string) ($item['city_name'] ?? ''),
+            'transmission' => (string) ($item['transmission_name'] ?? ''),
+            'fuel' => (string) ($item['fuel_name'] ?? ''),
+            'body' => (string) ($item['body_name'] ?? ''),
+            'image_url' => ($item['image'] ?? '') ?: null,
+            'nexo_id' => (string) ($item['nexo_id'] ?? ''),
+        ];
     }
 
     private function resolveCountryCode(Request $request, ?string $country = null): string

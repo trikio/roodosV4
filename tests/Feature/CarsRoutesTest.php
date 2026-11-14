@@ -124,4 +124,66 @@ class CarsRoutesTest extends TestCase
             ->assertStatus(301)
             ->assertRedirect('http://autos.roodos.cl/modelo/toyota-corolla');
     }
+
+    private function carRow(int $id, int $price, array $overrides = []): array
+    {
+        return array_merge([
+            'id' => $id, 'title' => 'Toyota Hilux 4x4', 'make_name' => 'Toyota', 'model_name' => 'Hilux',
+            'price' => $price, 'year_int' => 2007, 'km' => 199928, 'state_name' => 'Pichincha', 'city_name' => 'Quito',
+            'transmission_name' => 'Manual', 'fuel_name' => '', 'body_name' => '',
+            'image' => 'https://img.roodos.com/x.jpg', 'url' => 'https://fuente.example/aviso-' . $id,
+            'nexo_id' => 'Patiotuerca', 'id_car_make' => 176, 'id_car_model' => 1842,
+        ], $overrides);
+    }
+
+    public function test_car_detail_is_a_page_with_a_link_to_the_source_instead_of_a_redirect(): void
+    {
+        $manticore = $this->mockManticore();
+        $manticore->shouldReceive('getCarById')->with('car_ec', 38282)->andReturn($this->carRow(38282, 14900));
+        $manticore->shouldReceive('getCarMakeById')->with(176)->andReturn(['id' => 176, 'slug' => 'toyota']);
+        $manticore->shouldReceive('carModelsByIds')->with([1842])->andReturn([['id' => 1842, 'slug' => 'toyota-hilux']]);
+        $manticore->shouldReceive('similarCars')->with('car_ec', 38282, 176, 1842, 14900)
+            ->andReturn([$this->carRow(45982, 13990, ['title' => '2009 Toyota Hilux'])]);
+        $manticore->shouldReceive('carModelPriceStats')->with('car_ec', 1842, 2007)
+            ->andReturn(['total' => 11, 'avg' => 17000, 'min' => 8900, 'max' => 19900]);
+
+        $this->get('http://autos.roodos.ec/auto/38282')
+            ->assertOk()
+            ->assertHeader('X-Robots-Tag', 'noindex, nofollow')
+            ->assertSee('href="https://fuente.example/aviso-38282"', false)
+            ->assertSee('Ver aviso en Patiotuerca')
+            ->assertSee('$ 14.900')
+            ->assertSee('Bajo el promedio')
+            ->assertSee('Según 11 avisos')
+            ->assertSee('href="/auto/45982"', false)
+            ->assertSee('href="http://autos.roodos.ec/modelo/toyota-hilux"', false)
+            ->assertSee('href="http://autos.roodos.ec/marca/toyota"', false)
+            ->assertSee("push(['Ad Detail Viewed'", false)
+            ->assertDontSee('window.location.href', false);
+    }
+
+    public function test_car_detail_without_make_model_or_enough_prices(): void
+    {
+        $manticore = $this->mockManticore();
+        $manticore->shouldReceive('getCarById')->andReturn($this->carRow(1, 5600, [
+            'make_name' => '', 'model_name' => '', 'id_car_make' => 0, 'id_car_model' => 0, 'nexo_id' => '',
+        ]));
+        $manticore->shouldReceive('getCarMakeById')->never();
+        $manticore->shouldReceive('carModelsByIds')->never();
+        $manticore->shouldReceive('similarCars')->andReturn([]);
+        $manticore->shouldReceive('carModelPriceStats')->andReturn(null);
+
+        $this->get('http://autos.roodos.ec/auto/1')
+            ->assertOk()
+            ->assertSee('Ver aviso en fuente externa')
+            ->assertDontSee('similares')
+            ->assertDontSee('/marca/', false);
+    }
+
+    public function test_missing_car_returns_404(): void
+    {
+        $this->mockManticore()->shouldReceive('getCarById')->andReturn(null);
+
+        $this->get('http://autos.roodos.ec/auto/999')->assertNotFound();
+    }
 }

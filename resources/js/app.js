@@ -38,6 +38,13 @@ function flushMixpanelEvents() {
   });
 }
 
+// Eventos posteriores a la carga (clics): la cola solo se vacía al cargar Mixpanel.
+window.trackEvent = (name, properties, callback) => {
+  mixpanelEvents.push([name, properties, callback]);
+  if (window.__mixpanelLoaded) flushMixpanelEvents();
+  else loadMixpanel();
+};
+
 function loadMixpanel() {
   if (window.__mixpanelLoaded) return;
   window.__mixpanelLoaded = true;
@@ -166,7 +173,7 @@ function loadVendorsOnce() {
 window.addEventListener("load", () => {
   pageLoaded = true;
   // Con eventos pendientes no se espera interacción: se perderían las visitas que se van sin
-  // interactuar y el detalle, que redirige a la fuente en 0,5 s.
+  // interactuar.
   if (mixpanelEvents.length) loadMixpanel();
   loadVendorsOnce();
 });

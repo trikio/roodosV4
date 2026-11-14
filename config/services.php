@@ -41,6 +41,11 @@ return [
         'widening' => (bool) env('LANDING_WIDENING', false),
     ],
 
+    'adsense' => [
+        // Responsive in-content unit of the car detail page; without it only the sidebar ad shows.
+        'detail_slot' => env('ADSENSE_DETAIL_SLOT'),
+    ],
+
     'manticore' => [
         'host' => env('MANTICORE_HOST', '127.0.0.1'),
         'port' => (int) env('MANTICORE_PORT', 9306),

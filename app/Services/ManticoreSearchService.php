@@ -146,6 +146,74 @@ class ManticoreSearchService
         }
     }
 
+    /**
+     * Cars of the same model (or make, when the model is unknown) with the closest prices.
+     * The detail page must render without them, so failures return [].
+     */
+    public function similarCars($searchIndex, int $excludeId, int $makeId, int $modelId, int $price, int $limit = 6): array
+    {
+        [$field, $value] = $modelId > 0 ? ['id_car_model', $modelId] : ['id_car_make', $makeId];
+        if ($value <= 0) {
+            return [];
+        }
+
+        try {
+            return (new SphinxQL($this->connection))
+                ->select('*', SphinxQL::expr('ABS(BIGINT(price) - ' . max(0, $price) . ') AS price_diff'))
+                ->from($searchIndex)
+                ->where($field, $value)
+                ->where('id', '!=', $excludeId)
+                ->where('price', '>', 0)
+                ->orderBy('price_diff', 'ASC')
+                ->limit(0, $limit)
+                ->execute()
+                ->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Price summary of a model within ±$yearSpan years, or null when unavailable.
+     *
+     * @return array{total: int, avg: int, min: int, max: int}|null
+     */
+    public function carModelPriceStats($searchIndex, int $modelId, int $year, int $yearSpan = 2): ?array
+    {
+        if ($modelId <= 0 || $year <= 0) {
+            return null;
+        }
+
+        try {
+            $row = (new SphinxQL($this->connection))
+                ->select(
+                    SphinxQL::expr('COUNT(*) AS total'),
+                    SphinxQL::expr('AVG(price) AS avg_price'),
+                    SphinxQL::expr('MIN(price) AS min_price'),
+                    SphinxQL::expr('MAX(price) AS max_price')
+                )
+                ->from($searchIndex)
+                ->where('id_car_model', $modelId)
+                ->where('year_int', 'BETWEEN', [$year - $yearSpan, $year + $yearSpan])
+                ->where('price', '>', 0)
+                ->execute()
+                ->fetchAllAssoc()[0] ?? null;
+        } catch (Exception $e) {
+            return null;
+        }
+
+        if (!$row || (int) $row['total'] === 0) {
+            return null;
+        }
+
+        return [
+            'total' => (int) $row['total'],
+            'avg' => (int) round((float) $row['avg_price']),
+            'min' => (int) $row['min_price'],
+            'max' => (int) $row['max_price'],
+        ];
+    }
+
     public function getCarMakeBySlug(string $slug): ?array
     {
         try {
