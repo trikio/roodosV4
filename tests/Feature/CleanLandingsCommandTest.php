@@ -52,7 +52,7 @@ class CleanLandingsCommandTest extends TestCase
             ->andReturnUsing(fn ($index, $options) => $adsByTerms[$options['q']] ?? 0);
         $this->app->instance(ManticoreSearchService::class, $manticore);
 
-        $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp])->assertSuccessful();
+        $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp, '--visits' => $this->tmp . '/sin-visitas.txt'])->assertSuccessful();
 
         return [
             'sql' => file_get_contents(glob($this->tmp . '/*.sql')[0]),
@@ -72,7 +72,7 @@ class CleanLandingsCommandTest extends TestCase
             $this->row(6, 'dinero-groupfinancialcentrumcz', 'dinero groupfinancial@centrum.cz'),
             $this->row(7, 'chevrolet-optra-2005-excelentes', 'Chevrolet Optra 2005 excelentes'),
             $this->row(8, 'honda', 'Honda', $honda, 76, '/marca/honda'),
-            $this->row(9, 'autos-usados-ecuador', 'Autos usados Ecuador'),
+            $this->row(9, 'autos-usados-peru', 'Autos usados Perú'),
             $this->row(10, 'autos-honda-civic-usados-lima', 'Autos Honda Civic usados Lima'),
             $this->row(11, 'autos-chevrolet-usados', 'Autos Chevrolet usados'),
             $this->row(12, 'autos-honda-civic-usados', 'Autos Honda Civic usados'),
@@ -99,7 +99,7 @@ class CleanLandingsCommandTest extends TestCase
         // An old redirect to the make page now goes straight to its landing.
         $this->assertStringContainsString("SET redirect = '/autos-honda-usados' WHERE country_id = 'pe' AND redirect LIKE '/m%' AND id IN (8);", $sql);
 
-        // Camionetas are a different search, and country-wide landings are left alone.
+        // Camionetas are a different search, and the country-wide landing stays.
         $this->assertDoesNotMatchRegularExpression('/id IN \([^)]*\b(4|9|2|11|12)\b/', $sql);
 
         // Removed URLs are listed for recrawl; kept ones are not.
@@ -120,12 +120,42 @@ class CleanLandingsCommandTest extends TestCase
             $this->row(7, 'camion-camioneta-marca', 'Camion Camioneta Marca'),
         ], ['lima toyota' => 20, 'lima' => 50]);
 
+        // Words crossed with no shape of the generator: nothing to redirect to, so 410.
+        $this->assertStringContainsString("SET activo = 0 WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (7);", $sql);
+
         // The city goes last, so "ends with usados" is not required.
         $this->assertStringContainsString("SET redirect = '/autos-toyota-usados-lima' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (1);", $sql);
         $this->assertStringContainsString("SET redirect = '/autos-lima' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (3);", $sql);
         // Country-wide landings are deduplicated too, one per type and condition.
         $this->assertStringContainsString("SET redirect = '/autos-usados-peru' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (5);", $sql);
-        $this->assertDoesNotMatchRegularExpression('/id IN \\([^)]*\\b(2|4|6|7)\\b/', $sql);
+        $this->assertDoesNotMatchRegularExpression('/id IN \\([^)]*\\b(2|4|6)\\b/', $sql);
+    }
+
+    public function test_landings_with_google_visits_stay_as_they_are(): void
+    {
+        file_put_contents($this->tmp . '/visitadas.txt', "doble-traccion-si-inmovilizador\nHONDA-ECUADOR\n");
+        $rows = [
+            $this->row(1, 'honda-ecuador', 'Honda Ecuador', ['make' => 'honda'], 76),
+            $this->row(2, 'autos-honda-usados', 'Autos Honda usados', ['make' => 'honda'], 76),
+            $this->row(3, 'doble-traccion-si-inmovilizador', 'Doble tracción Sí Inmovilizador'),
+            $this->row(4, 'marca-185000-recorrido-honda', 'Marca 185000 Recorrido Honda'),
+        ];
+
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('carVocabulary')->andReturn(['makes' => ['honda'], 'models' => [], 'places' => []]);
+        $manticore->shouldReceive('iterateCarLandings')->andReturnUsing(fn () => (fn () => yield from $rows)());
+        $manticore->shouldReceive('countCars')->andReturn(50);
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+
+        $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp, '--visits' => $this->tmp . '/visitadas.txt'])->assertSuccessful();
+        $sql = file_get_contents(glob($this->tmp . '/*.sql')[0]);
+        $csv = file_get_contents(glob($this->tmp . '/*.csv')[0]);
+
+        // Junk with a make goes to its landing, unless Google sends visits to it.
+        $this->assertStringContainsString("SET redirect = '/autos-honda-usados' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (4);", $sql);
+        $this->assertDoesNotMatchRegularExpression('/id IN \\([^)]*\\b(1|2|3)\\b/', $sql);
+        $this->assertStringContainsString('3,doble-traccion-si-inmovilizador,"Doble tracción Sí Inmovilizador",mantener,,visitada_google', $csv);
+        $this->assertStringContainsString('Conservadas por visitas de Google: 2', $sql);
     }
 
     public function test_generated_landings_follow_their_model_and_year(): void
@@ -153,7 +183,7 @@ class CleanLandingsCommandTest extends TestCase
             ->andReturnUsing(fn ($index, $options) => $options['min_year'] === 2019 ? 2 : 9);
         $this->app->instance(ManticoreSearchService::class, $manticore);
 
-        $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp, '--no-sitemaps' => true])->assertSuccessful();
+        $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp, '--no-sitemaps' => true, '--visits' => $this->tmp . '/sin-visitas.txt'])->assertSuccessful();
 
         $sql = file_get_contents(glob($this->tmp . '/*.sql')[0]);
         $this->assertStringContainsString("SET redirect = '/modelo/honda-civic' WHERE country_id = 'pe' AND (redirect IS NULL OR redirect = '') AND id IN (2);", $sql);

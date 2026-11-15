@@ -4,14 +4,16 @@ namespace App\Console\Commands;
 
 use App\Services\ManticoreSearchService;
 use App\Support\LandingClassifier;
+use App\Support\LandingPattern;
 use App\Support\LandingVocabulary;
 use App\Support\Sitemap;
 use Illuminate\Console\Command;
 
 /**
- * Whitelist cleanup of the legacy car landings. A landing stays only when it is a real search
- * (make, model, place and/or year, in the country's vocabulary) with enough ads; its duplicates
- * and the landings that only narrow it down 301 to it; everything else is deactivated (410).
+ * Whitelist cleanup of the legacy car landings. A landing stays only when its title has one of the
+ * original generator's shapes (LandingPattern) and its search has enough ads; its duplicates and
+ * the landings that only narrow it down 301 to it; everything else is deactivated (410). Landings
+ * Google sent visits to in the last year (resources/landings/google/{país}.txt) are never touched.
  */
 class CleanLandings extends Command
 {
@@ -19,6 +21,7 @@ class CleanLandings extends Command
                             {country : Código de país (pe, cl, ec, mx, lab) o "all" para todos menos lab}
                             {--min-ads=5 : Avisos mínimos para que una landing se quede}
                             {--grace-days=28 : Días en que una landing creada por landings:candidates no se toca}
+                            {--visits= : Lista de slugs con visitas desde Google que no se tocan (por defecto resources/landings/google/{país}.txt)}
                             {--no-sitemaps : No escribir los sitemaps de URLs eliminadas (en nexo: los sirve el servidor web)}
                             {--output= : Carpeta del SQL y CSV (por defecto storage/app/landings)}
                             {--memory=2G : Límite de memoria de PHP (México, con ~2 millones de landings, usa ~4G)}';
@@ -50,6 +53,9 @@ class CleanLandings extends Command
     /** @var array<int, array{slug: string, model_slug: string, generated: array}> landings created from the inventory */
     private array $generated = [];
 
+    /** @var array<string, true> slugs Google sent visits to: they stay as they are */
+    private array $visited = [];
+
     public function handle(ManticoreSearchService $manticore): int
     {
         $this->manticore = $manticore;
@@ -79,10 +85,11 @@ class CleanLandings extends Command
     {
         $this->info("[{$country}] Leyendo vocabulario y landings...");
         $vocabulary = LandingVocabulary::forCountry($this->manticore, $country);
+        $this->visited = $this->loadVisited($country);
         $this->groups = [];
         $this->parentTargets = [];
         $this->generated = [];
-        [$landings, $redirected] = $this->loadLandings($country, $vocabulary);
+        [$landings, $redirected] = $this->loadLandings($country, $vocabulary, new LandingPattern($vocabulary, $country));
 
         $this->info("[{$country}] Contando avisos por grupo (" . count($landings) . ' landings)...');
         $keepers = $this->pickKeepers($country, $landings);
@@ -90,6 +97,7 @@ class CleanLandings extends Command
         $actions['rewrite'] = $this->rewriteHubRedirects($redirected, $landings, $actions);
         $actions['generated'] = $this->planGenerated($country);
         $actions['redirect'] += $actions['generated']['redirect'];
+        $actions['visited'] = $this->spareVisited($landings, $actions);
 
         $directory = $this->option('output') ?: storage_path('app/landings');
         if (!is_dir($directory)) {
@@ -111,6 +119,7 @@ class CleanLandings extends Command
             'rewrite' => count($actions['rewrite']),
             'generated_kept' => $actions['generated']['kept'],
             'generated_redirect' => count($actions['generated']['redirect']),
+            'visited_kept' => count($actions['visited']),
             'summary' => $summary,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $this->writeCsv($basename . '.csv', $country, $landings, $actions);
@@ -126,10 +135,48 @@ class CleanLandings extends Command
     }
 
     /**
+     * @return array<string, true> lower-case slugs from the visits list, empty when there is none
+     */
+    private function loadVisited(string $country): array
+    {
+        $path = $this->option('visits') ?: resource_path("landings/google/{$country}.txt");
+        if (!is_file($path)) {
+            $this->warn("[{$country}] Sin lista de landings visitadas desde Google ({$path})");
+
+            return [];
+        }
+
+        $slugs = array_filter(array_map('trim', file($path, FILE_IGNORE_NEW_LINES)));
+
+        return array_fill_keys(array_map('strtolower', $slugs), true);
+    }
+
+    /**
+     * Takes the visited landings out of the redirects and deactivations: they stay as they are.
+     *
+     * @return int[] ids of the visited landings that would otherwise have changed
+     */
+    private function spareVisited(array $landings, array &$actions): array
+    {
+        $spared = [];
+        foreach (['redirect', 'deactivate'] as $action) {
+            foreach (array_keys($actions[$action]) as $id) {
+                $slug = $landings[$id][self::SLUG] ?? $this->generated[$id]['slug'];
+                if (isset($this->visited[strtolower($slug)])) {
+                    unset($actions[$action][$id]);
+                    $spared[] = $id;
+                }
+            }
+        }
+
+        return $spared;
+    }
+
+    /**
      * @return array{0: array<int, array>, 1: array<int, array{slug: string, redirect: string}>}
      *         Landings without redirect keyed by id, and those that already redirect.
      */
-    private function loadLandings(string $country, LandingVocabulary $vocabulary): array
+    private function loadLandings(string $country, LandingVocabulary $vocabulary, LandingPattern $pattern): array
     {
         $landings = [];
         $redirected = [];
@@ -154,12 +201,13 @@ class CleanLandings extends Command
 
             $confirmed = LandingClassifier::confirmedNames($slug, $breadcrumb['make'], $breadcrumb['model']);
 
-            [$key, $real] = $this->group(LandingClassifier::groupKey($title), $vocabulary);
+            [$key] = $this->group(LandingClassifier::groupKey($title), $vocabulary);
             $landings[$id] = [
                 self::SLUG => $slug,
                 self::KEY => $key,
                 self::JUNK => LandingClassifier::junkReason($title),
-                self::REAL => $real,
+                // Only a title with one of the generator's shapes can be the page of its search.
+                self::REAL => $pattern->shape($title) !== null,
                 self::BAD_IDS => (int) $row['id_car_make'] > 0 && !$confirmed['make'] && !$confirmed['model'],
             ];
         }
@@ -177,9 +225,8 @@ class CleanLandings extends Command
         $mains = [];
         foreach ($landings as $id => $landing) {
             // Country-wide groups ("autos-usados-peru", "peru-motos") name nothing and always
-            // have ads: they compete for one main page too.
-            $countryWide = str_ends_with($landing[self::KEY], '|');
-            if ($landing[self::JUNK] !== null || (!$landing[self::REAL] && !$countryWide)) {
+            // have ads: they compete for one main page too, among the titles with a real shape.
+            if ($landing[self::JUNK] !== null || !$landing[self::REAL]) {
                 continue;
             }
 
@@ -289,7 +336,7 @@ class CleanLandings extends Command
             if ($parent !== null) {
                 $actions['redirect'][$id] = $parent;
             } else {
-                $actions['deactivate'][$id] = $landing[self::JUNK] ?? ($landing[self::REAL] ? 'pocos_avisos' : 'texto_libre');
+                $actions['deactivate'][$id] = $landing[self::JUNK] ?? ($landing[self::REAL] ? 'pocos_avisos' : 'sin_patron');
             }
         }
 
@@ -412,6 +459,7 @@ class CleanLandings extends Command
             '  Redirigidas (301):                ' . count($redirects) . ' (hacia ' . count(array_unique($redirects)) . ' landings)',
             '  Eliminadas (activo = 0 -> 410):   ' . count($actions['deactivate']) . ($reasonText !== '' ? " ({$reasonText})" : ''),
             '  Con ids corregidos a 0:           ' . count($actions['fix_ids']),
+            '  Conservadas por visitas de Google: ' . count($actions['visited']) . ' (se habrían redirigido o eliminado)',
             '  Generadas (modelo + año):         ' . ($actions['generated']['kept'] + count($actions['generated']['redirect'])) . ' (' . count($actions['generated']['redirect']) . ' bajan a 301 por pocos avisos)',
             "  Ya tenían redirect:               {$alreadyRedirected} (" . count($actions['rewrite']) . ' reapuntadas a su landing autos-x-usados)',
         ]);
@@ -481,6 +529,7 @@ class CleanLandings extends Command
         fputcsv($handle, ['id', 'slug', 'titulo', 'accion', 'destino', 'motivo']);
 
         $fixIds = array_flip($actions['fix_ids']);
+        $visited = array_flip($actions['visited']);
         foreach ($this->manticore->iterateCarLandings($country) as $row) {
             $id = (int) $row['id'];
             if (isset($this->generated[$id])) {
@@ -497,6 +546,8 @@ class CleanLandings extends Command
                 $result = ['redirigir', $actions['redirect'][$id], $landing[self::JUNK] ?? ''];
             } elseif (isset($actions['deactivate'][$id])) {
                 $result = ['eliminar', '', $actions['deactivate'][$id]];
+            } elseif (isset($visited[$id])) {
+                $result = ['mantener', '', 'visitada_google'];
             } elseif (isset($fixIds[$id])) {
                 $result = ['mantener', '', 'ids corregidos'];
             } else {

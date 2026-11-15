@@ -21,12 +21,22 @@ class LandingVocabulary
     /** @var array<string, string[]> model token => make slugs that have a model with it */
     private array $modelOwners = [];
 
+    /** @var array<string, string[]> make name as words ("mercedes benz") => make slugs */
+    private array $makePhrases = [];
+
+    /**
+     * @param array<string, string[]> $modelPhrases model name as words ("grand vitara") => make slugs
+     * @param array<string, true> $placePhrases city or state name as words ("vina del mar")
+     */
     public function __construct(
         private array $makes,
         private array $modelsByMake,
         private array $placeTokens,
+        private array $modelPhrases = [],
+        private array $placePhrases = [],
     ) {
         foreach ($makes as $slug => $tokens) {
+            $this->makePhrases[implode(' ', $tokens)][] = $slug;
             foreach ($tokens as $token) {
                 $this->makesByToken[$token][] = $slug;
             }
@@ -52,11 +62,16 @@ class LandingVocabulary
         uksort($makes, fn ($a, $b) => strlen($b) <=> strlen($a));
 
         $modelsByMake = [];
+        $modelPhrases = [];
         foreach ($sources['models'] as $modelSlug) {
             foreach ($makes as $makeSlug => $makeTokens) {
                 if (str_starts_with($modelSlug, $makeSlug . '-')) {
                     foreach (array_diff(LandingClassifier::slugTokens($modelSlug), $makeTokens) as $token) {
                         $modelsByMake[$makeSlug][$token] = true;
+                    }
+                    $phrase = implode(' ', LandingClassifier::slugTokens(substr($modelSlug, strlen($makeSlug) + 1)));
+                    if ($phrase !== '') {
+                        $modelPhrases[$phrase][$makeSlug] = $makeSlug;
                     }
                     break;
                 }
@@ -65,7 +80,9 @@ class LandingVocabulary
 
         $places = array_merge($sources['places'], config('countries.autos_home.locations.' . strtoupper($countryCode), []));
         $placeTokens = [];
+        $placePhrases = [];
         foreach ($places as $place) {
+            $placePhrases[implode(' ', LandingClassifier::words($place))] = true;
             foreach (LandingClassifier::words($place) as $token) {
                 // Generic words ("del" in "Viña del Mar") never mark a title as being about a place.
                 if (!in_array($token, LandingClassifier::GENERIC_WORDS, true)) {
@@ -74,7 +91,24 @@ class LandingVocabulary
             }
         }
 
-        return new self($makes, $modelsByMake, $placeTokens);
+        return new self($makes, $modelsByMake, $placeTokens, array_map('array_values', $modelPhrases), $placePhrases);
+    }
+
+    /** @return string[] slugs of the makes named exactly by these words */
+    public function makesNamed(string $phrase): array
+    {
+        return $this->makePhrases[$phrase] ?? [];
+    }
+
+    /** @return string[] slugs of the makes with a model named exactly by these words */
+    public function modelMakes(string $phrase): array
+    {
+        return $this->modelPhrases[$phrase] ?? [];
+    }
+
+    public function isPlace(string $phrase): bool
+    {
+        return isset($this->placePhrases[$phrase]);
     }
 
     /**
