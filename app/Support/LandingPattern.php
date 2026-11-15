@@ -49,6 +49,23 @@ class LandingPattern
 
     const LITERALS = ['venta', 'de', 'en', 'compra', 'y', 'remates'];
 
+    /**
+     * Words of ad labels and sale talk ("Marca", "Recorrido", "Condición del ítem", "vendo o
+     * permuto", "chocado"): never part of a model's version. Any other word after a model is
+     * ("Luv 4x2 Cabina Doble", "Grand Cherokee Limited", "Accent RB GL 1.6").
+     */
+    const NOT_VERSION = [
+        'marca', 'modelo', 'modelos', 'version', 'ano', 'tipo', 'motor', 'kilometros', 'kilometraje', 'km', 'kms',
+        'recorrido', 'puertas', 'condicion', 'del', 'item', 'combustible', 'transmision', 'color', 'precio', 'vendo',
+        'vende', 'permuto', 'cambio', 'oferta', 'negociable', 'negociables', 'unico', 'dueno', 'desarme', 'chocado',
+        'chocada', 'repuestos', 'otros', 'otras', 'otro', 'otra', 'sistema', 'carroceria', 'cilindrada', 'traccion',
+        'si', 'no', 'estado', 'excelente', 'urge', 'financiamiento', 'credito', 'ocasion', 'fotos', 'valor', 'cel',
+        'llamar', 'whatsapp', 'con', 'sin', 'para', 'por', 'o', 'la', 'el', 'los', 'las', 'muy', 'buen', 'buena',
+    ];
+
+    /** Words a model's version can have at most. */
+    private const MAX_VERSION_WORDS = 5;
+
     /** Longest name, in words, tried for each kind of piece. */
     private const MAX_WORDS = 6;
 
@@ -64,6 +81,8 @@ class LandingPattern
 
     private array $conditions;
 
+    private array $notVersion;
+
     public function __construct(private LandingVocabulary $vocabulary, private string $country)
     {
         foreach (array_merge(self::PATTERNS, self::VARIANTS) as $shape) {
@@ -76,6 +95,7 @@ class LandingPattern
         $this->types = array_fill_keys(self::TYPES, true);
         $this->colors = array_fill_keys(self::COLORS, true);
         $this->conditions = array_fill_keys(array_keys(LandingClassifier::CONDITION_WORDS), true);
+        $this->notVersion = array_fill_keys(array_merge(self::NOT_VERSION, self::LITERALS), true);
     }
 
     /**
@@ -85,7 +105,7 @@ class LandingPattern
     {
         $words = LandingClassifier::words($title);
 
-        return $words === [] ? null : $this->walk($words, 0, '', null, null);
+        return $words === [] ? null : $this->walk($words, 0, '', null, null, 0);
     }
 
     /**
@@ -93,8 +113,9 @@ class LandingPattern
      *
      * @param ?string[] $makes makes the title names so far (a model must belong to one of them)
      * @param ?string $last the last piece read
+     * @param int $versionWords version words read since the last model
      */
-    private function walk(array $words, int $i, string $shape, ?array $makes, ?string $last): ?string
+    private function walk(array $words, int $i, string $shape, ?array $makes, ?string $last, int $versionWords): ?string
     {
         if ($i === count($words)) {
             return isset($this->shapes[$shape]) ? $shape : null;
@@ -115,20 +136,21 @@ class LandingPattern
             }
 
             // The make said twice ("Mazda Mazda 3"), a city followed by its state ("Xochimilco Distrito
-            // Federal"), or a short version after the model ("Serie 3", "Rav 4", "Clase C") adds
-            // nothing to the shape.
-            $repeated = ($piece === '<marca>' && $last === '<marca>' && $makes !== null && $nextMakes !== [])
-                || ($piece === '<ciudad>' && $last === '<ciudad>')
-                || ($piece === '<version>' && $last === '<modelo>');
-            if ($piece === '<version>' && !$repeated) {
+            // Federal"), two colors ("gris grafito") or the version after the model ("Serie 3",
+            // "Grand Cherokee Limited") add nothing to the shape.
+            $isVersion = $piece === '<version>';
+            if ($isVersion && ($last !== '<modelo>' || $versionWords >= self::MAX_VERSION_WORDS)) {
                 continue;
             }
+            $repeated = $isVersion
+                || ($piece === '<marca>' && $last === '<marca>' && $makes !== null && $nextMakes !== [])
+                || (($piece === '<ciudad>' || $piece === '<color>') && $last === $piece);
 
             $next = $repeated ? $shape : ltrim($shape . ' ' . $piece);
             if (!isset($this->prefixes[$next])) {
                 continue;
             }
-            $found = $this->walk($words, $end, $next, $nextMakes, $repeated ? $last : $piece);
+            $found = $this->walk($words, $end, $next, $nextMakes, $repeated ? $last : $piece, $isVersion ? $versionWords + 1 : 0);
             if ($found !== null) {
                 return $found;
             }
@@ -175,8 +197,8 @@ class LandingPattern
             }
         }
 
-        // Version after a model: a number or a short code ("1500", "1.6", "gt", "4x4"), not a year.
-        if (preg_match('/^(\d+[a-z]*|[a-z]{1,3}\d*)$/', $word) && !preg_match('/^(19|20)\d{2}$/', $word)) {
+        // Version after a model: any word but ad labels, and not a year, which is its own piece.
+        if (!isset($this->notVersion[$word]) && !preg_match('/^(19|20)\d{2}$/', $word)) {
             yield ['<version>', $i + 1, null];
         }
     }

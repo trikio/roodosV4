@@ -45,6 +45,8 @@ class LandingPatternTest extends TestCase
         $this->assertSame('venta <tipo> <condicion> <marca> <modelo> <ciudad>', $pattern->shape('venta Autos usados Mazda Mazda 3 Santiago'));
         $this->assertSame('<marca> <modelo> <ano>', $pattern->shape('BMW Serie 3 320i 2003'));
         $this->assertSame('<marca> <modelo>', $pattern->shape('Mercedes-Benz Clase C'));
+        $this->assertSame('venta <tipo> <condicion> <marca> <modelo> <ciudad>', $pattern->shape('venta Camionetas usadas Suzuki Grand Vitara 4X2 Cabina Doble Santiago'));
+        $this->assertSame('<marca> <modelo> <color>', $pattern->shape('Hyundai Sonata RB GL 1.6 gris grafito'));
         $this->assertSame('<tipo> <ano> <condicion> <ciudad>', $pattern->shape('Autos 2005 usados Santiago'));
         $this->assertSame('<tipo> <modelo> <condicion> <ciudad>', $pattern->shape('Autos Megane usados Puente Alto Santiago'));
     }
@@ -56,6 +58,8 @@ class LandingPatternTest extends TestCase
         $this->assertNull($pattern->shape('Marca 185000 Recorrido Renault'));
         $this->assertNull($pattern->shape('Haice Diesel del Tipo vehículo'));
         $this->assertNull($pattern->shape('precio espejo kia'));
+        $this->assertNull($pattern->shape('Renault Megane chocado'));
+        $this->assertNull($pattern->shape('Kia Cerato Marca 185000 Recorrido'));
         // A model of another make.
         $this->assertNull($pattern->shape('Peugeot Bravo 2012'));
         // Another country's name.
@@ -64,5 +68,11 @@ class LandingPatternTest extends TestCase
         // A year is never a version: "Megane 2011 2.2" is not "<modelo>".
         $this->assertNull($pattern->shape('megane 2011 2.2'));
         $this->assertNull($pattern->shape(''));
+    }
+
+    public function test_cities_without_ads_come_from_the_country_list(): void
+    {
+        // Ñuñoa has no ads in the mocked index, but it is in resources/landings/places/cl.txt.
+        $this->assertSame('<tipo> <condicion> <ciudad>', $this->pattern()->shape('Autos usados Ñuñoa'));
     }
 }

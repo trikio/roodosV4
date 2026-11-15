@@ -91,6 +91,18 @@ class LandingVocabulary
             }
         }
 
+        // Ads rarely carry their city, so the shapes also read every city and state of the country
+        // (resources/landings/places, from the cities and states tables). Only as whole names: their
+        // single words would make "san" or "la" a place everywhere else.
+        $placesFile = resource_path('landings/places/' . strtolower($countryCode) . '.txt');
+        if (is_file($placesFile)) {
+            foreach (file($placesFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $place) {
+                if (($words = LandingClassifier::words($place)) !== []) {
+                    $placePhrases[implode(' ', $words)] = true;
+                }
+            }
+        }
+
         return new self($makes, $modelsByMake, $placeTokens, array_map('array_values', $modelPhrases), $placePhrases);
     }
 
