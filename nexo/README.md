@@ -69,7 +69,7 @@ Los domingos a la 1:00, `bin/nexo landings` hace el ciclo de las landings de aut
 
 1. Reindexa el Manticore de nexo (`car_make`, `car_model`, `car_{país}`, `car_landings_{país}`).
 2. `php artisan landings:candidates {país} --sql`: crea, o reactiva si el slug ya existía, una landing por cada modelo y año con 8 avisos o más que todavía no tiene la suya (`/kia-sportage-2024`). Guardan en `content` sus filtros y su fecha de creación, y la web lista exactamente ese modelo y año.
-3. `php artisan landings:clean {país}`: deja solo las búsquedas reales con 5 avisos o más; el resto va con 301 a su padre o con 410. Las creadas en el paso 2 tienen 4 semanas de gracia y después, con menos de 5 avisos, van con 301 a su modelo.
+3. `php artisan landings:clean {país}`: deja solo las landings cuyo título tiene uno de los patrones del generador original (`App\Support\LandingPattern`) y que tienen al menos 1 aviso; el resto va con 301 a su padre o con 410. Las landings con visitas desde Google (`resources/landings/google`, armadas con `php artisan landings:import-visits`) no se tocan. Las creadas en el paso 2 tienen 4 semanas de gracia y después, sin avisos, van con 301 a su modelo.
 4. Manda el resumen por Telegram. Producción toma los cambios en su reindexación de las 3:00 y en los sitemaps de las 3:30.
 
 Deja SQL, CSV y JSON de cada paso en `logs/landings/`. Crear y bajar landings son permisos separados:

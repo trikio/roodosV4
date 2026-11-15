@@ -79,7 +79,7 @@ class CleanLandingsCommandTest extends TestCase
             $this->row(13, 'doble-traccion-si-inmovilizador', 'Doble tracción Sí Inmovilizador'),
             $this->row(14, 'autos-lima', 'Autos Lima', ['make' => 'audi'], 10),
         ], [
-            'honda' => 50, 'chevrolet' => 30, 'civic honda' => 20, 'civic honda lima' => 2, 'lima' => 12,
+            'honda' => 50, 'chevrolet' => 30, 'civic honda' => 20, 'civic honda lima' => 0, 'lima' => 12,
         ]);
 
         $this->assertStringContainsString('CREATE TABLE car_landings_backup_pe_', $sql);
@@ -180,7 +180,7 @@ class CleanLandingsCommandTest extends TestCase
         // The landing in its grace period is not counted at all.
         $manticore->shouldReceive('countCars')->twice()
             ->withArgs(fn ($index, $options) => $index === 'car_pe' && $options['model'] === 500 && $options['min_year'] === $options['max_year'])
-            ->andReturnUsing(fn ($index, $options) => $options['min_year'] === 2019 ? 2 : 9);
+            ->andReturnUsing(fn ($index, $options) => $options['min_year'] === 2019 ? 0 : 9);
         $this->app->instance(ManticoreSearchService::class, $manticore);
 
         $this->artisan('landings:clean', ['country' => 'pe', '--output' => $this->tmp, '--no-sitemaps' => true, '--visits' => $this->tmp . '/sin-visitas.txt'])->assertSuccessful();

@@ -19,7 +19,7 @@ class CleanLandings extends Command
 {
     protected $signature = 'landings:clean
                             {country : Código de país (pe, cl, ec, mx, lab) o "all" para todos menos lab}
-                            {--min-ads=5 : Avisos mínimos para que una landing se quede}
+                            {--min-ads=1 : Avisos mínimos para que una landing se quede}
                             {--grace-days=28 : Días en que una landing creada por landings:candidates no se toca}
                             {--visits= : Lista de slugs con visitas desde Google que no se tocan (por defecto resources/landings/google/{país}.txt)}
                             {--no-sitemaps : No escribir los sitemaps de URLs eliminadas (en nexo: los sirve el servidor web)}
