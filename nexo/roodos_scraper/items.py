@@ -20,6 +20,10 @@ class ListingItem(scrapy.Item):
     # geo ids (resolved by your own mapping)
     id_state = scrapy.Field()
     id_city = scrapy.Field()
+    # Texto de ubicación del aviso ("La Molina, Lima"); el pipeline lo resuelve a id_state/id_city.
+    location = scrapy.Field()
+    # Versión del auto ("2.0 XEI CVT"); si falta, el pipeline la saca del título.
+    version = scrapy.Field()
 
     # car-specific
     id_car_make = scrapy.Field()

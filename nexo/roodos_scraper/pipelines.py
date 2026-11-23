@@ -11,6 +11,8 @@ import requests
 from dotenv import load_dotenv
 from PIL import Image, ImageOps
 
+from roodos_scraper.normalize import Normalizer
+
 
 class MySQLRoodosPipeline:
     def open_spider(self, spider):
@@ -33,6 +35,10 @@ class MySQLRoodosPipeline:
         self.model_by_make_and_norm = {}
         self.model_names_by_make = {}
         self._load_catalogs()
+        self.normalizer = Normalizer(self.cur)
+        self.cur.execute("SELECT COUNT(*) n FROM information_schema.columns WHERE table_schema=DATABASE() "
+                         "AND table_name='cars' AND column_name='version'")
+        self.has_version = bool(self.cur.fetchone()["n"])
 
         self.cdn_base = (os.getenv("CF_CDN_PUBLIC_BASE_URL") or "").rstrip("/")
         self.r2_bucket = os.getenv("CF_R2_BUCKET")
@@ -224,6 +230,16 @@ class MySQLRoodosPipeline:
                 return item
 
             resolved_make_id, resolved_model_id = self._resolve_make_model_ids(d)
+            # Lo que el spider no entrega como ID se saca del texto (ver normalize.py).
+            found = self.normalizer.extract((d.get("country") or "EC")[:3], d.get("title"), d.get("details"),
+                                            location=d.get("location"), make_id=resolved_make_id,
+                                            model_id=resolved_model_id)
+            for key in ("id_state", "id_city", "id_fuel", "id_body", "id_transmission"):
+                if not self._to_int(d.get(key)) and found[key]:
+                    d[key] = found[key]
+            d["version"] = (d.get("version") or found["version"] or None)
+            if d["version"]:
+                d["version"] = self._utf8mb3_safe(str(d["version"]))[:100]
 
             now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
             url = d.get("url")
@@ -264,15 +280,15 @@ class MySQLRoodosPipeline:
                 image_big=VALUES(image_big),
                 id_car_make=VALUES(id_car_make),
                 id_car_model=VALUES(id_car_model),
-                id_state=VALUES(id_state),
-                id_city=VALUES(id_city),
+                id_state=COALESCE(VALUES(id_state), id_state),
+                id_city=COALESCE(VALUES(id_city), id_city),
                 details=VALUES(details),
                 price=VALUES(price),
                 year=VALUES(year),
                 km=VALUES(km),
-                id_fuel=VALUES(id_fuel),
-                id_body=VALUES(id_body),
-                id_transmission=VALUES(id_transmission),
+                id_fuel=COALESCE(VALUES(id_fuel), id_fuel),
+                id_body=COALESCE(VALUES(id_body), id_body),
+                id_transmission=COALESCE(VALUES(id_transmission), id_transmission),
                 updated=VALUES(updated),
                 nexo_id=VALUES(nexo_id),
                 status=1
@@ -342,6 +358,9 @@ class MySQLRoodosPipeline:
                 source_label[:50],
             )
             self.cur.execute(sql, params)
+            if self.has_version and d.get("version"):
+                self.cur.execute("UPDATE cars SET version=%s WHERE id_country=%s AND url=%s",
+                                 (d["version"], country_code, url[:250]))
             self.conn.commit()
 
             if exists:
