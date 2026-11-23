@@ -247,6 +247,8 @@ class MySQLRoodosPipeline:
                 return item
 
             country_code = (d.get("country") or "EC")[:3]
+            if country_code.upper() in ("CL", "MX", "PE", "EC"):
+                country_code = country_code.upper()  # hubo avisos guardados como "ec" en minúsculas
             self.cur.execute(
                 "SELECT id, image, image_big FROM cars WHERE id_country=%s AND url=%s LIMIT 1", (country_code, url)
             )

@@ -49,7 +49,6 @@ run_python() {
   run_scrapy autos_tuauto_pe
   run_scrapy autos_autosell_pe
   run_scrapy autocosmos_peru
-  run_python sync_peru_auto_sitemap_status_autocosmos scripts/sync_peru_auto_sitemap_status.py --source Autocosmos
   run_scrapy autos_wigo_pe
   run_python sync_peru_auto_sitemap_status_wigo scripts/sync_peru_auto_sitemap_status.py --source Wigo
   run_scrapy autos_leonford_pe

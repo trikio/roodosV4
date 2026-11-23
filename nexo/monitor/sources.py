@@ -97,8 +97,10 @@ SOURCES = [
     spider("autos_carros_mexico", "mx", "Carros.com", ["www.carros.com"], "35 4 * * 6", enabled=False),
     # Perú
     spider("autos_peruautos_pe", "pe", "Peruautos", ["www.peruautos.pe"], "0 4 * * 3"),
-    spider("autocosmos_peru", "pe", "Autocosmos PE", ["www.autocosmos.com.pe"], "0 6 * * 3",
-           after=peru_sitemap_sync("Autocosmos")),
+    # Listado de usados (/auto/usado), completo y con Crawl-delay: 20. El spider anterior leía el
+    # catálogo de autos nuevos (/catalogo/) y guardaba el menú de la página (23-11-2026).
+    spider("autocosmos_peru", "pe", "Autocosmos PE", ["www.autocosmos.com.pe"], "0 6 * * 3", timeout_hours=3,
+           full_crawl=True),
     # MercadoLibre pide iniciar sesión a esta IP y a los proxies (12-11-2026).
     spider("mercadolibre_peru", "pe", "MercadoLibre PE", ["auto.mercadolibre.com.pe"], "0 5 * * 3",
            enabled=False),

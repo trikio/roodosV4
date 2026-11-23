@@ -26,12 +26,6 @@ class SourceConfig:
 
 
 SOURCES = {
-    "Autocosmos": SourceConfig(
-        label="Autocosmos",
-        sitemap_urls=("https://www.autocosmos.com.pe/sitemap.xml",),
-        detail_re=re.compile(r"^/catalogo/\d{4}/[^/]+/[^/]+/.+/\d+$", re.I),
-        min_active_urls=100,
-    ),
     "Koopa": SourceConfig(
         label="Koopa",
         sitemap_urls=("https://koopa.pe/product-sitemap.xml",),
