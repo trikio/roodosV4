@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Chequeo de salud de Roodos (cron cada 15 minutos). Avisa por ntfy cuando algo falla, cuando
-# se recupera, y cada REMIND_AFTER segundos mientras siga fallando.
+# Chequeo de salud de Roodos (cron cada 15 minutos). Avisa por Telegram y/o ntfy cuando algo falla,
+# cuando se recupera, y cada REMIND_AFTER segundos mientras siga fallando. Corre en el servidor web,
+# así que avisa aunque nexo (la máquina de la casa, que manda sus propias alertas) esté caído.
 #
-# Configuración en /etc/roodos-healthcheck.env (fuera del repo, el tema de ntfy es privado):
-#   NTFY_TOPIC=roodos-...        tema de ntfy.sh al que se suscribe la app del celular
+# Configuración en /etc/roodos-healthcheck.env (fuera del repo, las claves son privadas):
+#   TELEGRAM_BOT_TOKEN=...       el mismo bot y canal que usa nexo (están en nexo/.env)
+#   TELEGRAM_CHAT_ID=...
+#   NTFY_TOPIC=roodos-...        opcional: tema de ntfy.sh al que se suscribe la app del celular
 #   COUNTRIES="pe cl ec mx"      opcional
 #   MAX_INDEX_AGE=10800          opcional: segundos sin reindexar antes de alertar
 
@@ -15,6 +18,8 @@ REMIND_AFTER=21600
 
 [ -f "$CONFIG" ] && . "$CONFIG"
 NTFY_TOPIC=${NTFY_TOPIC:-}
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
 NTFY_SERVER=${NTFY_SERVER:-https://ntfy.sh}
 COUNTRIES=${COUNTRIES:-"pe cl ec mx"}
 MAX_INDEX_AGE=${MAX_INDEX_AGE:-10800}
@@ -29,7 +34,12 @@ port_open() {
 
 port_open 127.0.0.1 9306 || failures+=("Manticore no responde en 127.0.0.1:9306: las búsquedas de autos dan 500")
 # The roodos database lives on another machine, which opens a reverse SSH tunnel to this port.
-port_open 127.0.0.1 3307 || failures+=("Túnel MySQL caído (127.0.0.1:3307): la reindexación horaria falla y los avisos se congelan")
+# Que el puerto esté abierto no basta: sshd puede mantenerlo escuchando con la sesión muerta (nexo sin
+# red). MySQL manda su saludo apenas se conecta uno, así que se exige recibirlo.
+mysql_greets() {
+    timeout 8 bash -c "exec 3<>/dev/tcp/$1/$2 && head -c 5 <&3 | wc -c" 2>/dev/null | tr -d ' ' | grep -q '^5$'
+}
+mysql_greets 127.0.0.1 3307 || failures+=("Nexo no responde por el túnel MySQL (127.0.0.1:3307): ¿se cayó el wifi de la casa? La reindexación horaria falla y los avisos se congelan")
 
 for country in $COUNTRIES; do
     index_file=/var/lib/manticore/car_${country}.spa
@@ -49,10 +59,16 @@ done
 notify() {
     local title=$1 priority=$2 tags=$3 body=$4
     echo "$(date '+%F %T') ${title}: ${body//$'\n'/ | }"
-    [ -n "$NTFY_TOPIC" ] || return 0
-    curl -s -m 15 -o /dev/null \
-        -H "Title: ${title}" -H "Priority: ${priority}" -H "Tags: ${tags}" \
-        --data-binary "$body" "${NTFY_SERVER}/${NTFY_TOPIC}"
+    if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+        curl -s -m 15 -o /dev/null "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${title}"$'\n'"${body}"
+    fi
+    if [ -n "$NTFY_TOPIC" ]; then
+        curl -s -m 15 -o /dev/null \
+            -H "Title: ${title}" -H "Priority: ${priority}" -H "Tags: ${tags}" \
+            --data-binary "$body" "${NTFY_SERVER}/${NTFY_TOPIC}"
+    fi
 }
 
 current=$(printf '%s\n' "${failures[@]+"${failures[@]}"}" | sed '/^$/d' | sort)
