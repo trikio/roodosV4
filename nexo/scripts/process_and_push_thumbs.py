@@ -149,7 +149,7 @@ def process(limit=500, country="EC", dry_run=False, only_absolute=False):
             thumb = center_crop_150(raw)
 
             now = datetime.utcnow()
-            key = f"autos/ec/{now:%Y}/{now:%m}/{now:%d}/{cid}_thumb_150.jpg"
+            key = f"autos/{country.lower()}/{now:%Y}/{now:%m}/{now:%d}/{cid}_thumb_150.jpg"
             final_url = f"{cdn_base.rstrip('/')}/{key}"
 
             if not dry_run:
