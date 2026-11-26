@@ -51,4 +51,56 @@ class LandingCandidatesCommandTest extends TestCase
         $summary = json_decode(file_get_contents(glob($output . '/landings_candidates_ec_*.json')[0]), true);
         $this->assertSame([1, 3, ['Toyota Yaris 2024 usados']], [$summary['create'], $summary['candidates'], $summary['titles']]);
     }
+
+    public function test_transmission_and_region_candidates_skip_what_does_not_narrow_the_model(): void
+    {
+        $output = sys_get_temp_dir() . '/landings-candidates-kinds-test';
+        array_map('unlink', glob($output . '/*') ?: []);
+
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('carCountsByModel')->with('car_cl')->andReturn([2000 => 100, 1842 => 50]);
+        $manticore->shouldReceive('carCountsByModelAnd')->with('car_cl', 'id_transmission', 8)->andReturn([
+            ['id_car_model' => '2000', 'value' => '2', 'name' => 'Automático', 'total' => '60'],
+            ['id_car_model' => '2000', 'value' => '1', 'name' => 'Manual', 'total' => '30'],
+            // 48 of the 50 Hilux: the same page as the model.
+            ['id_car_model' => '1842', 'value' => '1', 'name' => 'Manual', 'total' => '48'],
+        ]);
+        $manticore->shouldReceive('carCountsByModelAnd')->with('car_cl', 'id_state', 8)->andReturn([
+            ['id_car_model' => '1842', 'value' => '11', 'name' => 'Región Metropolitana', 'total' => '20'],
+            ['id_car_model' => '1842', 'value' => '6', 'name' => 'Región del Biobío', 'total' => '9'],
+        ]);
+        $manticore->shouldReceive('carModelsByIds')->andReturn([
+            ['id' => '2000', 'slug' => 'toyota-corolla', 'model_name' => 'Corolla', 'id_car_make' => '176'],
+            ['id' => '1842', 'slug' => 'toyota-hilux', 'model_name' => 'Hilux', 'id_car_make' => '176'],
+        ]);
+        $manticore->shouldReceive('getCarMakeById')->with(176)->andReturn(['id' => 176, 'name' => 'Toyota', 'slug' => 'toyota']);
+        $manticore->shouldReceive('iterateCarLandings')->with('cl')->andReturnUsing(fn () => (function () {
+            // A legacy landing of the same search: no new one.
+            yield ['slug' => 'chevrolet-corolla-manual', 'title' => 'Toyota Corolla manual', 'redirect' => ''];
+            yield ['slug' => 'venta-autos-usados-toyota-hilux-biobio', 'title' => 'venta Autos usados Toyota Hilux Biobío', 'redirect' => ''];
+        })());
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+
+        $this->artisan('landings:candidates', ['country' => 'cl', '--kind' => 'transmision', '--output' => $output, '--sql' => true])->assertSuccessful();
+        $this->artisan('landings:candidates', ['country' => 'cl', '--kind' => 'region', '--output' => $output, '--sql' => true])->assertSuccessful();
+
+        $csv = fn ($kind) => array_map(fn ($row) => [$row[2], $row[4], $row[5], $row[6]], array_slice(array_map('str_getcsv', file(glob($output . "/landings_candidates_cl_{$kind}_*.csv")[0], FILE_IGNORE_NEW_LINES)), 1));
+        $this->assertSame([
+            ['Automático', 'toyota-corolla-automatico-usados', 'Toyota Corolla automático usados', 'nueva'],
+            ['Manual', 'toyota-hilux-manual-usados', 'Toyota Hilux manual usados', 'no_acota'],
+            ['Manual', 'toyota-corolla-manual-usados', 'Toyota Corolla manual usados', 'existe'],
+        ], $csv('transmision'));
+        $this->assertSame([
+            ['Región Metropolitana', 'toyota-hilux-usados-en-santiago', 'Toyota Hilux usados en Santiago', 'nueva'],
+            ['Región del Biobío', 'toyota-hilux-usados-en-biobio', 'Toyota Hilux usados en Biobío', 'existe'],
+        ], $csv('region'));
+
+        $sql = file_get_contents(glob($output . '/landings_candidates_cl_region_*.sql')[0]);
+        $this->assertStringContainsString("'Toyota Hilux usados en Santiago, Chile'", $sql);
+        $this->assertStringContainsString('"generated":{"make":176,"model":1842,"state":11,"created":"' . date('Y-m-d') . '"}', $sql);
+        $this->assertStringContainsString(', 176, 1842, 11, 0, \'\', 1)', $sql);
+        $sql = file_get_contents(glob($output . '/landings_candidates_cl_transmision_*.sql')[0]);
+        $this->assertSame(1, substr_count($sql, 'INSERT INTO car_landings'));
+        $this->assertStringContainsString('"generated":{"make":176,"model":2000,"transmission":2,', $sql);
+    }
 }

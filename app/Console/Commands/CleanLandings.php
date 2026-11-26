@@ -390,12 +390,7 @@ class CleanLandings extends Command
         foreach ($this->generated as $id => $landing) {
             $generated = $landing['generated'];
             $inGrace = $generated['created'] !== '' && $generated['created'] > $graceStart;
-            $ads = $inGrace ? $minAds : $this->manticore->countCars('car_' . $country, [
-                'make' => $generated['make'] ?: '',
-                'model' => $generated['model'],
-                'min_year' => $generated['year'],
-                'max_year' => $generated['year'],
-            ]);
+            $ads = $inGrace ? $minAds : $this->manticore->countCars('car_' . $country, LandingClassifier::generatedFilters($generated));
 
             if ($ads >= $minAds || $landing['model_slug'] === '') {
                 $result['kept']++;

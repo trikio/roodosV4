@@ -194,11 +194,11 @@ class CarsController extends Controller
         $widened = false;
         $resultsQuery = $searchQuery;
 
-        // Landings created from the inventory list exactly their model and year, not every car
-        // that shares a word with the title.
+        // Landings created from the inventory list exactly their model and year (or transmission,
+        // fuel, region), not every car that shares a word with the title.
         $generated = LandingClassifier::generated($landing['content'] ?? null);
         if ($generated !== null) {
-            $filters = ['make' => $generated['make'] ?: '', 'model' => $generated['model'], 'min_year' => $generated['year'], 'max_year' => $generated['year']];
+            $filters = LandingClassifier::generatedFilters($generated);
             $resultsQuery = '';
         }
 
@@ -491,6 +491,9 @@ class CarsController extends Controller
                     'model' => (string) ($car['model_name'] ?? ''),
                     'city' => (string) ($car['city_name'] ?? ''),
                     'year' => $year,
+                    'transmission' => (string) ($car['transmission_name'] ?? ''),
+                    'fuel' => (string) ($car['fuel_name'] ?? ''),
+                    'state' => (string) ($car['state_name'] ?? ''),
                 ]),
                 'priceStats' => $priceStats,
                 'yearSpan' => $year > 0 ? [$year - 2, $year + 2] : null,

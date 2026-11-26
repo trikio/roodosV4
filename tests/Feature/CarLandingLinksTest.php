@@ -33,4 +33,28 @@ class CarLandingLinksTest extends TestCase
             'chevrolet-cruze-2019', 'chevrolet-cruze-2015', 'chevrolet-cruze-2014', 'chevrolet-cruze-2013',
         ], array_map(fn ($link) => basename($link['url']), $links));
     }
+
+    public function test_car_detail_links_the_landings_of_its_transmission_fuel_and_region(): void
+    {
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('carLandingsByIds')->andReturn([]);
+        $manticore->shouldReceive('similarCarLandings')->with('cl', 'toyota hilux', true, 500)->andReturn([
+            ['id' => 1, 'slug' => 'toyota-hilux-manual-usados', 'title' => 'Toyota Hilux manual usados'],
+            ['id' => 2, 'slug' => 'toyota-hilux-automatico-usados', 'title' => 'Toyota Hilux automático usados'],
+            ['id' => 3, 'slug' => 'toyota-hilux-diesel-usados', 'title' => 'Toyota Hilux diésel usados'],
+            ['id' => 4, 'slug' => 'toyota-hilux-usados-en-santiago', 'title' => 'Toyota Hilux usados en Santiago'],
+            ['id' => 5, 'slug' => 'toyota-hilux-usados-en-biobio', 'title' => 'Toyota Hilux usados en Biobío'],
+        ]);
+        $manticore->shouldReceive('similarCarLandings')->andReturn([]);
+
+        $links = (new LandingLinks($manticore))->forCar('cl', [
+            'make_id' => 0, 'model_id' => 0, 'city_id' => 0, 'make' => 'Toyota', 'model' => 'Hilux', 'city' => '',
+            'year' => 2019, 'transmission' => 'Automático', 'fuel' => 'Diesel', 'state' => 'Región Metropolitana',
+        ]);
+
+        $this->assertSame(
+            ['toyota-hilux-automatico-usados', 'toyota-hilux-diesel-usados', 'toyota-hilux-usados-en-santiago'],
+            array_map(fn ($link) => basename($link['url']), $links)
+        );
+    }
 }

@@ -4,19 +4,24 @@ namespace App\Console\Commands;
 
 use App\Services\ManticoreSearchService;
 use App\Support\LandingClassifier;
+use App\Support\LandingNames;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 /**
- * Read-only report of the "make model year" landings the current inventory supports: every model
- * and year with enough ads, its proposed slug and title, and whether a landing for that search
- * already exists. Nothing is created; this sizes the work before writing the landings.
+ * Read-only report of the landings the current inventory supports: every model crossed with a year
+ * (default), a transmission, a fuel or a region that has enough ads, its proposed slug and title,
+ * and whether a landing for that search already exists. Nothing is created; with --sql it writes
+ * the statements that create the new ones, to review before running them.
  */
 class LandingCandidates extends Command
 {
     protected $signature = 'landings:candidates
                             {country : Código de país (pe, cl, ec, mx, lab)}
                             {--min-ads=8 : Avisos mínimos para proponer una landing}
-                            {--min-year=2005 : Año más antiguo}
+                            {--kind=anio : Qué se cruza con el modelo: anio, transmision, combustible o region}
+                            {--min-year=2005 : Año más antiguo (solo --kind=anio)}
+                            {--max-share=0.85 : Fuera de anio, no se propone si cubre más que esta parte de los avisos del modelo}
                             {--output= : Carpeta del CSV (por defecto storage/app/landings)}
                             {--sql : Además, escribir el SQL que crea (o reactiva) las landings nuevas}
                             {--memory=2G : Límite de memoria de PHP}';
@@ -31,6 +36,15 @@ class LandingCandidates extends Command
         'existe' => 'Ya existe una landing de la misma búsqueda',
         'otro_tipo' => 'Existe con otro tipo o condición (camionetas, 4x4, nuevos...)',
         'slug_ocupado' => 'El slug propuesto lo usa otra landing',
+        'no_acota' => 'Casi todos los avisos del modelo: sería la misma página del modelo',
+    ];
+
+    /** --kind => [index attribute, generated key, CSV column]. */
+    private const KINDS = [
+        'anio' => ['year_int', 'year', 'año'],
+        'transmision' => ['id_transmission', 'transmission', 'transmisión'],
+        'combustible' => ['id_fuel', 'fuel', 'combustible'],
+        'region' => ['id_state', 'state', 'región'],
     ];
 
     public function handle(ManticoreSearchService $manticore): int
@@ -44,44 +58,65 @@ class LandingCandidates extends Command
         ini_set('memory_limit', (string) $this->option('memory'));
         $minAds = max(1, (int) $this->option('min-ads'));
         $minYear = (int) $this->option('min-year');
+        $kind = (string) $this->option('kind');
+        if (!isset(self::KINDS[$kind])) {
+            $this->error('--kind debe ser ' . implode(', ', array_keys(self::KINDS)));
 
-        $this->info("[{$country}] Contando avisos por modelo y año...");
-        $groups = $manticore->carCountsByModelAndYear('car_' . $country, $minYear, $minAds);
+            return self::FAILURE;
+        }
+        [$attribute, $generatedKey] = self::KINDS[$kind];
+        $maxShare = (float) $this->option('max-share');
+
+        $this->info("[{$country}] Contando avisos por modelo y {$kind}...");
+        if ($kind === 'anio') {
+            $groups = array_map(fn ($group) => $group + ['value' => $group['year_int'], 'name' => $group['year_int']],
+                $manticore->carCountsByModelAndYear('car_' . $country, $minYear, $minAds));
+            $modelTotals = [];
+        } else {
+            $groups = $manticore->carCountsByModelAnd('car_' . $country, $attribute, $minAds);
+            $modelTotals = $manticore->carCountsByModel('car_' . $country);
+        }
         $names = $this->modelNames($manticore, array_unique(array_column($groups, 'id_car_model')));
 
         $this->info("[{$country}] Leyendo landings activas...");
-        [$byKey, $byTerms, $bySlug] = $this->existingLandings($manticore, $country);
+        [$byKey, $byTerms, $bySlug] = $this->existingLandings($manticore, $country, $kind === 'anio');
 
         $rows = [];
         $new = [];
         foreach ($groups as $group) {
-            $model = $names[(int) $group['id_car_model']] ?? null;
-            if ($model === null) {
+            $modelId = (int) $group['id_car_model'];
+            $model = $names[$modelId] ?? null;
+            $words = $this->words($kind, (string) $group['name']);
+            if ($model === null || $words === null) {
                 continue;
             }
 
-            $year = (int) $group['year_int'];
-            $title = $model['name'] . ' ' . $year . ' usados';
-            $slug = $model['slug'] . '-' . $year; // The legacy pattern of these landings: "kia-sportage-2020".
+            [$title, $slug] = $this->titleAndSlug($kind, $model, $words);
             $key = LandingClassifier::groupKey($title);
             $terms = $this->termsKey($title);
+            $total = (int) $group['total'];
 
             [$status, $existing] = match (true) {
                 isset($byKey[$key]) => ['existe', $byKey[$key]],
                 isset($byTerms[$terms]) => ['otro_tipo', $byTerms[$terms]],
                 isset($bySlug[$slug]) => ['slug_ocupado', $slug],
+                $modelTotals !== [] && $total > $maxShare * ($modelTotals[$modelId] ?? $total) => ['no_acota', ''],
                 default => ['nueva', ''],
             };
 
-            $rows[] = [$model['make'], $model['model'], $year, (int) $group['total'], $slug, $title, $status, $existing];
+            $rows[] = [$model['make'], $model['model'], (string) $group['name'], $total, $slug, $title, $status, $existing];
             if ($status === 'nueva') {
-                $new[] = ['model' => $model, 'model_id' => (int) $group['id_car_model'], 'year' => $year, 'slug' => $slug, 'title' => $title];
+                $new[] = [
+                    'model' => $model, 'model_id' => $modelId, 'slug' => $slug, 'title' => $title, 'kind' => $kind,
+                    'filters' => [$generatedKey => (int) $group['value']],
+                    'state' => $kind === 'region' ? (int) $group['value'] : 0,
+                ];
             }
         }
 
         usort($rows, fn ($a, $b) => [$b[3], $a[4]] <=> [$a[3], $b[4]]);
-        $path = $this->writeCsv($country, $rows);
-        $this->printSummary($country, $rows, $minAds, $minYear);
+        $path = $this->writeCsv($country, $kind, $rows);
+        $this->printSummary($country, $rows, $minAds, $minYear, $kind);
         $this->info("Detalle: {$path}");
 
         if ($this->option('sql')) {
@@ -141,12 +176,12 @@ class LandingCandidates extends Command
     }
 
     /**
-     * Active landings by group key, by terms alone (any type or condition) and by slug. Only
-     * landings whose title has a year can match a candidate, so the rest are not kept.
+     * Active landings by group key, by terms alone (any type or condition) and by slug. For year
+     * candidates only landings whose title has a year can match, so the rest are not kept.
      *
      * @return array{0: array<string, string>, 1: array<string, string>, 2: array<string, true>}
      */
-    private function existingLandings(ManticoreSearchService $manticore, string $country): array
+    private function existingLandings(ManticoreSearchService $manticore, string $country, bool $yearsOnly): array
     {
         $byKey = [];
         $byTerms = [];
@@ -160,7 +195,7 @@ class LandingCandidates extends Command
             $bySlug[$slug] = true;
 
             $title = (string) $row['title'];
-            if (!preg_match('/\b(19|20)\d{2}\b/', $title) || LandingClassifier::junkReason($title) !== null) {
+            if (($yearsOnly && !preg_match('/\b(19|20)\d{2}\b/', $title)) || LandingClassifier::junkReason($title) !== null) {
                 continue;
             }
             $byKey[LandingClassifier::groupKey($title)] ??= $slug;
@@ -168,6 +203,38 @@ class LandingCandidates extends Command
         }
 
         return [$byKey, $byTerms, $bySlug];
+    }
+
+    /**
+     * The words a landing of this kind adds to the model ("2020", "automático", "diésel",
+     * "Santiago"), or null when the value is not one to make landings of.
+     */
+    private function words(string $kind, string $name): ?string
+    {
+        $words = match ($kind) {
+            'anio' => $name,
+            'transmision' => LandingNames::transmission($name),
+            'combustible' => LandingNames::fuel($name),
+            'region' => LandingNames::place($name),
+        };
+
+        return $words === null || trim($words) === '' ? null : $words;
+    }
+
+    /**
+     * "Toyota Hilux 2020 usados" at /toyota-hilux-2020 (the legacy pattern of these landings),
+     * "Toyota Corolla automático usados" at /toyota-corolla-automatico-usados and "Toyota Hilux
+     * usados en Santiago" at /toyota-hilux-usados-en-santiago.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function titleAndSlug(string $kind, array $model, string $words): array
+    {
+        return match ($kind) {
+            'anio' => ["{$model['name']} {$words} usados", $model['slug'] . '-' . $words],
+            'region' => ["{$model['name']} usados en {$words}", $model['slug'] . '-usados-en-' . Str::slug($words)],
+            default => ["{$model['name']} {$words} usados", $model['slug'] . '-' . Str::slug($words) . '-usados'],
+        };
     }
 
     private function termsKey(string $title): string
@@ -179,7 +246,7 @@ class LandingCandidates extends Command
     }
 
     /**
-     * One landing per new model and year. car_landings is unique by (country_id, slug), so a row
+     * One landing per new model and year (or transmission, fuel, region). car_landings is unique by (country_id, slug), so a row
      * with that slug (removed or redirected earlier) is brought back instead of duplicated. The
      * table is MyISAM, without transactions: each statement stands alone and can be run again.
      * The content carries the filters the page lists and the date landings:clean counts the grace
@@ -198,20 +265,22 @@ class LandingCandidates extends Command
             $model = $landing['model'];
             $content = json_encode([
                 'breadcrumb' => ['make' => $model['make_slug'], 'model' => $model['slug']],
-                'generated' => ['make' => $model['make_id'], 'model' => $landing['model_id'], 'year' => $landing['year'], 'created' => $today],
+                'generated' => ['make' => $model['make_id'], 'model' => $landing['model_id']] + $landing['filters'] + ['created' => $today],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            // "... usados en Santiago en Chile" would read badly.
+            $inCountry = ($landing['kind'] === 'region' ? ', ' : ' en ') . $countryName;
 
             $values = [
                 $q($country),
                 $q($landing['slug']),
                 $q($landing['title']),
                 $q($landing['title']),
-                $q("{$landing['title']} en {$countryName}"),
-                $q("{$landing['title']} en {$countryName}: compara precios, kilometraje y avisos de concesionarios y particulares en Roodos."),
+                $q($landing['title'] . $inCountry),
+                $q($landing['title'] . $inCountry . ": compara precios, kilometraje y avisos de concesionarios y particulares en Roodos."),
                 $q($content),
                 $model['make_id'],
                 $landing['model_id'],
-                0,
+                $landing['state'],
                 0,
                 "''",
                 1,
@@ -223,16 +292,17 @@ class LandingCandidates extends Command
         return implode("\n", $sql) . "\n";
     }
 
-    private function writeCsv(string $country, array $rows): string
+    private function writeCsv(string $country, string $kind, array $rows): string
     {
         $directory = $this->option('output') ?: storage_path('app/landings');
         if (!is_dir($directory)) {
             mkdir($directory, 0755, true);
         }
-        $path = $directory . '/landings_candidates_' . $country . '_' . date('Ymd_His') . '.csv';
+        $suffix = $kind === 'anio' ? '' : $kind . '_';
+        $path = $directory . '/landings_candidates_' . $country . '_' . $suffix . date('Ymd_His') . '.csv';
 
         $handle = fopen($path, 'w');
-        fputcsv($handle, ['marca', 'modelo', 'año', 'avisos', 'slug_propuesto', 'titulo', 'estado', 'landing_existente']);
+        fputcsv($handle, ['marca', 'modelo', self::KINDS[$kind][2], 'avisos', 'slug_propuesto', 'titulo', 'estado', 'landing_existente']);
         foreach ($rows as $row) {
             fputcsv($handle, $row);
         }
@@ -241,10 +311,11 @@ class LandingCandidates extends Command
         return $path;
     }
 
-    private function printSummary(string $country, array $rows, int $minAds, int $minYear): void
+    private function printSummary(string $country, array $rows, int $minAds, int $minYear, string $kind): void
     {
         $this->newLine();
-        $this->line(sprintf('[%s] Modelo + año desde %d con %d avisos o más: %d', $country, $minYear, $minAds, count($rows)));
+        $what = $kind === 'anio' ? 'año desde ' . $minYear : self::KINDS[$kind][2];
+        $this->line(sprintf('[%s] Modelo + %s con %d avisos o más: %d', $country, $what, $minAds, count($rows)));
 
         $counts = array_count_values(array_column($rows, 6));
         $this->table(['Estado', 'Landings', ''], array_map(

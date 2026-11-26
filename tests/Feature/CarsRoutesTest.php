@@ -252,6 +252,38 @@ class CarsRoutesTest extends TestCase
         $this->get('http://autos.roodos.cl/search?q=toyota&page=-3')->assertOk();
     }
 
+    public function test_generated_landing_of_a_transmission_and_region_lists_exactly_those_cars(): void
+    {
+        $manticore = $this->mockManticore();
+        $manticore->shouldReceive('getLandingBySlug')->with('cl', 'toyota-corolla-automatico-usados')->andReturn([
+            'id' => 9, 'slug' => 'toyota-corolla-automatico-usados', 'title' => 'Toyota Corolla automático usados', 'redirect' => '',
+            'meta_description' => '', 'id_car_make' => 176, 'id_car_model' => 2000,
+            'content' => json_encode([
+                'breadcrumb' => ['make' => 'toyota', 'model' => 'toyota-corolla'],
+                'generated' => ['make' => 176, 'model' => 2000, 'transmission' => 2, 'created' => '2026-11-26'],
+            ]),
+        ]);
+        $manticore->shouldReceive('getLandingBySlug')->with('cl', 'toyota-hilux-usados-en-santiago')->andReturn([
+            'id' => 10, 'slug' => 'toyota-hilux-usados-en-santiago', 'title' => 'Toyota Hilux usados en Santiago', 'redirect' => '',
+            'meta_description' => '', 'id_car_make' => 176, 'id_car_model' => 1842,
+            'content' => json_encode([
+                'breadcrumb' => ['make' => 'toyota', 'model' => 'toyota-hilux'],
+                'generated' => ['make' => 176, 'model' => 1842, 'state' => 11, 'created' => '2026-11-26'],
+            ]),
+        ]);
+        $manticore->shouldReceive('carSearch')->once()
+            ->withArgs(fn ($index, $options) => $options['q'] === '' && $options['model'] === 2000
+                && $options['transmission'] === 2 && $options['state'] === '' && $options['min_year'] === '')
+            ->andReturn($this->emptySearchResult(40));
+        $manticore->shouldReceive('carSearch')->once()
+            ->withArgs(fn ($index, $options) => $options['q'] === '' && $options['model'] === 1842
+                && $options['state'] === 11 && $options['transmission'] === '')
+            ->andReturn($this->emptySearchResult(30));
+
+        $this->get('http://autos.roodos.cl/toyota-corolla-automatico-usados')->assertOk();
+        $this->get('http://autos.roodos.cl/toyota-hilux-usados-en-santiago')->assertOk();
+    }
+
     public function test_generated_landing_lists_exactly_its_model_and_year(): void
     {
         $manticore = $this->mockManticore();

@@ -278,6 +278,51 @@ class ManticoreSearchService
             ->fetchAllAssoc();
     }
 
+    /** Attributes landings:candidates crosses with a model, and the column with their name. */
+    public const MODEL_CROSS_ATTRIBUTES = ['id_transmission' => 'transmission_name', 'id_fuel' => 'fuel_name', 'id_state' => 'state_name'];
+
+    /**
+     * Ads per model and value of $attribute (transmission, fuel, region) with at least $minAds,
+     * with the value's name: [{id_car_model, value, name, total}].
+     */
+    public function carCountsByModelAnd($searchIndex, string $attribute, int $minAds): array
+    {
+        $nameColumn = self::MODEL_CROSS_ATTRIBUTES[$attribute] ?? throw new Exception("Atributo no permitido: {$attribute}");
+        $limit = 200000;
+
+        return (new SphinxQL($this->connection))
+            ->select('id_car_model', SphinxQL::expr("{$attribute} AS value"), SphinxQL::expr("{$nameColumn} AS name"), SphinxQL::expr('COUNT(*) AS total'))
+            ->from($searchIndex)
+            ->where('id_car_model', '>', 0)
+            ->where($attribute, '>', 0)
+            ->groupBy('id_car_model')
+            ->groupBy($attribute)
+            ->having('total', '>=', $minAds)
+            ->limit(0, $limit)
+            ->option('max_matches', $limit)
+            ->execute()
+            ->fetchAllAssoc();
+    }
+
+    /**
+     * Ads per model: [model id => total].
+     */
+    public function carCountsByModel($searchIndex): array
+    {
+        $limit = 200000;
+        $rows = (new SphinxQL($this->connection))
+            ->select('id_car_model', SphinxQL::expr('COUNT(*) AS total'))
+            ->from($searchIndex)
+            ->where('id_car_model', '>', 0)
+            ->groupBy('id_car_model')
+            ->limit(0, $limit)
+            ->option('max_matches', $limit)
+            ->execute()
+            ->fetchAllAssoc();
+
+        return array_map('intval', array_column($rows, 'total', 'id_car_model'));
+    }
+
     public function getCarMakeBySlug(string $slug): ?array
     {
         try {

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\LandingClassifier;
+use App\Support\LandingNames;
 use Illuminate\Support\Str;
 
 /**
@@ -100,7 +101,10 @@ class LandingLinks
      * On the model levels, landings of a year go nearest to the car's year first: in id order a
      * 2019 Cruze listed the 2010-2015 landings, created years ago, and none of its own years.
      *
-     * @param array{make_id: int, model_id: int, city_id: int, make: string, model: string, city: string, year?: int} $car
+     * The model levels also take the landings of the car's transmission, fuel and region
+     * ("Toyota Corolla automático usados", "Toyota Hilux usados en Santiago").
+     *
+     * @param array{make_id: int, model_id: int, city_id: int, make: string, model: string, city: string, year?: int, transmission?: string, fuel?: string, state?: string} $car
      * @return array<int, array{title: string, url: string}>
      */
     public function forCar(string $countryCode, array $car): array
@@ -112,9 +116,16 @@ class LandingLinks
             [['id_car_make' => $car['make_id'], 'id_car_model' => 0, 'id_city' => 0], $car['make'], self::PER_CAR, $car['make_id'] > 0, false],
         ];
 
+        $carWords = implode(' ', array_filter([
+            LandingNames::transmission((string) ($car['transmission'] ?? '')),
+            LandingNames::fuel((string) ($car['fuel'] ?? '')),
+            trim((string) ($car['state'] ?? '')) !== '' ? LandingNames::place((string) $car['state']) : null,
+        ]));
+
         $links = [];
         foreach ($levels as [$ids, $name, $limit, $hasIds, $withYears]) {
-            $fits = fn ($rows) => array_filter($rows, fn ($row) => $this->fitsCar((string) $row['title'], $name, $withYears, (int) ($car['year'] ?? 0)));
+            $allowed = $withYears ? trim($name . ' ' . $carWords) : $name;
+            $fits = fn ($rows) => array_filter($rows, fn ($row) => $this->fitsCar((string) $row['title'], $allowed, $withYears, (int) ($car['year'] ?? 0)));
             $rows = $hasIds ? $fits($this->bestFirst($this->manticore->carLandingsByIds($countryCode, $ids, 150))) : [];
             if (count($this->pickRows($rows, $limit)) < $limit && trim($name) !== '') {
                 // Most title matches name more than the level (other models, towns), hence the margin.

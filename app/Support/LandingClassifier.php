@@ -132,27 +132,55 @@ class LandingClassifier
         return ['make' => $make, 'model' => $model];
     }
 
+    /** Filters a landing created from the inventory may carry besides its model. */
+    public const GENERATED_FILTERS = ['year', 'state', 'transmission', 'fuel'];
+
     /**
      * Filters of a landing created from the inventory by landings:candidates, stored in its content
-     * as "generated": {"make": id, "model": id, "year": 2024, "created": "2026-11-15"}. Null for
-     * legacy landings, which search by their title.
+     * as "generated": {"make": id, "model": id, "year": 2024, "created": "2026-11-15"}, with
+     * "state", "transmission" or "fuel" ids instead of (or besides) the year. Null for legacy
+     * landings, which search by their title.
      *
-     * @return array{make: int, model: int, year: int, created: string}|null
+     * @return array{make: int, model: int, year: int, state: int, transmission: int, fuel: int, created: string}|null
      */
     public static function generated(mixed $content): ?array
     {
         $content = self::decodeContent($content);
         $generated = is_array($content) ? ($content['generated'] ?? null) : null;
-        if (!is_array($generated) || (int) ($generated['model'] ?? 0) <= 0 || (int) ($generated['year'] ?? 0) <= 0) {
+        if (!is_array($generated) || (int) ($generated['model'] ?? 0) <= 0) {
             return null;
         }
 
-        return [
-            'make' => (int) ($generated['make'] ?? 0),
-            'model' => (int) $generated['model'],
-            'year' => (int) $generated['year'],
-            'created' => (string) ($generated['created'] ?? ''),
-        ];
+        $result = ['make' => (int) ($generated['make'] ?? 0), 'model' => (int) $generated['model']];
+        foreach (self::GENERATED_FILTERS as $filter) {
+            $result[$filter] = (int) ($generated[$filter] ?? 0);
+        }
+        if (max(array_intersect_key($result, array_flip(self::GENERATED_FILTERS))) <= 0) {
+            return null;
+        }
+        $result['created'] = (string) ($generated['created'] ?? '');
+
+        return $result;
+    }
+
+    /**
+     * The search options (CarsController / ManticoreSearchService) that list exactly a generated
+     * landing's cars.
+     */
+    public static function generatedFilters(array $generated): array
+    {
+        $filters = ['make' => $generated['make'] ?: '', 'model' => $generated['model']];
+        if ($generated['year'] > 0) {
+            $filters['min_year'] = $generated['year'];
+            $filters['max_year'] = $generated['year'];
+        }
+        foreach (['state', 'transmission', 'fuel'] as $filter) {
+            if ($generated[$filter] > 0) {
+                $filters[$filter] = $generated[$filter];
+            }
+        }
+
+        return $filters;
     }
 
     private static function decodeContent(mixed $content): mixed
