@@ -2,33 +2,41 @@
 """
 Patiotuerca Ecuador: https://ecuador.patiotuerca.com/usados/-/autos?fts=usados
 
-Bloqueada por un desafío clásico de Cloudflare (desde antes de nov-2026); con
-`cloudscraper` (ya usado para Auto.cl) resuelve el desafío y pasa.
+Desde nov-2026 Cloudflare responde 403 a `cloudscraper` (las corridas del 18 y 23 de nov vinieron
+vacías). Como Seminuevos México (misma plataforma), se lee con un navegador real:
+`scrapling.fetchers.StealthySession` con `solve_cloudflare=True`.
 
-El listado también cambió de markup: ya no hay bloques `<script type="ld+json">`
-con `@type: Car` por auto. Ahora hay un único bloque `@type: ItemList` con
-`itemListElement[].item` de tipo `Vehicle` (url, name, image, brand.name, model,
-vehicleModelDate, mileageFromOdometer.value, offers.price). Sin bodyType ni
-fuelType: no se guarda esa parte de `details`.
+El listado tiene un único bloque `<script type="ld+json">` de `@type: ItemList`, con
+`itemListElement[].item` de tipo `Vehicle` (url, name, image, brand.name, model, vehicleModelDate,
+mileageFromOdometer.value, offers.price). La ciudad no viene ahí: está en la tarjeta, junto al
+ícono `lucide-map-pin`, y se une al aviso por el id al final de su URL.
 
-Paginación: `?page=N` (entero simple; el token base64 viejo del spider de
-Scrapy ya no responde nada). Una página sin itemListElement es el fin del
-listado.
+Paginación: `?page=N`; una página sin itemListElement es el fin del listado.
+
+Cada aviso pasa por el mismo pipeline que los spiders (roodos_scraper.pipelines): marca y modelo,
+ubicación, versión y miniatura.
 
 URL del aviso (igual que las filas existentes): https://ecuador.patiotuerca.com/vehicle/{slug}/{id}
 """
 import argparse
 import json
-import os
+import logging
 import re
+import sys
 import time
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional
 
-import cloudscraper
 from parsel import Selector
+from scrapling.fetchers import StealthySession
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from roodos_scraper.pipelines import MySQLRoodosPipeline  # noqa: E402
 
 BASE = "https://ecuador.patiotuerca.com"
-LIST_URL = f"{BASE}/usados/-/autos"
+LIST_URL = f"{BASE}/usados/-/autos?fts=usados"
+ID_RE = re.compile(r"/(\d+)/?$")
 
 
 def to_int(value) -> Optional[int]:
@@ -38,21 +46,32 @@ def to_int(value) -> Optional[int]:
     return int(d) if d else None
 
 
-def fetch_items(scraper, page: int):
-    r = scraper.get(LIST_URL, params={"fts": "usados", "page": page}, timeout=30)
-    r.raise_for_status()
-    sel = Selector(r.text)
+def fetch_page(session, page: int):
+    """(entradas del ItemList, {id del aviso: ciudad})."""
+    r = session.fetch(f"{LIST_URL}&page={page}", timeout=60000)
+    if r.status != 200:
+        raise RuntimeError(f"http {r.status}")
+    sel = Selector(r.html_content)
+    entries = []
     for raw in sel.css("script[type='application/ld+json']::text").getall():
         try:
             obj = json.loads(raw)
         except Exception:
             continue
         if obj.get("@type") == "ItemList":
-            return obj.get("itemListElement") or []
-    return []
+            entries = obj.get("itemListElement") or []
+            break
+    cities = {}
+    for pin in sel.xpath("//svg[contains(@class,'lucide-map-pin')]/following-sibling::span[1]"):
+        city = (pin.xpath("normalize-space(.)").get() or "").strip()
+        href = pin.xpath("ancestor::*[.//a[contains(@href,'/vehicle/')]][1]//a[contains(@href,'/vehicle/')]/@href").get()
+        m = ID_RE.search(href or "")
+        if city and m:
+            cities.setdefault(m.group(1), city)
+    return entries, cities
 
 
-def build_row(entry: dict):
+def build_item(entry: dict, cities: dict):
     item = (entry or {}).get("item") or {}
     url = item.get("url")
     if not url:
@@ -66,115 +85,78 @@ def build_row(entry: dict):
     if isinstance(image, list):
         image = image[0] if image else None
 
-    m = re.search(r"/(\d+)$", url)
+    m = ID_RE.search(url)
     external_id = m.group(1) if m else url.rstrip("/").split("/")[-1]
 
     return {
+        "vertical": "car", "source_name": "patiotuerca_ecuador", "source_label": "Patiotuerca", "country": "EC",
         "url": url[:250],
         "slug": url.rstrip("/").split("/")[-1][:255],
         "title": title[:250],
         "image": (image or "")[:255] or None,
-        "brand": brand,
-        "model": model,
+        "image_big": (image or "")[:255] or None,
+        "details": None,
         "price": to_int((item.get("offers") or {}).get("price")),
         "year": to_int(item.get("vehicleModelDate")),
         "km": to_int((item.get("mileageFromOdometer") or {}).get("value")),
         "external_id": external_id[:50],
+        "brand_name": brand or None,
+        "model_name": model or None,
+        "location": cities.get(external_id),
     }
 
 
-SQL = """
-INSERT INTO cars (
-  id_country, url, slug, title, image, image_big,
-  id_car_make, id_car_model, id_state, id_city, details,
-  price, year, km, id_fuel, id_body, id_transmission,
-  status, created, updated, nexo_id, nexo_flag
-) VALUES (
-  'EC', %s, %s, %s, %s, %s,
-  NULL, NULL, NULL, NULL, NULL,
-  %s, %s, %s, NULL, NULL, NULL,
-  1, NOW(), NOW(), 'Patiotuerca', 0
-)
-ON DUPLICATE KEY UPDATE
-  slug=VALUES(slug), title=VALUES(title), image=VALUES(image), image_big=VALUES(image_big),
-  price=VALUES(price), year=VALUES(year), km=VALUES(km), updated=VALUES(updated),
-  nexo_id=VALUES(nexo_id), status=1
-"""
-
-
 def main(max_pages: int, dry_run: bool, delay: float, max_empty_pages: int):
-    db = cur = None
+    spider = SimpleNamespace(name="patiotuerca_ecuador", logger=logging.getLogger("patiotuerca_ecuador"))
+    pipeline = None
     if not dry_run:
-        import mysql.connector
-        from dotenv import load_dotenv
+        pipeline = MySQLRoodosPipeline()
+        pipeline.open_spider(spider)
 
-        load_dotenv()
-        db = mysql.connector.connect(
-            host=os.getenv("MYSQL_HOST", "localhost"),
-            port=int(os.getenv("MYSQL_PORT", "3306")),
-            user=os.getenv("MYSQL_USER", "trikio"),
-            password=os.getenv("MYSQL_PASSWORD", ""),
-            database=os.getenv("MYSQL_DATABASE", "roodos"),
-            autocommit=False,
-        )
-        cur = db.cursor()
-
-    scraper = cloudscraper.create_scraper(browser={"browser": "chrome", "platform": "linux", "mobile": False})
-
-    stats = {"inserted": 0, "updated": 0, "failed": 0}
+    stats = {"failed": 0, "with_city": 0}
     seen = set()
     empty_streak = 0
 
-    for page in range(1, max_pages + 1):
-        try:
-            entries = fetch_items(scraper, page)
-        except Exception as e:
-            print(f"page_error page={page} err={e}")
-            entries = []
+    with StealthySession(headless=True, solve_cloudflare=True, network_idle=True) as session:
+        for page in range(1, max_pages + 1):
+            try:
+                entries, cities = fetch_page(session, page)
+            except Exception as e:
+                print(f"page_error page={page} err={e}")
+                entries, cities = [], {}
 
-        print(f"page={page} items={len(entries)}")
-        if not entries:
-            empty_streak += 1
-            if empty_streak >= max_empty_pages:
-                print(f"fin del listado en page={page}")
-                break
+            print(f"page={page} items={len(entries)} cities={len(cities)}")
+            if not entries:
+                empty_streak += 1
+                if empty_streak >= max_empty_pages:
+                    print(f"fin del listado en page={page}")
+                    break
+                if delay:
+                    time.sleep(delay)
+                continue
+            empty_streak = 0
+
+            for entry in entries:
+                try:
+                    item = build_item(entry, cities)
+                    if not item or item["url"] in seen:
+                        continue
+                    seen.add(item["url"])
+                    stats["with_city"] += bool(item["location"])
+                    if dry_run:
+                        print("item", {k: item[k] for k in ("url", "title", "price", "year", "km", "location")})
+                        continue
+                    pipeline.process_item(item, spider)
+                except Exception as e:
+                    stats["failed"] += 1
+                    print(f"row_error page={page} err={e}")
+
             if delay:
                 time.sleep(delay)
-            continue
-        empty_streak = 0
 
-        for entry in entries:
-            try:
-                row = build_row(entry)
-                if not row or row["url"] in seen:
-                    continue
-                seen.add(row["url"])
-
-                if dry_run:
-                    print("item", {k: row[k] for k in ("url", "title", "price", "year", "km", "image")})
-                    continue
-
-                cur.execute("SELECT id FROM cars WHERE id_country='EC' AND url=%s LIMIT 1", (row["url"],))
-                exists = cur.fetchone() is not None
-                cur.execute(
-                    SQL,
-                    (row["url"], row["slug"], row["title"], row["image"], row["image"],
-                     row["price"], row["year"], row["km"]),
-                )
-                stats["updated" if exists else "inserted"] += 1
-            except Exception as e:
-                stats["failed"] += 1
-                print(f"row_error page={page} err={e}")
-
-        if db is not None:
-            db.commit()
-        if delay:
-            time.sleep(delay)
-
-    if cur is not None:
-        cur.close()
-    if db is not None:
-        db.close()
+    if pipeline is not None:
+        stats.update(inserted=pipeline.inserted, updated=pipeline.updated)
+        pipeline.close_spider(spider)
     print({**stats, "unique_seen": len(seen), "dry_run": dry_run})
 
 
