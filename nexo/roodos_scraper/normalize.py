@@ -47,7 +47,8 @@ TITLE_SKIP_FUEL = re.compile(r"^(gas|dual)$")
 
 TRANSMISSION_PATTERNS = [
     ("automatico", r"\b(automatic[oa]?|automatica|automaticos?|automatictransmission|aut|at|a t|cvt|ecvt|e cvt|"
-                   r"dsg|dct|edc|amt|ivt|tiptronic|steptronic|ta|secuencial|s tronic|powershift)\b"),
+                   r"dsg|dct|edc|amt|ivt|tiptronic|steptronic|ta|secuencial|s tronic|powershift|multitronic|speedtronic|"
+                   r"\d?g tronic|pdk|autostick)\b"),
     ("manual", r"\b(manual|manualtransmission|mecanic[oa]|mecanica|mt|m t|\d ?mt|tm|std|estandar|standard)\b"),
 ]
 
@@ -79,7 +80,7 @@ PLACE_PREFIXES = re.compile(
     r"provincia constitucional del|estado de|departamento de|municipio de)\s+")
 
 STATE_ALIASES = {
-    "cl": {"metropolitana": "13", "rm": "13", "metropolitana de santiago": "13", "santiago": "13",
+    "cl": {"metropolitana": "13", "rm": "13", "rm metropolitana": "13", "metropolitana de santiago": "13", "santiago": "13",
            "region metropolitana": "13", "bio bio": "8", "biobio": "8", "del biobio": "8", "nuble": "8",
            "o higgins": "6", "ohiggins": "6", "libertador general bernardo o higgins": "6",
            "gral b o higgins": "6", "libertador b o higgins": "6", "la araucania": "9", "araucania": "9",
@@ -260,6 +261,11 @@ class Normalizer:
         # comuna del mismo aviso ("La Molina | Lima").
         found = []
         for variants in names:
+            if state_adm:
+                # MercadoLibre MX usa el nombre largo del municipio ("Tlalnepantla De Baz", "San Pedro Garza
+                # García") y el catálogo el corto; con la región ya fija se prueba también el corto.
+                variants = variants + [x for v in variants for x in (re.sub(r"\s+de\s+\w+$", "", v),
+                                                                     re.sub(r"^san pedro\s+", "", v)) if x != v]
             for v in variants:
                 options = self.cities.get((cc, v)) or []
                 options = sorted(options, key=lambda o: -o[2])

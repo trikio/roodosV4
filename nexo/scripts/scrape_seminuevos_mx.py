@@ -17,16 +17,26 @@ mileageFromOdometer.value, vehicleTransmission, offers.price). Paginación
 `?page=N`; una página sin itemListElement es el fin del listado.
 
 URL del aviso (igual que las filas existentes): https://www.seminuevos.com/vehicle/{slug}/{id}
+
+Cada aviso pasa por el mismo pipeline que los spiders (roodos_scraper.pipelines): resuelve marca y
+modelo, transmisión, versión y miniatura. Antes se insertaba directo y quedaban sin marca ni modelo
+(~7% resueltos) y con la transmisión al revés (1 es Manual, 2 Automático).
 """
 import argparse
 import json
-import os
+import logging
 import re
+import sys
 import time
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional
 
 from parsel import Selector
 from scrapling.fetchers import StealthySession
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from roodos_scraper.pipelines import MySQLRoodosPipeline  # noqa: E402
 
 BASE = "https://www.seminuevos.com"
 LIST_URL = f"{BASE}/usados/-/autos"
@@ -38,14 +48,6 @@ def to_int(value) -> Optional[int]:
     d = "".join(ch for ch in str(value) if ch.isdigit())
     return int(d) if d else None
 
-
-def map_transmission(value: str) -> Optional[int]:
-    t = (value or "").lower()
-    if "auto" in t:
-        return 1
-    if "manual" in t or "mec" in t:
-        return 2
-    return None
 
 
 def item_type_is_vehicle(obj: dict) -> bool:
@@ -102,49 +104,29 @@ def build_row(entry: dict):
         "price": to_int((item.get("offers") or {}).get("price")),
         "year": to_int(item.get("modelDate")),
         "km": to_int((item.get("mileageFromOdometer") or {}).get("value")),
-        "id_transmission": map_transmission(transmission),
         "external_id": external_id[:50],
     }
 
 
-SQL = """
-INSERT INTO cars (
-  id_country, url, slug, title, image, image_big,
-  id_car_make, id_car_model, id_state, id_city, details,
-  price, year, km, id_fuel, id_body, id_transmission,
-  status, created, updated, nexo_id, nexo_flag
-) VALUES (
-  'MX', %s, %s, %s, %s, %s,
-  NULL, NULL, NULL, NULL, %s,
-  %s, %s, %s, NULL, NULL, %s,
-  1, NOW(), NOW(), 'Seminuevos', 0
-)
-ON DUPLICATE KEY UPDATE
-  slug=VALUES(slug), title=VALUES(title), image=VALUES(image), image_big=VALUES(image_big),
-  details=VALUES(details), price=VALUES(price), year=VALUES(year), km=VALUES(km),
-  id_transmission=VALUES(id_transmission), updated=VALUES(updated),
-  nexo_id=VALUES(nexo_id), status=1
-"""
+def to_item(row):
+    """Fila -> item con las claves de roodos_scraper.items.ListingItem."""
+    return {
+        "vertical": "car", "source_name": "seminuevos_mexico", "source_label": "Seminuevos", "country": "MX",
+        "url": row["url"], "slug": row["slug"], "title": row["title"], "image": row["image"],
+        "image_big": row["image"], "details": row["details"], "price": row["price"], "year": row["year"],
+        "km": row["km"], "external_id": row["external_id"], "brand_name": row["brand"] or None,
+        "model_name": row["model"] or None,
+    }
 
 
 def main(max_pages: int, dry_run: bool, delay: float, max_empty_pages: int):
-    db = cur = None
+    spider = SimpleNamespace(name="seminuevos_mexico", logger=logging.getLogger("seminuevos_mexico"))
+    pipeline = None
     if not dry_run:
-        import mysql.connector
-        from dotenv import load_dotenv
+        pipeline = MySQLRoodosPipeline()
+        pipeline.open_spider(spider)
 
-        load_dotenv()
-        db = mysql.connector.connect(
-            host=os.getenv("MYSQL_HOST", "localhost"),
-            port=int(os.getenv("MYSQL_PORT", "3306")),
-            user=os.getenv("MYSQL_USER", "trikio"),
-            password=os.getenv("MYSQL_PASSWORD", ""),
-            database=os.getenv("MYSQL_DATABASE", "roodos"),
-            autocommit=False,
-        )
-        cur = db.cursor()
-
-    stats = {"inserted": 0, "updated": 0, "failed": 0}
+    stats = {"failed": 0}
     seen = set()
     empty_streak = 0
 
@@ -173,32 +155,20 @@ def main(max_pages: int, dry_run: bool, delay: float, max_empty_pages: int):
                     if not row or row["url"] in seen:
                         continue
                     seen.add(row["url"])
-
                     if dry_run:
-                        print("item", {k: row[k] for k in ("url", "title", "price", "year", "km", "image")})
+                        print("item", {k: row[k] for k in ("url", "title", "brand", "model", "details", "price")})
                         continue
-
-                    cur.execute("SELECT id FROM cars WHERE id_country='MX' AND url=%s LIMIT 1", (row["url"],))
-                    exists = cur.fetchone() is not None
-                    cur.execute(
-                        SQL,
-                        (row["url"], row["slug"], row["title"], row["image"], row["image"], row["details"],
-                         row["price"], row["year"], row["km"], row["id_transmission"]),
-                    )
-                    stats["updated" if exists else "inserted"] += 1
+                    pipeline.process_item(to_item(row), spider)
                 except Exception as e:
                     stats["failed"] += 1
                     print(f"row_error page={page} err={e}")
 
-            if db is not None:
-                db.commit()
             if delay:
                 time.sleep(delay)
 
-    if cur is not None:
-        cur.close()
-    if db is not None:
-        db.close()
+    if pipeline is not None:
+        stats.update(inserted=pipeline.inserted, updated=pipeline.updated)
+        pipeline.close_spider(spider)
     print({**stats, "unique_seen": len(seen), "dry_run": dry_run})
 
 

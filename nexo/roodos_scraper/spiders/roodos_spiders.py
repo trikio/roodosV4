@@ -636,24 +636,32 @@ class AutosPortilloChileSpider(scrapy.Spider):
     def parse_detail(self, response):
         title = (response.css("meta[property='og:title']::attr(content)").get() or response.css("title::text").get() or "").strip()
         image = response.css("meta[property='og:image']::attr(content)").get()
-        prices = response.css("*::text").re(r"\$\s*[\d\.]{5,}")
-        price = self._to_int(prices[0]) if prices else None
-        year = None
-        m = re.search(r"\b(19\d{2}|20\d{2})\b", title)
-        if m:
-            year = int(m.group(1))
-        km = None
-        km_candidates = response.css("*::text").re(r"([\d\.]{2,})\s*km")
-        km_vals = [self._to_int(v) for v in km_candidates if self._to_int(v)]
-        km_vals = [v for v in km_vals if 10 <= v <= 1000000]
-        if km_vals:
-            km = km_vals[0]
+        car = self._car_jsonld(response)
+        offers = car.get("offers") or {}
+        price = self._to_int(offers.get("price"))
+        if not price:
+            prices = response.css("*::text").re(r"\$\s*[\d\.]{5,}")
+            price = self._to_int(prices[0]) if prices else None
+        year = self._to_int(car.get("vehicleModelDate"))
+        if not year:
+            m = re.search(r"\b(19\d{2}|20\d{2})\b", title)
+            year = int(m.group(1)) if m else None
+        km = self._to_int((car.get("mileageFromOdometer") or {}).get("value"))
+        if km is None:
+            km_vals = [v for v in (self._to_int(x) for x in response.css("*::text").re(r"([\d\.]{2,})\s*km"))
+                       if v and 10 <= v <= 1000000]
+            km = km_vals[0] if km_vals else None
 
         parts = [p for p in urlparse(response.url).path.split("/") if p]
-        brand = parts[1] if len(parts) > 1 else None
-        model = None
-        if len(parts) > 3:
-            model = re.sub(r"-\d+$", "", parts[3]).replace("-", " ")
+        brand = ((car.get("brand") or {}).get("name") or "").strip() or (parts[1].replace("-", " ") if len(parts) > 1 else "")
+        model = (car.get("model") or "").strip() or (re.sub(r"-\d+$", "", parts[3]).replace("-", " ") if len(parts) > 3 else "")
+
+        # Sucursal donde está el auto (offers.seller.address): "Concepción", "Las Condes"...
+        address = (offers.get("seller") or {}).get("address") or {}
+        location = " | ".join(dict.fromkeys(x for x in (address.get("addressLocality"), address.get("addressRegion")) if x))
+        details = " | ".join(f"{k}:{v}" for k, v in (("fuel", car.get("fuelType")), ("body", car.get("bodyType")),
+                                                    ("trans", car.get("vehicleTransmission")), ("color", car.get("color")))
+                             if v)
 
         item = ListingItem()
         item["vertical"] = "car"
@@ -664,13 +672,14 @@ class AutosPortilloChileSpider(scrapy.Spider):
         item["title"] = title[:250] if title else item["slug"]
         item["image"] = image
         item["image_big"] = image
-        item["details"] = None
+        item["details"] = details or None
         item["price"] = price
         item["year"] = year
         item["km"] = km
-        item["external_id"] = item["slug"][:50]
-        item["brand_name"] = brand.replace('-', ' ') if brand else None
-        item["model_name"] = model if model else None
+        item["external_id"] = (str(car.get("sku") or "") or item["slug"])[:50]
+        item["brand_name"] = brand or None
+        item["model_name"] = model or None
+        item["location"] = location or None
         item["id_state"] = None
         item["id_city"] = None
         item["id_car_make"] = None
@@ -679,6 +688,20 @@ class AutosPortilloChileSpider(scrapy.Spider):
         item["id_body"] = None
         item["id_transmission"] = None
         yield item
+
+    @staticmethod
+    def _car_jsonld(response):
+        """El bloque ld+json @type Car de la ficha ({} si no está)."""
+        for raw in response.css("script[type='application/ld+json']::text").getall():
+            try:
+                obj = json.loads(raw)
+            except ValueError:
+                continue
+            for o in obj if isinstance(obj, list) else [obj]:
+                t = o.get("@type") if isinstance(o, dict) else None
+                if t == "Car" or (isinstance(t, list) and "Car" in t):
+                    return o
+        return {}
 
     def _to_int(self, value):
         if value in (None, ""):
@@ -1021,6 +1044,7 @@ class MercadolibreListingSpider(scrapy.Spider):
         t = [p for p in re.split(r"\s+", title) if p]
         item["brand_name"] = t[0] if t else None
         item["model_name"] = " ".join(t[1:3]) if len(t) > 1 else None
+        item["location"] = self._location(card)
         item["id_state"] = None
         item["id_city"] = None
         item["id_car_make"] = None
@@ -1029,6 +1053,15 @@ class MercadolibreListingSpider(scrapy.Spider):
         item["id_body"] = None
         item["id_transmission"] = None
         return item
+
+    @staticmethod
+    def _location(card):
+        """"Maipú - RM (Metropolitana)" -> "Maipú | region:RM (Metropolitana)" para el normalizador."""
+        text = " ".join((card.css(".poly-component__location::text").get() or "").split())
+        parts = [p.strip() for p in text.split(" - ") if p.strip()]
+        if len(parts) >= 2:
+            return " | ".join(parts[:-1] + ["region:" + parts[-1]])
+        return parts[0] if parts else None
 
     def _extract_total_results(self, html):
         m = re.search(r'"offset":\d+,"total":(\d+)', html) or re.search(r'"total":\s*(\d+)', html)
