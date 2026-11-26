@@ -26,13 +26,32 @@ class SitemapController extends Controller
         return response(Sitemap::index($urls), 200, ['Content-Type' => 'application/xml']);
     }
 
+    /** Bots de IA y de SEO que recorrían los listados a ~10 peticiones por segundo. */
+    public const SLOWED_BOTS = ['ClaudeBot', 'GPTBot', 'AhrefsBot', 'SemrushBot', 'MJ12bot'];
+
+    public const CRAWL_DELAY = 5;
+
     /**
      * Allows everything on purpose: removed URLs must stay crawlable until Google sees their
      * 410/301. Block patterns here only once Search Console shows them dropped from the index.
+     * The bots in SLOWED_BOTS only get a Crawl-delay (Googlebot ignores it anyway).
      */
     public function robots(string $country)
     {
-        $body = "User-agent: *\nDisallow:\n\nSitemap: " . Sitemap::baseUrl(strtolower($country)) . "/sitemap.xml\n";
+        return $this->robotsResponse('Sitemap: ' . Sitemap::baseUrl(strtolower($country)) . "/sitemap.xml\n");
+    }
+
+    public function housesRobots()
+    {
+        return $this->robotsResponse('');
+    }
+
+    private function robotsResponse(string $sitemapLine)
+    {
+        $slowed = implode('', array_map(fn ($bot) => "User-agent: {$bot}\n", self::SLOWED_BOTS));
+        $body = "User-agent: *\nDisallow:\n\n"
+            . $slowed . 'Crawl-delay: ' . self::CRAWL_DELAY . "\nDisallow:\n"
+            . ($sitemapLine !== '' ? "\n" . $sitemapLine : '');
 
         return response($body, 200, ['Content-Type' => 'text/plain; charset=UTF-8']);
     }

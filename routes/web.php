@@ -106,6 +106,8 @@ Route::domain('casas.roodos.{country}')->group(function () use ($infoPages, $con
     // Ruta para detalle de casa
     Route::get('/casa/{id}', [HousesController::class, 'show'])->name('houses.show');
 
+    Route::get('/robots.txt', [SitemapController::class, 'housesRobots']);
+
     // Páginas informativas
     foreach ($infoPages as $slug => $view) {
         Route::view('/' . $slug, $view);

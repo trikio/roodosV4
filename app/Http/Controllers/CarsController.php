@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
+use App\Support\CappedPaginator;
 use Illuminate\Support\Str;
 use App\Services\LandingLinks;
 use App\Services\ManticoreSearchService;
@@ -577,10 +577,12 @@ class CarsController extends Controller
             'order' => $options['order'],
         ]);
 
+        abort_if(CappedPaginator::beyondCap($options['page']), 410);
+
         $results = $this->manticore->carSearch($searchIndex, $options);
         $total = $this->extractTotal($results['info'] ?? []);
 
-        $maxPage = $total > 0 ? (int) ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1;
+        $maxPage = min(CappedPaginator::MAX_PAGE, $total > 0 ? (int) ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1);
         if ((int) $options['page'] > $maxPage) {
             $query = $request->query();
             $query['page'] = $maxPage;
@@ -609,7 +611,7 @@ class CarsController extends Controller
             ];
         });
 
-        $cars = new LengthAwarePaginator(
+        $cars = new CappedPaginator(
             $carsCollection,
             $total,
             ManticoreSearchService::RESULTS_PER_PAGE,

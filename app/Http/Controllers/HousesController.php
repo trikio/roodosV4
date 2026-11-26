@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\ManticoreSearchService;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
+use App\Support\CappedPaginator;
 use Illuminate\Support\Facades\Log;
 
 class HousesController extends Controller
@@ -128,10 +128,12 @@ class HousesController extends Controller
             'order' => $this->normalizeOrder($request),
         ];
 
+        abort_if(CappedPaginator::beyondCap($options['page']), 410);
+
         $results = $this->safeHouseSearch($searchIndex, $options);
         $total = $this->extractTotalFromMeta($results['info'] ?? []);
 
-        $maxPage = $total > 0 ? (int) ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1;
+        $maxPage = min(CappedPaginator::MAX_PAGE, $total > 0 ? (int) ceil($total / ManticoreSearchService::RESULTS_PER_PAGE) : 1);
         if ((int) $options['page'] > $maxPage) {
             $query = $request->query();
             $query['page'] = $maxPage;
@@ -156,7 +158,7 @@ class HousesController extends Controller
             ];
         });
 
-        $houses = new LengthAwarePaginator(
+        $houses = new CappedPaginator(
             $housesCollection,
             $total,
             ManticoreSearchService::RESULTS_PER_PAGE,

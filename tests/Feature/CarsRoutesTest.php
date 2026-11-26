@@ -93,6 +93,39 @@ class CarsRoutesTest extends TestCase
         $this->get('http://autos.roodos.cl/search?q=' . urlencode('toyota "corolla'))->assertOk();
     }
 
+    public function test_pages_beyond_the_cap_return_410_without_searching(): void
+    {
+        $this->mockManticore()->shouldNotReceive('carSearch');
+
+        $this->get('http://autos.roodos.cl/search?q=toyota&page=51')->assertStatus(410);
+    }
+
+    public function test_pagination_does_not_link_beyond_the_cap(): void
+    {
+        $this->mockManticore()->shouldReceive('carSearch')->andReturn($this->emptySearchResult(24 * 400));
+
+        $this->get('http://autos.roodos.cl/search?q=toyota&page=50')
+            ->assertOk()
+            ->assertSee('9600', false)
+            ->assertSee('page=49', false)
+            ->assertDontSee('page=51', false)
+            ->assertDontSee('page=400', false);
+    }
+
+    public function test_robots_slows_down_ai_and_seo_bots_but_not_everyone(): void
+    {
+        $body = $this->get('http://autos.roodos.cl/robots.txt')->assertOk()->getContent();
+        $this->assertStringStartsWith("User-agent: *\nDisallow:\n", $body);
+        $this->assertStringContainsString("User-agent: ClaudeBot\n", $body);
+        $this->assertStringContainsString("User-agent: MJ12bot\nCrawl-delay: 5\nDisallow:\n", $body);
+        $this->assertStringNotContainsString('Googlebot', $body);
+
+        $this->get('http://casas.roodos.mx/robots.txt')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'text/plain; charset=UTF-8')
+            ->assertSee('User-agent: GPTBot');
+    }
+
     public function test_search_queues_mixpanel_search_event(): void
     {
         $this->mockManticore()->shouldReceive('carSearch')->andReturn($this->emptySearchResult(7));
