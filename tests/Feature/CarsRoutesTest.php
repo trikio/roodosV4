@@ -234,11 +234,22 @@ class CarsRoutesTest extends TestCase
             ->assertDontSee('/marca/', false);
     }
 
-    public function test_missing_car_returns_404(): void
+    public function test_missing_car_returns_410(): void
     {
         $this->mockManticore()->shouldReceive('getCarById')->andReturn(null);
 
-        $this->get('http://autos.roodos.ec/auto/999')->assertNotFound();
+        $this->get('http://autos.roodos.ec/auto/999')->assertStatus(410);
+    }
+
+    public function test_page_zero_or_negative_is_treated_as_page_one(): void
+    {
+        $this->mockManticore()->shouldReceive('carSearch')
+            ->withArgs(fn ($index, $options) => $options['page'] === 1)
+            ->twice()
+            ->andReturn($this->emptySearchResult(5));
+
+        $this->get('http://autos.roodos.cl/search?q=toyota&page=0')->assertOk();
+        $this->get('http://autos.roodos.cl/search?q=toyota&page=-3')->assertOk();
     }
 
     public function test_generated_landing_lists_exactly_its_model_and_year(): void

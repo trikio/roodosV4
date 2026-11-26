@@ -95,7 +95,7 @@ class HousesController extends Controller
         $house = $this->manticore->getHouseById($searchIndex, $houseId);
 
         if (!$house || empty($house['url'])) {
-            abort(404);
+            abort(410); // dado de baja: Google lo saca antes que con un 404
         }
 
         $targetUrl = (string) $house['url'];
@@ -113,7 +113,7 @@ class HousesController extends Controller
         $searchIndex = $this->getHousesIndexName($countryCode);
 
         $options = [
-            'page' => $request->get('page', 1),
+            'page' => max(1, (int) $request->get('page', 1)),
             'q' => $slugData ? ($slugData['title'] ?? '') : $request->get('q', ''),
             'operation' => $request->get('operation', ''),
             'type' => $request->get('type', ''),

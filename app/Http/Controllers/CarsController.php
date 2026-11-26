@@ -452,7 +452,7 @@ class CarsController extends Controller
         $car = $this->manticore->getCarById($searchIndex, $carId);
 
         if (!$car || empty($car['url'])) {
-            abort(404);
+            abort(410); // dado de baja: Google lo saca antes que con un 404
         }
 
         $makeId = (int) ($car['id_car_make'] ?? 0);
@@ -541,7 +541,7 @@ class CarsController extends Controller
         $searchIndex = $this->getCarsIndexName($countryCode);
 
         $options = array_merge([
-            'page' => $request->get('page', 1),
+            'page' => max(1, (int) $request->get('page', 1)),
             'q' => $request->get('q', ''),
             'make' => $request->get('brand', ''),
             'model' => $request->get('model', ''),

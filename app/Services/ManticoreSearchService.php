@@ -134,13 +134,11 @@ class ManticoreSearchService
                 ->from($searchIndex)
                 ->where('id', $id)
                 ->limit(0, 1)
-                ->execute();
+                ->execute()
+                ->fetchAllAssoc();
 
-            if (empty($result)) {
-                return null;
-            }
-
-            return $result[0];
+            // Aviso dado de baja: el ResultSet vacío lanzaba "The row does not exist" (500).
+            return $result[0] ?? null;
         } catch (Exception $e) {
             throw new Exception("Error fetching car by id: " . $e->getMessage());
         }
@@ -413,13 +411,11 @@ class ManticoreSearchService
                 ->from($searchIndex)
                 ->where('id', $id)
                 ->limit(0, 1)
-                ->execute();
+                ->execute()
+                ->fetchAllAssoc();
 
-            if (empty($result)) {
-                return null;
-            }
-
-            return $result[0];
+            // Aviso dado de baja: el ResultSet vacío lanzaba "The row does not exist" (500).
+            return $result[0] ?? null;
         } catch (Exception $e) {
             throw new Exception("Error fetching house by id: " . $e->getMessage());
         }
