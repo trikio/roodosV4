@@ -39,6 +39,10 @@ jobs:
             APP_KEY_ESCAPED=$(printf '%s' "${{ secrets.APP_ROODOS_KEY }}" | sed 's/[\\/&]/\\&/g')
             sudo sed -i "s/APP_ROODOS_KEY/$APP_KEY_ESCAPED/g" ./server-conf/_env_production
 
+            TG_TOKEN_ESCAPED=$(printf '%s' "${{ secrets.CONTACT_TELEGRAM_BOT_TOKEN }}" | sed 's/[\\/&]/\\&/g')
+            TG_CHAT_ESCAPED=$(printf '%s' "${{ secrets.CONTACT_TELEGRAM_CHAT_ID }}" | sed 's/[\\/&]/\\&/g')
+            sudo sed -i "s/__CONTACT_TG_TOKEN__/$TG_TOKEN_ESCAPED/g; s/__CONTACT_TG_CHAT__/$TG_CHAT_ESCAPED/g" ./server-conf/_env_production
+
 
             sudo cp ./server-conf/_env_production /app/.env
             sudo cp ./server-conf/manticoresearch/manticore.conf /etc/manticoresearch/manticore.conf

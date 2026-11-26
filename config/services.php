@@ -46,6 +46,13 @@ return [
         'detail_slot' => env('ADSENSE_DETAIL_SLOT'),
     ],
 
+    'contact' => [
+        // Canal de Telegram que recibe los mensajes del formulario de contacto (vacío = solo se guardan
+        // en storage/app/contact). En producción vienen de los secrets de GitHub (ver roodos.yml).
+        'telegram_bot_token' => env('CONTACT_TELEGRAM_BOT_TOKEN'),
+        'telegram_chat_id' => env('CONTACT_TELEGRAM_CHAT_ID'),
+    ],
+
     'manticore' => [
         'host' => env('MANTICORE_HOST', '127.0.0.1'),
         'port' => (int) env('MANTICORE_PORT', 9306),

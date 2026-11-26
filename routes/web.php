@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CarsController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\GuidesController;
 use App\Http\Controllers\HousesController;
 use App\Http\Controllers\SitemapController;
@@ -14,11 +15,18 @@ $infoPages = [
     'politica-de-privacidad' => 'pages.privacy',
     'politica-de-cookies' => 'pages.cookies',
     'nuestras-redes' => 'pages.social',
-    'contacta-con-nosotros' => 'pages.contact',
 ];
 
+// Formulario de contacto, igual en todos los dominios. Máximo 5 envíos cada 10 minutos por IP.
+$contactRoutes = function () {
+    Route::get('/contacta-con-nosotros', [ContactController::class, 'show']);
+    Route::post('/contacta-con-nosotros', [ContactController::class, 'send'])->middleware('throttle:5,10');
+};
+
 // Dominio principal global (solo estático)
-Route::domain('roodos.com')->group(function () use ($infoPages) {
+Route::domain('roodos.com')->group(function () use ($infoPages, $contactRoutes) {
+    $contactRoutes();
+
     Route::view('/', 'pages.global-home')->name('global.home');
 
     foreach ($infoPages as $slug => $view) {
@@ -53,7 +61,9 @@ Route::domain('www.roodos.{country}')->group(function () {
 });
 
 // Rutas con dominio específico para autos
-Route::domain('autos.roodos.{country}')->group(function () use ($infoPages) {
+Route::domain('autos.roodos.{country}')->group(function () use ($infoPages, $contactRoutes) {
+    $contactRoutes();
+
     // Home page
     Route::get('/', [CarsController::class, 'home'])->name('cars.home');
 
@@ -84,7 +94,9 @@ Route::domain('autos.roodos.{country}')->group(function () use ($infoPages) {
 
 
 // Rutas con dominio específico para casas
-Route::domain('casas.roodos.{country}')->group(function () use ($infoPages) {
+Route::domain('casas.roodos.{country}')->group(function () use ($infoPages, $contactRoutes) {
+    $contactRoutes();
+
     // Home page
     Route::get('/', [HousesController::class, 'home'])->name('houses.home');
 
