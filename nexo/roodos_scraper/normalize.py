@@ -263,9 +263,11 @@ class Normalizer:
         for variants in names:
             if state_adm:
                 # MercadoLibre MX usa el nombre largo del municipio ("Tlalnepantla De Baz", "San Pedro Garza
-                # García") y el catálogo el corto; con la región ya fija se prueba también el corto.
+                # García", "La Magdalena Contreras") y el catálogo el corto; con la región ya fija se prueba
+                # también el corto.
                 variants = variants + [x for v in variants for x in (re.sub(r"\s+de\s+\w+$", "", v),
-                                                                     re.sub(r"^san pedro\s+", "", v)) if x != v]
+                                                                     re.sub(r"^san pedro\s+", "", v),
+                                                                     re.sub(r"^(la|el|los|las)\s+", "", v)) if x != v]
             for v in variants:
                 options = self.cities.get((cc, v)) or []
                 options = sorted(options, key=lambda o: -o[2])

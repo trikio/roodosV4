@@ -226,6 +226,8 @@ class MySQLRoodosPipeline:
         d = dict(item)
         try:
             vertical = d.get("vertical")
+            if vertical == "house":
+                return self._process_house(d, item)
             if vertical != "car":
                 return item
 
@@ -374,6 +376,50 @@ class MySQLRoodosPipeline:
             self.failed += 1
             self.conn.rollback()
             raise
+
+    def _process_house(self, d, item):
+        """Casas en roodos.houses (país en minúsculas, como las de Doomos). La ubicación sale del texto
+        `location` con el mismo normalizador que autos; un dato que ya estaba no se pisa con NULL."""
+        url = d.get("url")
+        if not url:
+            return item
+        country = (d.get("country") or "").lower()[:3]
+        state_id, city_id = self._to_int(d.get("id_state")), self._to_int(d.get("id_city"))
+        if not (state_id and city_id) and d.get("location"):
+            found_state, found_city = self.normalizer.location(country, re.split(r"[|,]", str(d["location"])))
+            state_id, city_id = state_id or found_state, city_id or found_city
+        self.cur.execute("SELECT 1 FROM houses WHERE id_country=%s AND url=%s LIMIT 1", (country, url[:250]))
+        exists = self.cur.fetchone() is not None
+        title = (self._utf8mb3_safe(d.get("title") or "Sin título") or "Sin título")[:250]
+        self.cur.execute(
+            """
+            INSERT INTO houses (
+                id_country, url, slug, title, image, image_big, id_house_operation, id_house_type,
+                id_state, id_city, details, price, rooms, bath, size, status, created, updated, nexo_id, nexo_flag
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1, NOW(), %s, %s, 0)
+            ON DUPLICATE KEY UPDATE
+                slug=VALUES(slug), title=VALUES(title), image=VALUES(image), image_big=VALUES(image_big),
+                id_house_operation=COALESCE(VALUES(id_house_operation), id_house_operation),
+                id_house_type=COALESCE(VALUES(id_house_type), id_house_type),
+                id_state=COALESCE(VALUES(id_state), id_state), id_city=COALESCE(VALUES(id_city), id_city),
+                details=VALUES(details), price=VALUES(price), rooms=VALUES(rooms), bath=VALUES(bath),
+                size=VALUES(size), updated=VALUES(updated), nexo_id=VALUES(nexo_id), status=1
+            """,
+            (
+                country, url[:250], self._slugify(title), title,
+                (d.get("image") or "")[:255], (d.get("image_big") or d.get("image") or "")[:255],
+                self._to_int(d.get("id_house_operation")), self._to_int(d.get("id_house_type")),
+                state_id, city_id, self._utf8mb3_safe(d.get("details")), self._to_int(d.get("price")),
+                self._to_int(d.get("rooms")), self._to_int(d.get("bath")), self._to_int(d.get("size")),
+                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), (d.get("source_label") or "")[:50],
+            ),
+        )
+        self.conn.commit()
+        if exists:
+            self.updated += 1
+        else:
+            self.inserted += 1
+        return item
 
     def _utf8mb3_safe(self, text):
         if text is None:

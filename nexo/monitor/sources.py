@@ -161,6 +161,17 @@ SOURCES += [
 SOURCES += [
     script("casas_doomos_cl", "cl", "Doomos casas CL", ["www.doomos.cl"], "20 2 * * *",
            "scripts/import_houses_doomos_cl.py", vertical="casas", timeout_hours=4, full_crawl=True),
+    # MercadoLibre Inmuebles MX (26-11-2026): ~67.500 casas y ~46.800 departamentos en venta, ~8.200 y
+    # ~11.800 en renta. Venta y renta de un mismo tipo comparten host (casa./departamento.mercadolibre),
+    # así que la foto diaria de cada sección cuenta las dos; el vencimiento a 30 días sí es correcto.
+    spider("mercadolibre_casas_venta_mexico", "mx", "ML Inmuebles casas venta MX", ["casa.mercadolibre.com.mx"],
+           "0 1 * * 4", vertical="casas", timeout_hours=5, full_crawl=True),
+    spider("mercadolibre_departamentos_venta_mexico", "mx", "ML Inmuebles deptos venta MX",
+           ["departamento.mercadolibre.com.mx"], "0 1 * * 5", vertical="casas", timeout_hours=4, full_crawl=True),
+    spider("mercadolibre_casas_renta_mexico", "mx", "ML Inmuebles casas renta MX", ["casa.mercadolibre.com.mx"],
+           "0 5 * * 4", vertical="casas", timeout_hours=2, full_crawl=True),
+    spider("mercadolibre_departamentos_renta_mexico", "mx", "ML Inmuebles deptos renta MX",
+           ["departamento.mercadolibre.com.mx"], "0 5 * * 5", vertical="casas", timeout_hours=2, full_crawl=True),
 ]
 
 BY_ID = {source.id: source for source in SOURCES}
