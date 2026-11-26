@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ContactSpamFilter;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -14,10 +16,16 @@ use Illuminate\View\View;
 /**
  * Formulario de "Contacta con nosotros".
  *
- * Cada mensaje se guarda en storage/app/contact/AAAA-MM.jsonl (no se pierde aunque falle el envío)
- * y se manda al canal de Telegram de services.contact. Contra el spam, sin captcha: un campo trampa
- * oculto que solo llenan los bots, un tiempo mínimo para llenar el formulario y un límite por IP en
- * la ruta (throttle).
+ * A Telegram (services.contact) solo llegan mensajes reales. Filtros, sin captcha:
+ * - bots: un campo trampa oculto que solo llenan ellos y un tiempo mínimo para llenar el formulario;
+ * - spam escrito: ContactSpamFilter (ofertas de SEO, cripto, otro alfabeto, inglés, links, repetidos);
+ * - un límite de envíos por IP en la ruta (throttle) y por email (MAX_PER_EMAIL al día);
+ * - un tope global de avisos a Telegram (MAX_TELEGRAM_PER_DAY): aunque un bot con muchas IPs pase todo
+ *   lo anterior, una noche mala manda como mucho ese número y un único aviso de "tope alcanzado".
+ *
+ * Todo queda guardado: los reales en storage/app/contact/AAAA-MM.jsonl y los descartados, con la
+ * razón, en storage/app/contact/descartados-AAAA-MM.jsonl. A quien envía siempre se le muestra
+ * "recibido", para no darle pistas a los spammers.
  */
 class ContactController extends Controller
 {
@@ -33,6 +41,12 @@ class ContactController extends Controller
     /** Segundos mínimos entre que se muestra el formulario y se envía (un humano tarda más). */
     private const MIN_SECONDS = 3;
 
+    /** Mensajes reales del mismo email por día; los siguientes se guardan como descartados. */
+    private const MAX_PER_EMAIL = 3;
+
+    /** Avisos a Telegram por día, sumando todos los dominios. Los demás quedan solo en el archivo. */
+    public const MAX_TELEGRAM_PER_DAY = 10;
+
     public function show(Request $request): View
     {
         return view('pages.contact', [
@@ -42,7 +56,7 @@ class ContactController extends Controller
         ]);
     }
 
-    public function send(Request $request): RedirectResponse
+    public function send(Request $request, ContactSpamFilter $spamFilter): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
@@ -60,14 +74,6 @@ class ContactController extends Controller
             'message.max' => 'El mensaje es muy largo (máximo 5.000 caracteres).',
         ]);
 
-        // Bots: llenan el campo oculto o envían más rápido de lo que alguien alcanza a escribir.
-        // Se responde como si se hubiera enviado, para no darles pistas.
-        if ($request->filled('company_url') || !$this->filledByHuman($request->input('form_token'))) {
-            Log::info('contacto descartado como spam', ['ip' => $request->ip()]);
-
-            return back()->with('contact_sent', true);
-        }
-
         $message = [
             'at' => now()->toIso8601String(),
             'country' => $this->countryCode($request),
@@ -81,13 +87,38 @@ class ContactController extends Controller
             'referer' => $request->headers->get('referer'),
         ];
 
-        Storage::disk('local')->append(
-            'contact/' . now()->format('Y-m') . '.jsonl',
-            json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-        );
-        $this->notifyTelegram($message);
+        if ($request->filled('company_url') || !$this->filledByHuman($request->input('form_token'))) {
+            $reasons = ['bot'];
+        } else {
+            $reasons = $spamFilter->reasons($message, fn (string $fp) => Cache::has('contact:' . $fp));
+            if (!$reasons && $this->countToday('email:' . sha1(mb_strtolower($message['email']))) > self::MAX_PER_EMAIL) {
+                $reasons = ['más de ' . self::MAX_PER_EMAIL . ' mensajes del mismo email hoy'];
+            }
+        }
+
+        if ($reasons) {
+            $this->store('descartados-', $message + ['reasons' => $reasons]);
+        } else {
+            $this->store('', $message);
+            Cache::put('contact:' . $spamFilter->fingerprint($message['message']), true, now()->addDays(30));
+            $sentToday = $this->countToday('telegram');
+            if ($sentToday <= self::MAX_TELEGRAM_PER_DAY) {
+                $this->notifyTelegram($this->telegramText($message));
+            } elseif ($sentToday === self::MAX_TELEGRAM_PER_DAY + 1) {
+                $this->notifyTelegram('⚠️ Contacto Roodos: se llegó al tope de ' . self::MAX_TELEGRAM_PER_DAY
+                    . ' mensajes hoy. Los que lleguen hasta mañana quedan guardados en storage/app/contact sin avisar.');
+            }
+        }
 
         return back()->with('contact_sent', true);
+    }
+
+    private function store(string $prefix, array $message): void
+    {
+        Storage::disk('local')->append(
+            'contact/' . $prefix . now()->format('Y-m') . '.jsonl',
+            json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
     }
 
     private function filledByHuman(?string $token): bool
@@ -104,19 +135,31 @@ class ContactController extends Controller
         return time() - $shownAt >= self::MIN_SECONDS;
     }
 
-    private function notifyTelegram(array $m): void
+    private function telegramText(array $m): string
+    {
+        return "✉️ Contacto Roodos " . strtoupper($m['country']) . "\n"
+            . "Motivo: " . (self::SUBJECTS[$m['subject']] ?? $m['subject']) . "\n"
+            . "De: {$m['name']} <{$m['email']}>\n"
+            . ($m['website'] ? "Sitio: {$m['website']}\n" : '')
+            . "\n" . $m['message'];
+    }
+
+    /** Suma uno al contador de hoy y devuelve el valor nuevo. */
+    private function countToday(string $name): int
+    {
+        $key = 'contact:count:' . $name . ':' . now()->format('Y-m-d');
+        Cache::add($key, 0, now()->addDays(2));
+
+        return (int) Cache::increment($key);
+    }
+
+    private function notifyTelegram(string $text): void
     {
         $token = config('services.contact.telegram_bot_token');
         $chat = config('services.contact.telegram_chat_id');
         if (!$token || !$chat) {
             return;
         }
-
-        $text = "✉️ Contacto Roodos " . strtoupper($m['country']) . "\n"
-            . "Motivo: " . (self::SUBJECTS[$m['subject']] ?? $m['subject']) . "\n"
-            . "De: {$m['name']} <{$m['email']}>\n"
-            . ($m['website'] ? "Sitio: {$m['website']}\n" : '')
-            . "\n" . $m['message'];
 
         try {
             Http::timeout(10)->asForm()->post("https://api.telegram.org/bot{$token}/sendMessage", [

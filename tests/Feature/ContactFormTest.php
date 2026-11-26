@@ -116,4 +116,99 @@ class ContactFormTest extends TestCase
         }
         $this->from(self::URL)->post(self::URL, $this->valid())->assertStatus(429);
     }
+
+    private function postWithoutIpLimit(array $data)
+    {
+        return $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class)
+            ->from(self::URL)->post(self::URL, $data);
+    }
+
+    private function discardedLines(): array
+    {
+        $file = 'contact/descartados-' . now()->format('Y-m') . '.jsonl';
+
+        return Storage::disk('local')->exists($file)
+            ? array_values(array_filter(explode("\n", Storage::disk('local')->get($file))))
+            : [];
+    }
+
+    public static function spamMessages(): array
+    {
+        return [
+            'oferta SEO en inglés' => ['Hello, we can get your website on the first page of Google with our SEO services. Please reply.'],
+            'oferta SEO en español' => ['Hola, ofrecemos posicionamiento web y backlinks para su sitio a muy buen precio.'],
+            'cripto' => ['Gana dinero con bitcoin desde tu casa, escríbeme por WhatsApp ya mismo.'],
+            'otro alfabeto' => ['Здравствуйте, хотим предложить вам сотрудничество по продвижению сайта.'],
+            'muchos links' => ['Mira https://a.example https://b.example https://c.example y www.d.example ahora.'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('spamMessages')]
+    public function test_written_spam_is_kept_apart_and_not_sent(string $text): void
+    {
+        $this->postWithoutIpLimit($this->valid(['message' => $text]))->assertSessionHas('contact_sent', true);
+
+        $this->assertCount(0, $this->storedLines());
+        $this->assertCount(1, $this->discardedLines());
+        $this->assertNotEmpty(json_decode($this->discardedLines()[0], true)['reasons']);
+        Http::assertNothingSent();
+    }
+
+    public function test_disposable_email_is_discarded(): void
+    {
+        $this->postWithoutIpLimit($this->valid(['email' => 'x@mailinator.com']));
+
+        $this->assertCount(0, $this->storedLines());
+        Http::assertNothingSent();
+    }
+
+    public function test_real_messages_in_spanish_pass_the_filter(): void
+    {
+        foreach ([
+            'Hola, el Toyota Corolla del link ya se vendió, por favor sáquenlo.',
+            'Somos una automotora de Quito con 80 autos, ¿cómo publicamos el inventario?',
+            'El precio del aviso está mal, dice 10 millones y son 1 millón.',
+        ] as $i => $text) {
+            $this->postWithoutIpLimit($this->valid(['message' => $text, 'email' => "persona{$i}@example.com"]));
+        }
+
+        $this->assertCount(3, $this->storedLines());
+        Http::assertSentCount(3);
+    }
+
+    public function test_the_same_text_is_sent_only_once(): void
+    {
+        $this->postWithoutIpLimit($this->valid(['email' => 'a@example.com']));
+        $this->postWithoutIpLimit($this->valid(['email' => 'b@example.com']));
+
+        $this->assertCount(1, $this->storedLines());
+        $this->assertSame(['mensaje repetido'], json_decode($this->discardedLines()[0], true)['reasons']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_more_than_three_messages_per_email_per_day_are_discarded(): void
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            $this->postWithoutIpLimit($this->valid(['message' => "Consulta número {$i} sobre un auto publicado."]));
+        }
+
+        $this->assertCount(3, $this->storedLines());
+        $this->assertCount(2, $this->discardedLines());
+        Http::assertSentCount(3);
+    }
+
+    public function test_telegram_gets_at_most_the_daily_cap_plus_one_notice(): void
+    {
+        $cap = \App\Http\Controllers\ContactController::MAX_TELEGRAM_PER_DAY;
+        for ($i = 1; $i <= $cap + 15; $i++) {
+            $this->postWithoutIpLimit($this->valid([
+                'email' => "persona{$i}@example.com",
+                'message' => "Consulta {$i}: quiero saber si el auto {$i} sigue disponible.",
+            ]));
+        }
+
+        $this->assertCount($cap + 15, $this->storedLines()); // ninguno se pierde
+        Http::assertSentCount($cap + 1);
+        Http::assertSent(fn ($request) => str_contains($request['text'], 'se llegó al tope'));
+    }
 }
