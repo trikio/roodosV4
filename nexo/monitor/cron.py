@@ -44,7 +44,6 @@ def block():
         ] if landings.MANTICORE_CONF.exists() else []),
         f"*/10 * * * * {nexo} update {log}",
         "# Casas y mantenimiento",
-        f"20 2 * * * {ROOT}/run_houses_doomos_cl.sh",
         f"0 2 * * 1 {ROOT}/run_thumbs_batches.sh >> {LOG_DIR}/thumbs_batch.log 2>&1",
         f"*/15 * * * * {ROOT}/watchdog_houses_thumbs_cl.sh",
         f"*/5 * * * * {ROOT}/scripts/roodos_log_guard.sh >/dev/null 2>&1",

@@ -1,6 +1,7 @@
-"""Registro de las fuentes de autos. De aquí salen el crontab y la tabla nexo.sources.
+"""Registro de las fuentes de autos y casas. De aquí salen el crontab y la tabla nexo.sources.
 
-Cada fuente escribe en roodos.cars; sus avisos se reconocen por el país y el host de la URL.
+Cada fuente escribe en roodos.cars (o roodos.houses si su vertical es "casas"); sus avisos se
+reconocen por el país y el host de la URL.
 `schedule` es una expresión de cron en hora de Chile (la zona horaria del servidor).
 `full_crawl` se marca solo cuando el scraper recorre el listado completo de la fuente: en ese
 caso un aviso que no se ve en EXPIRE_DAYS ya no existe y se desactiva. Con tope de páginas,
@@ -35,6 +36,11 @@ class Source:
     enabled: bool = True
     vertical: str = "autos"
     dealers: bool = False  # sus hosts son los sitios activos del país en nexo.dealer_sites
+
+    @property
+    def table(self):
+        """Tabla de roodos donde escribe la fuente."""
+        return "houses" if self.vertical == "casas" else "cars"
 
     @property
     def max_age_days(self):
@@ -147,6 +153,14 @@ SOURCES += [
     dealers("mx", "30 1 * * 0,3"),
     dealers("pe", "0 2 * * 0,3"),
     dealers("ec", "30 2 * * 0,3"),
+]
+
+# Casas (roodos.houses). Doomos publica el feed Trovit completo de Chile todos los días; los de México,
+# Perú y Ecuador responden 404 desde marzo de 2026 (sus avisos siguen activos hasta tener otra fuente).
+# Las miniaturas las sube watchdog_houses_thumbs_cl.sh cada 15 minutos.
+SOURCES += [
+    script("casas_doomos_cl", "cl", "Doomos casas CL", ["www.doomos.cl"], "20 2 * * *",
+           "scripts/import_houses_doomos_cl.py", vertical="casas", timeout_hours=4, full_crawl=True),
 ]
 
 BY_ID = {source.id: source for source in SOURCES}

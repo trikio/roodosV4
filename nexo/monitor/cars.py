@@ -1,4 +1,5 @@
-"""Consultas sobre roodos.cars acotadas a una fuente (su país y los hosts de sus URLs)."""
+"""Consultas sobre los avisos de una fuente (su país y los hosts de sus URLs), en roodos.cars o, para
+las fuentes de casas, en roodos.houses (Source.table)."""
 
 from . import db
 
@@ -25,7 +26,7 @@ def touched_since(conn, source, since):
     row = db.one(
         conn,
         f"SELECT COALESCE(SUM(updated >= %s), 0) AS seen, COALESCE(SUM(created >= %s), 0) AS inserted "
-        f"FROM cars WHERE {condition}",
+        f"FROM {source.table} WHERE {condition}",
         (since, since, *params),
     )
     return int(row["seen"]), int(row["inserted"])
@@ -42,7 +43,7 @@ def snapshot(conn, source, expire_days):
                COALESCE(SUM(created >= NOW() - INTERVAL 1 DAY), 0) AS new_24h,
                COALESCE(SUM(status = 1 AND COALESCE(updated, created) < NOW() - INTERVAL %s DAY), 0) AS stale,
                MAX(updated) AS last_seen
-        FROM cars WHERE {condition}
+        FROM {source.table} WHERE {condition}
         """,
         (expire_days, *params),
     )
@@ -56,9 +57,9 @@ def deactivate_stale(conn, source, expire_days):
     affected, _ = db.execute(
         conn,
         f"""
-        UPDATE cars c
+        UPDATE {source.table} c
         JOIN (
-          SELECT {HOST} AS host FROM cars WHERE {condition}
+          SELECT {HOST} AS host FROM {source.table} WHERE {condition}
           GROUP BY host HAVING MAX(updated) >= NOW() - INTERVAL %s DAY
         ) fresh ON {HOST.replace('url', 'c.url')} = fresh.host
         SET c.status = 0
@@ -73,7 +74,7 @@ def sample_active(conn, source, limit):
     condition, params = where(conn, source)
     return db.all(
         conn,
-        f"SELECT id, image, image_big FROM cars WHERE {condition} AND status = 1 ORDER BY RAND() LIMIT %s",
+        f"SELECT id, image, image_big FROM {source.table} WHERE {condition} AND status = 1 ORDER BY RAND() LIMIT %s",
         (*params, limit),
     )
 
@@ -84,6 +85,6 @@ def by_host(conn, source):
     return db.all(
         conn,
         f"SELECT {HOST} AS host, SUM(status = 1) AS active, MAX(updated) AS last_seen "
-        f"FROM cars WHERE {condition} GROUP BY host",
+        f"FROM {source.table} WHERE {condition} GROUP BY host",
         params,
     )

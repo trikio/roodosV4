@@ -128,10 +128,10 @@ def deactivate(source, apply):
     conn = db.connect()
     condition, params = cars.where(conn, source)
     if apply:
-        affected, _ = db.execute(conn, f"UPDATE cars SET status = 0 WHERE {condition} AND status = 1", params)
+        affected, _ = db.execute(conn, f"UPDATE {source.table} SET status = 0 WHERE {condition} AND status = 1", params)
         print(f"{label(source)}: {num(affected)} avisos desactivados")
     else:
-        row = db.one(conn, f"SELECT COUNT(*) AS n FROM cars WHERE {condition} AND status = 1", params)
+        row = db.one(conn, f"SELECT COUNT(*) AS n FROM {source.table} WHERE {condition} AND status = 1", params)
         print(f"{label(source)}: {num(row['n'])} avisos activos (agrega --yes para desactivarlos)")
     conn.close()
 
