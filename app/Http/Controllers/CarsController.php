@@ -490,6 +490,7 @@ class CarsController extends Controller
                     'make' => (string) ($car['make_name'] ?? ''),
                     'model' => (string) ($car['model_name'] ?? ''),
                     'city' => (string) ($car['city_name'] ?? ''),
+                    'year' => $year,
                 ]),
                 'priceStats' => $priceStats,
                 'yearSpan' => $year > 0 ? [$year - 2, $year + 2] : null,

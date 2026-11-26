@@ -25,6 +25,9 @@ class LandingLinks
     /** Vehicle types never linked from a car detail page. */
     private const NOT_CAR_TYPES = ['buses', 'motos', 'camiones'];
 
+    /** From this year on a car is not a classic: "Clásicos de colección Chevrolet Cruze" is not linked. */
+    private const CLASSIC_UNTIL = 1995;
+
     /** Links from the home when the country has no curated list: per main city. */
     private const PER_CITY = 2;
 
@@ -94,7 +97,10 @@ class LandingLinks
      * city), then its make (no model, no city). Each level looks the landings up by the ids they are tagged with and, when
      * that is not enough (most landings have no model or city id), by the names in their title.
      *
-     * @param array{make_id: int, model_id: int, city_id: int, make: string, model: string, city: string} $car
+     * On the model levels, landings of a year go nearest to the car's year first: in id order a
+     * 2019 Cruze listed the 2010-2015 landings, created years ago, and none of its own years.
+     *
+     * @param array{make_id: int, model_id: int, city_id: int, make: string, model: string, city: string, year?: int} $car
      * @return array<int, array{title: string, url: string}>
      */
     public function forCar(string $countryCode, array $car): array
@@ -108,12 +114,16 @@ class LandingLinks
 
         $links = [];
         foreach ($levels as [$ids, $name, $limit, $hasIds, $withYears]) {
-            $fits = fn ($rows) => array_filter($rows, fn ($row) => $this->fitsCar((string) $row['title'], $name, $withYears));
+            $fits = fn ($rows) => array_filter($rows, fn ($row) => $this->fitsCar((string) $row['title'], $name, $withYears, (int) ($car['year'] ?? 0)));
             $rows = $hasIds ? $fits($this->bestFirst($this->manticore->carLandingsByIds($countryCode, $ids, 150))) : [];
             if (count($this->pickRows($rows, $limit)) < $limit && trim($name) !== '') {
                 // Most title matches name more than the level (other models, towns), hence the margin.
                 $terms = implode(' ', LandingClassifier::words($name));
                 $rows = array_merge($rows, $fits($this->bestFirst($this->manticore->similarCarLandings($countryCode, $terms, true, 500))));
+            }
+
+            if ($withYears && ($car['year'] ?? 0) > 0) {
+                $rows = $this->nearestYearsFirst($rows, (int) $car['year']);
             }
 
             foreach ($this->pick($rows, $limit) as $link) {
@@ -133,10 +143,11 @@ class LandingLinks
      * that, a rare make filled up with "Buses Alfa Romeo nuevos", "Alfa Romeo 1926" or another
      * town's landing.
      */
-    private function fitsCar(string $title, string $levelName, bool $withYears): bool
+    private function fitsCar(string $title, string $levelName, bool $withYears, int $carYear = 0): bool
     {
         $info = LandingClassifier::classify($title);
-        if (in_array($info['type'], self::NOT_CAR_TYPES, true)) {
+        if (in_array($info['type'], self::NOT_CAR_TYPES, true)
+            || ($info['type'] === 'clasicos' && $carYear > self::CLASSIC_UNTIL)) {
             return false;
         }
 
@@ -148,6 +159,23 @@ class LandingLinks
         }
 
         return true;
+    }
+
+    /**
+     * Landings without a year keep their order and go first; those with a year follow, nearest to
+     * $year first (the newer one on a tie).
+     */
+    private function nearestYearsFirst(array $rows, int $year): array
+    {
+        $keyed = [];
+        foreach (array_values($rows) as $position => $row) {
+            preg_match('/\b(19|20)\d{2}\b/', (string) ($row['title'] ?? ''), $m);
+            $rowYear = isset($m[0]) ? (int) $m[0] : null;
+            $keyed[] = [$rowYear === null ? 0 : 1, $rowYear === null ? 0 : abs($rowYear - $year), $rowYear === null ? 0 : -$rowYear, $position, $row];
+        }
+        usort($keyed, fn ($a, $b) => array_slice($a, 0, 4) <=> array_slice($b, 0, 4));
+
+        return array_column($keyed, 4);
     }
 
     /**
