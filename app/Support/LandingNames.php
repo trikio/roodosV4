@@ -31,9 +31,11 @@ class LandingNames
             return self::PLACES[$name];
         }
 
-        $name = preg_replace('/^(Región|Estado|Provincia)\s+(de\s+la\s+|de\s+los\s+|de\s+las\s+|del\s+|de\s+)?/iu', '', $name);
+        // "Región de Los Lagos" is Los Lagos and "Región de La Libertad" La Libertad: only "de"/"del" go.
+        $name = preg_replace('/^(Región|Estado|Provincia)\s+(del\s+|de\s+)?/iu', '', $name);
+        $name = preg_replace('/\s+de\s+(Ignacio de la Llave|Ocampo|Zaragoza|Arteaga)$/u', '', $name);
 
-        return preg_replace('/\s+de\s+(Ignacio de la Llave|Ocampo|Zaragoza|Arteaga)$/u', '', $name);
+        return mb_strtoupper(mb_substr($name, 0, 1)) . mb_substr($name, 1);
     }
 
     public static function transmission(string $name): ?string

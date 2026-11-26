@@ -39,6 +39,22 @@ class LandingCandidates extends Command
         'no_acota' => 'Casi todos los avisos del modelo: sería la misma página del modelo',
     ];
 
+    /**
+     * Catalog models that are not worth a landing: duplicates of another model with a worse name
+     * ("Cs 35" of CS35, "Crv" of CR-V, "Mg Rx5" of Rx5), versions ("F150 Xlt") or vague words
+     * ("Quattro", "Serie", "Clase"). As "make|model" in lower case.
+     */
+    private const SKIP_MODELS = [
+        'audi|coupe', 'audi|quattro', 'bmw|serie', 'changan|cs 15', 'changan|cs 35', 'changan|new cs15',
+        'chery|tiggo', 'chevrolet|crdi', 'chevrolet|dmax crdi', 'chevrolet|luv dmax', 'chevrolet|joy black',
+        'ford|f150', 'ford|f150 4x4', 'ford|f150 dc', 'ford|f150 lariat', 'ford|f150 raptor', 'ford|f150 xlt',
+        'gac|motor', 'geely|ge', 'honda|br', 'honda|crv', 'honda|wr', 'hyundai|grand', 'jeep|jt',
+        'kia|soluto lx', 'kia|sonet ac', 'land rover|land rover', 'mazda|cx', 'mercedes benz|200',
+        'mercedes benz|250', 'mercedes benz|clase', 'mg|mg', 'mg|mg gt', 'mg|mg hs', 'mg|mg rx5', 'mg|mg zx',
+        'mg|mg3', 'mg|mg5', 'nissan|xtrail', 'ram|ram', 'toyota|rav', 'toyota|new rav', 'toyota|super',
+        'zx|auto', 'zx|auto terralord',
+    ];
+
     /** --kind => [index attribute, generated key, CSV column]. */
     private const KINDS = [
         'anio' => ['year_int', 'year', 'año'],
@@ -158,7 +174,8 @@ class LandingCandidates extends Command
                 $makeSlugs[$makeId] = (string) ($make['slug'] ?? '');
             }
             $modelName = trim((string) $model['model_name']);
-            if ($makes[$makeId] === '' || $modelName === '' || empty($model['slug'])) {
+            if ($makes[$makeId] === '' || $modelName === '' || empty($model['slug'])
+                || in_array(mb_strtolower($makes[$makeId] . '|' . $modelName), self::SKIP_MODELS, true)) {
                 continue;
             }
 
