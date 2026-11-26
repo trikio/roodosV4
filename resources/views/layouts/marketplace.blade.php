@@ -49,6 +49,9 @@
         (function(g,o){g[o]=g[o]||function(){(g[o]['q']=g[o]['q']||[]).push(arguments)},g[o]['t']=1*new Date})(window,'_googCsa');
     </script>
     --}}
+    @if(config('services.adsense.client'))
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ config('services.adsense.client') }}" crossorigin="anonymous"></script>
+    @endif
     @yield('head')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <meta name="google-site-verification" content="dy0CWiFLxPBH2ZQPf17BVD1Im8vPqIEpK3jI7zLhx4E" />

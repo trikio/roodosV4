@@ -264,7 +264,7 @@
                     <div class="sticky top-6">
                         <div class="w-[300px] h-[600px] rounded-lg border border-gray-200 shadow overflow-hidden bg-white flex items-center justify-center">
                             <ins
-                                class="adsbygoogle js-lazy-adsense"
+                                class="adsbygoogle js-adsense"
                                 style="display:inline-block;width:300px;height:600px"
                                 data-ad-client="ca-pub-4474623749606512"
                                 data-ad-slot="4621188394"

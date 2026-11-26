@@ -1,32 +1,10 @@
 const mixpanelToken = import.meta.env.VITE_MIXPANEL_TOKEN;
-const adsenseClient = import.meta.env.VITE_ADSENSE_CLIENT;
 // Las vistas encolan eventos como [nombre, propiedades, callback?]; se envían al cargar Mixpanel.
 const mixpanelEvents = (window.mixpanelEvents = window.mixpanelEvents || []);
 
 let vendorsLoaded = false;
 let pageLoaded = document.readyState === "complete";
 let userInteracted = false;
-let adsenseScriptReady = false;
-let adsenseScriptPromise = null;
-
-function loadScript(src, { async = true, defer = false, attrs = {} } = {}) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = async;
-    script.defer = defer;
-
-    Object.entries(attrs).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        script.setAttribute(key, value);
-      }
-    });
-
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
 
 function flushMixpanelEvents() {
   mixpanelEvents.splice(0).forEach(([name, properties, callback]) => {
@@ -105,27 +83,6 @@ function loadMixpanel() {
   flushMixpanelEvents();
 }
 
-function loadAdsenseScript(clientId) {
-  if (adsenseScriptReady) return Promise.resolve();
-  if (adsenseScriptPromise) return adsenseScriptPromise;
-  if (!clientId) return Promise.resolve();
-
-  adsenseScriptPromise = loadScript(
-    `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(clientId)}`,
-    {
-      attrs: {
-        crossorigin: "anonymous",
-      },
-    },
-  )
-    .then(() => {
-      adsenseScriptReady = true;
-    })
-    .catch(() => {});
-
-  return adsenseScriptPromise;
-}
-
 function pushAdsenseSlot(slot) {
   if (!slot || slot.dataset.adsLoaded === "1") return;
 
@@ -136,38 +93,20 @@ function pushAdsenseSlot(slot) {
   } catch (_) {}
 }
 
-function initLazyAdsense() {
-  const slots = Array.from(document.querySelectorAll("ins.adsbygoogle.js-lazy-adsense"));
-  if (!slots.length) return;
-
-  const clientId = slots[0].dataset.adClient || adsenseClient;
-  loadAdsenseScript(clientId).then(() => {
-    if (!("IntersectionObserver" in window)) {
-      slots.forEach((slot) => pushAdsenseSlot(slot));
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            pushAdsenseSlot(entry.target);
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { rootMargin: "200px 0px" },
-    );
-
-    slots.forEach((slot) => observer.observe(slot));
-  });
+// adsbygoogle.js se carga desde el <head> del layout; aquí se piden los anuncios apenas carga la
+// página. Los slots ocultos (la barra lateral en móvil) se saltan: AdSense falla sin ancho.
+function initAdsense() {
+  document
+    .querySelectorAll("ins.adsbygoogle.js-adsense")
+    .forEach((slot) => slot.getClientRects().length && pushAdsenseSlot(slot));
 }
+
+initAdsense();
 
 function loadVendorsOnce() {
   if (vendorsLoaded || !pageLoaded || !userInteracted) return;
   vendorsLoaded = true;
   loadMixpanel();
-  initLazyAdsense();
 }
 
 window.addEventListener("load", () => {

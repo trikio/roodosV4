@@ -42,6 +42,7 @@ return [
     ],
 
     'adsense' => [
+        'client' => env('VITE_ADSENSE_CLIENT'),
         // Responsive in-content unit of the car detail page; without it only the sidebar ad shows.
         'detail_slot' => env('ADSENSE_DETAIL_SLOT'),
     ],
