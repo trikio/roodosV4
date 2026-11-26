@@ -123,6 +123,14 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        // Laravel define este canal en runtime desde 'deprecations.channel', pero con Octane la
+        // config se reinicia en cada request y el canal desaparece: cada deprecación terminaba en
+        // el logger de emergencia (laravel.log llegó a 14 GB). Fijo aquí, no se pierde.
+        'deprecations' => [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
