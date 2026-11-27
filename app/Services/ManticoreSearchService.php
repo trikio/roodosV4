@@ -126,6 +126,32 @@ class ManticoreSearchService
         }
     }
 
+    /**
+     * The cars a landing is about (every word of $terms, plus $filters): their total and the price
+     * and year of up to $limit of them. Null when the index cannot answer: the landing then keeps
+     * its plain snippet.
+     *
+     * @return array{total: int, rows: array<int, array{price: string, year_int: string}>}|null
+     */
+    public function carMatchSample($searchIndex, string $terms, array $filters, int $limit = 1000): ?array
+    {
+        try {
+            $total = $this->countCars($searchIndex, ['q' => $terms] + $filters, true);
+            $query = (new SphinxQL($this->connection))
+                ->select('price', 'year_int')
+                ->from($searchIndex);
+            if (trim($terms) !== '') {
+                $query->match(self::CAR_MATCH_COLUMNS, $terms);
+            }
+            $this->applyCarFilters($query, $filters);
+            $rows = $query->limit(0, $limit)->option('max_matches', $limit)->execute()->fetchAllAssoc();
+
+            return ['total' => $total, 'rows' => $rows];
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
     public function getCarById($searchIndex, int $id): ?array
     {
         try {

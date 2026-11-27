@@ -7,7 +7,9 @@ use App\Support\CappedPaginator;
 use Illuminate\Support\Str;
 use App\Services\LandingLinks;
 use App\Services\ManticoreSearchService;
+use App\Support\CarLandingSnippet;
 use App\Support\LandingClassifier;
+use Illuminate\Support\Facades\Cache;
 
 class CarsController extends Controller
 {
@@ -210,11 +212,16 @@ class CarsController extends Controller
             $resultsQuery = trim($searchQuery . ' ' . $level['extra_terms']);
         }
 
+        $snippet = $this->landingSnippet($countryCode, (string) $slug, (string) $landing['title'], $generated !== null ? $filters : null);
+        $landingMeta = trim((string) ($landing['meta_description'] ?? ''));
+
         $slugData = [
             'original' => $slug,
-            'title' => $landing['title'],
+            'title' => $snippet['name'],
+            'html_title' => $snippet['title'],
             'breadcrumb' => $this->buildLandingBreadcrumb($landing, $countryCode),
-            'meta_description' => trim((string) ($landing['meta_description'] ?? '')),
+            // A hand-written description stays unless there are real figures to give.
+            'meta_description' => $snippet['stats'] !== null || $landingMeta === '' ? $snippet['description'] : $landingMeta,
             'canonical_url' => $canonicalUrl,
             'widened' => $widened,
         ];
@@ -229,6 +236,36 @@ class CarsController extends Controller
                 'links' => $this->links->related($countryCode, $landing),
             ],
         ]));
+    }
+
+    /**
+     * Title and description for Google from the cars the landing is about: every specific word of
+     * its title (or, for a landing made from the inventory, its exact filters). Kept 6 hours.
+     *
+     * @return array{name: string, title: string, description: string, stats: ?array}
+     */
+    private function landingSnippet(string $countryCode, string $slug, string $title, ?array $exactFilters): array
+    {
+        $name = CarLandingSnippet::tidy($title);
+        $code = strtoupper($countryCode);
+        $stats = Cache::remember("car-landing-snippet:{$countryCode}:{$slug}", 21600, function () use ($countryCode, $title, $exactFilters, $code) {
+            $terms = $exactFilters !== null ? '' : CarLandingSnippet::terms($title);
+            if ($exactFilters === null && $terms === '') {
+                return null;
+            }
+            $sample = $this->manticore->carMatchSample($this->getCarsIndexName($countryCode), $terms, $exactFilters ?? []);
+            $floor = config("countries.guide_price_floor.{$code}");
+
+            return $sample ? CarLandingSnippet::stats($sample['total'], $sample['rows'], $floor !== null ? (int) $floor : null) : null;
+        });
+        $currency = (string) config("countries.currency.{$code}", '$');
+
+        return [
+            'name' => $name,
+            'title' => CarLandingSnippet::title($name, $stats, $currency),
+            'description' => CarLandingSnippet::description($name, $stats, $currency),
+            'stats' => $stats,
+        ];
     }
 
     /**

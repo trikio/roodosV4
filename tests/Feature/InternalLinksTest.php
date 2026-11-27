@@ -17,6 +17,7 @@ class InternalLinksTest extends TestCase
         $this->manticore = Mockery::mock(ManticoreSearchService::class);
         $this->manticore->shouldReceive('similarCarLandings')->andReturn([])->byDefault();
         $this->manticore->shouldReceive('carLandingTitles')->andReturn([])->byDefault();
+        $this->manticore->shouldReceive('carMatchSample')->andReturn(null)->byDefault();
         $this->manticore->shouldReceive('existingCarLandingSlugs')->andReturn([])->byDefault();
         $this->app->instance(ManticoreSearchService::class, $this->manticore);
     }
