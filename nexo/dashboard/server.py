@@ -43,6 +43,16 @@ def fetch_all(query: str, params: tuple = ()):
         conn.close()
 
 
+def vertical_arg() -> str:
+    """"autos" o "casas", del parámetro ?vertical= (autos por omisión)."""
+    return "casas" if request.args.get("vertical") == "casas" else "autos"
+
+
+def table_for(vertical: str) -> str:
+    """Tabla de roodos de la vertical; nunca sale del parámetro tal cual (va en el SQL)."""
+    return "houses" if vertical == "casas" else "cars"
+
+
 def fetch_one(query: str, params: tuple = ()):
     rows = fetch_all(query, params)
     return rows[0] if rows else {}
@@ -122,52 +132,58 @@ def index():
 
 @app.get("/api/status")
 def api_status():
+    vertical = vertical_arg()
+    table = table_for(vertical)
+    # En casas quedan cientos de miles de avisos desactivados (Doomos viejo): se cuentan solo los activos.
+    active = "WHERE status = 1" if vertical == "casas" else ""
     country_rows = fetch_all(
-        """
+        f"""
         SELECT
-          id_country AS country,
+          LOWER(id_country) AS country,
           COUNT(*) AS total,
           SUM(updated >= NOW() - INTERVAL 1 DAY) AS fresh_1d,
           SUM(updated >= NOW() - INTERVAL 3 DAY) AS fresh_3d,
           SUM(updated >= NOW() - INTERVAL 7 DAY) AS fresh_7d,
           SUM(updated < NOW() - INTERVAL 7 DAY) AS stale_7d,
           MAX(updated) AS max_updated
-        FROM cars
+        FROM {table} {active}
         GROUP BY id_country
         ORDER BY id_country
         """
     )
     source_rows = fetch_all(
-        """
+        f"""
         SELECT
           COALESCE(NULLIF(nexo_id, ''), 'Sin fuente') AS source,
-          id_country AS country,
+          LOWER(id_country) AS country,
           COUNT(*) AS total,
           SUM(updated >= NOW() - INTERVAL 1 DAY) AS fresh_1d,
           SUM(updated >= NOW() - INTERVAL 7 DAY) AS fresh_7d,
           MAX(updated) AS max_updated
-        FROM cars
+        FROM {table}
         GROUP BY source, country
         ORDER BY fresh_1d DESC, total DESC
         LIMIT 80
         """
     )
     summary = fetch_one(
-        """
+        f"""
         SELECT
           COUNT(*) AS total,
           SUM(updated >= NOW() - INTERVAL 1 DAY) AS fresh_1d,
           SUM(updated >= NOW() - INTERVAL 7 DAY) AS fresh_7d,
           SUM(updated < NOW() - INTERVAL 7 DAY) AS stale_7d,
           MAX(updated) AS max_updated
-        FROM cars
+        FROM {table} {active}
         """
     )
-    lines = tail_log()
+    # El servicio de refresco y su log son de autos.
+    lines = tail_log() if vertical == "autos" else []
     return jsonify(
         {
             "generated_at": datetime.now().isoformat(timespec="seconds"),
-            "service": service_state(),
+            "vertical": vertical,
+            "service": service_state() if vertical == "autos" else {},
             "summary": summary,
             "countries": country_rows,
             "sources": source_rows,
@@ -180,6 +196,7 @@ def api_status():
 @app.get("/api/nexo")
 def api_nexo():
     """Fuentes con su última foto diaria y ejecución, alertas abiertas y candidatas (base nexo)."""
+    vertical = vertical_arg()
     sources = fetch_all(
         """
         SELECT s.id, s.name, s.country, s.schedule, s.full_crawl,
@@ -194,42 +211,70 @@ def api_nexo():
           SELECT id FROM nexo.runs WHERE source_id = s.id AND finished_at IS NOT NULL
           ORDER BY started_at DESC LIMIT 1
         )
-        WHERE s.enabled = 1
+        WHERE s.enabled = 1 AND s.vertical = %s
         ORDER BY s.country, d.active DESC
-        """
+        """,
+        (vertical,),
     )
     alerts = fetch_all(
         """
-        SELECT kind, source_id, message, DATE_FORMAT(opened_at, '%Y-%m-%d %H:%i') AS opened_at
-        FROM nexo.alerts WHERE resolved_at IS NULL ORDER BY opened_at DESC
-        """
+        SELECT a.kind, a.source_id, a.message, DATE_FORMAT(a.opened_at, '%Y-%m-%d %H:%i') AS opened_at
+        FROM nexo.alerts a LEFT JOIN nexo.sources s ON s.id = a.source_id
+        WHERE a.resolved_at IS NULL AND (s.vertical = %s OR s.id IS NULL)
+        ORDER BY a.opened_at DESC
+        """,
+        (vertical,),
     )
     candidates = fetch_all(
         """
         SELECT host, country, url, score, status, DATE_FORMAT(first_seen, '%Y-%m-%d') AS first_seen
-        FROM nexo.candidates WHERE status <> 'rejected' ORDER BY first_seen DESC LIMIT 50
-        """
+        FROM nexo.candidates WHERE status <> 'rejected' AND vertical = %s
+        ORDER BY FIELD(status, 'review', 'adapting', 'new') DESC, first_seen DESC LIMIT 80
+        """,
+        (vertical,),
     )
     return jsonify({"sources": sources, "alerts": alerts, "candidates": candidates})
 
 
 @app.get("/api/countries")
 def api_countries():
-    """Avisos de autos por país: activos (los que ve producción) y movimiento reciente."""
+    """Avisos por país (autos o casas): activos (los que ve producción) y movimiento reciente; en casas,
+    también sus landings (todas las activas y las creadas desde el inventario)."""
+    vertical = vertical_arg()
     rows = fetch_all(
-        """
+        f"""
         SELECT LOWER(id_country) AS country,
                SUM(status = 1) AS active,
                SUM(created >= NOW() - INTERVAL 1 DAY) AS new_24h,
                SUM(updated >= NOW() - INTERVAL 1 DAY) AS seen_24h,
                SUM(status = 1 AND updated >= NOW() - INTERVAL 7 DAY) AS seen_7d
-        FROM cars
+        FROM {table_for(vertical)}
         WHERE id_country IN ('cl', 'mx', 'pe', 'ec')
         GROUP BY LOWER(id_country)
         ORDER BY active DESC
         """
     )
-    return jsonify({"countries": rows})
+    if vertical == "casas":
+        landings = {
+            r["country"]: r
+            for r in fetch_all(
+                """
+                SELECT country_id AS country, COUNT(*) AS landings,
+                       SUM(LOCATE('"generated"', content) > 0) AS from_inventory
+                FROM house_landings WHERE activo = 1 GROUP BY country_id
+                """
+            )
+        }
+        for r in rows:
+            r["landings"] = (landings.get(r["country"]) or {}).get("landings", 0)
+            r["generated"] = (landings.get(r["country"]) or {}).get("from_inventory", 0)
+        # Un país sin avisos (Perú y Ecuador sin fuente) también se lista, con sus landings.
+        for country in ("cl", "mx", "pe", "ec"):
+            if country not in {r["country"] for r in rows}:
+                rows.append({"country": country, "active": 0, "new_24h": 0, "seen_24h": 0, "seen_7d": 0,
+                             "landings": (landings.get(country) or {}).get("landings", 0),
+                             "generated": (landings.get(country) or {}).get("from_inventory", 0)})
+    return jsonify({"vertical": vertical, "countries": rows})
 
 
 @app.get("/api/dealers")
@@ -265,6 +310,22 @@ def api_dealer_action(host: str, action: str):
             "UPDATE nexo.dealer_sites SET status=%s, approved_at=IF(%s='active', NOW(), approved_at) WHERE host=%s",
             (status, status, host),
         )
+        conn.commit()
+        return jsonify({"ok": cur.rowcount > 0})
+    finally:
+        conn.close()
+
+
+@app.post("/api/candidates/<host>/<action>")
+def api_candidate_action(host: str, action: str):
+    """Fuentes candidatas: "adaptar" (hacerle un spider) o descartar."""
+    status = {"adapt": "adapting", "reject": "rejected"}.get(action)
+    if not status:
+        return jsonify({"ok": False, "error": "acción desconocida"}), 400
+    conn = db_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE nexo.candidates SET status=%s WHERE host=%s", (status, host))
         conn.commit()
         return jsonify({"ok": cur.rowcount > 0})
     finally:

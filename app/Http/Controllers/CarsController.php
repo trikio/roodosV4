@@ -7,7 +7,9 @@ use App\Support\CappedPaginator;
 use Illuminate\Support\Str;
 use App\Services\LandingLinks;
 use App\Services\ManticoreSearchService;
+use App\Support\CarLandingSnippet;
 use App\Support\LandingClassifier;
+use Illuminate\Support\Facades\Cache;
 
 class CarsController extends Controller
 {
@@ -210,17 +212,35 @@ class CarsController extends Controller
             $resultsQuery = trim($searchQuery . ' ' . $level['extra_terms']);
         }
 
+        $snippet = $this->landingSnippet($countryCode, (string) $slug, (string) $landing['title'], $generated !== null ? $filters : null);
+        $landingMeta = trim((string) ($landing['meta_description'] ?? ''));
+
+        // A text landing listed every car sharing one word with its title: "Chevrolet Camaro Quito"
+        // showed 16 Camaros and then any Chevrolet. Same URL and canonical, better list: the cars
+        // with every word of the title when there are enough, else its model ranked by the title.
+        $matchAll = false;
+        if ($generated === null && $filters === []) {
+            if ($snippet['matching'] >= self::LANDING_MIN_RESULTS) {
+                $resultsQuery = $snippet['terms'];
+                $matchAll = true;
+            } else {
+                $filters = $this->landingModelFilters($countryCode, $landing, $breadcrumbSlugs, (string) $slug);
+            }
+        }
+
         $slugData = [
             'original' => $slug,
-            'title' => $landing['title'],
+            'title' => $snippet['name'],
+            'html_title' => $snippet['title'],
             'breadcrumb' => $this->buildLandingBreadcrumb($landing, $countryCode),
-            'meta_description' => trim((string) ($landing['meta_description'] ?? '')),
+            // A hand-written description stays unless there are real figures to give.
+            'meta_description' => $snippet['stats'] !== null || $landingMeta === '' ? $snippet['description'] : $landingMeta,
             'canonical_url' => $canonicalUrl,
             'widened' => $widened,
         ];
 
         return $this->renderCarsIndex($request, $country, array_merge(
-            ['q' => $resultsQuery],
+            ['q' => $resultsQuery, 'match_all' => $matchAll],
             array_fill_keys(array_keys(ManticoreSearchService::LANDING_FILTER_ATTRIBUTES), ''),
             $filters
         ), array_merge(compact('slugData', 'type', 'searchQuery'), [
@@ -229,6 +249,63 @@ class CarsController extends Controller
                 'links' => $this->links->related($countryCode, $landing),
             ],
         ]));
+    }
+
+    /**
+     * Title and description for Google from the cars the landing is about: every specific word of
+     * its title (or, for a landing made from the inventory, its exact filters). Kept 6 hours.
+     *
+     * @return array{name: string, title: string, description: string, stats: ?array, terms: string, matching: int}
+     */
+    private function landingSnippet(string $countryCode, string $slug, string $title, ?array $exactFilters): array
+    {
+        $name = CarLandingSnippet::tidy($title);
+        $code = strtoupper($countryCode);
+        $terms = $exactFilters !== null ? '' : CarLandingSnippet::terms($title);
+        $cached = Cache::remember("car-landing-snippet:v2:{$countryCode}:{$slug}", 21600, function () use ($countryCode, $terms, $exactFilters, $code) {
+            if ($exactFilters === null && $terms === '') {
+                return ['stats' => null, 'matching' => 0];
+            }
+            $sample = $this->manticore->carMatchSample($this->getCarsIndexName($countryCode), $terms, $exactFilters ?? []);
+            $floor = config("countries.guide_price_floor.{$code}");
+
+            return [
+                'stats' => $sample ? CarLandingSnippet::stats($sample['total'], $sample['rows'], $floor !== null ? (int) $floor : null) : null,
+                'matching' => (int) ($sample['total'] ?? 0),
+            ];
+        });
+        $stats = $cached['stats'] ?? null;
+        $currency = (string) config("countries.currency.{$code}", '$');
+
+        return [
+            'name' => $name,
+            'title' => CarLandingSnippet::title($name, $stats, $currency),
+            'description' => CarLandingSnippet::description($name, $stats, $currency),
+            'stats' => $stats,
+            'terms' => $terms,
+            'matching' => (int) ($cached['matching'] ?? 0),
+        ];
+    }
+
+    /**
+     * The make and model of a text landing whose slug names its model, when that model has enough
+     * cars in the country (its place stays a word of the search: it ranks those cars first without
+     * leaving the page thin). Empty otherwise: the landing keeps its plain title search.
+     */
+    private function landingModelFilters(string $countryCode, array $landing, array $breadcrumbSlugs, string $slug): array
+    {
+        if (($breadcrumbSlugs['model'] ?? '') === '' || (int) ($landing['id_car_model'] ?? 0) <= 0) {
+            return [];
+        }
+        $filters = $this->resolveLandingFilters($landing, $breadcrumbSlugs, $slug);
+        if (empty($filters['model'])) {
+            return [];
+        }
+        $filters = array_intersect_key($filters, ['make' => true, 'model' => true]);
+
+        return $this->manticore->countCars($this->getCarsIndexName($countryCode), $filters) >= self::LANDING_MIN_RESULTS / 2
+            ? $filters
+            : [];
     }
 
     /**
@@ -552,7 +629,7 @@ class CarsController extends Controller
         return [
             'catalog' => true,
             'heading' => $heading,
-            'html_title' => $heading . ($countryName !== '' ? ' en ' . $countryName : '') . ' | Roodos Autos',
+            'html_title' => $heading . ($countryName !== '' ? ' en ' . $countryName : ''),
             'country_name' => $countryName,
         ];
     }

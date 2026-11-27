@@ -23,6 +23,10 @@ class GenerateSitemapsCommandTest extends TestCase
             ['id' => '1', 'slug' => 'autos-honda-usados', 'redirect' => ''],
             ['id' => '2', 'slug' => 'honda', 'redirect' => '/marca/honda'],
         ])());
+        $manticore->shouldReceive('iterateHouseLandings')->with('pe')->andReturn((fn () => yield from [
+            ['id' => '1', 'slug' => 'casas-en-venta-en-arequipa', 'content' => '{"generated":{"operation":1,"type":1,"state":4}}'],
+            ['id' => '2', 'slug' => 'casa-lima', 'content' => ''],
+        ])());
         $this->app->instance(ManticoreSearchService::class, $manticore);
     }
 
@@ -62,5 +66,18 @@ class GenerateSitemapsCommandTest extends TestCase
         $sitemap = file_get_contents($this->tmp . '/app/sitemaps/pe/landings-1.xml');
         $this->assertStringContainsString('<loc>https://autos.roodos.pe/autos-honda-usados</loc>', $sitemap);
         $this->assertStringNotContainsString('/honda<', $sitemap);
+    }
+
+    public function test_house_sitemap_lists_generated_landings_without_waiting_for_the_cleanup(): void
+    {
+        $this->artisan('sitemaps:generate', ['country' => 'pe'])->assertSuccessful();
+
+        $this->assertSame([], glob($this->tmp . '/app/sitemaps/pe/landings-*.xml'));
+        $sitemap = file_get_contents($this->tmp . '/app/sitemaps/pe/casas-1.xml');
+        $this->assertStringContainsString('<loc>https://casas.roodos.pe/casas-en-venta-en-arequipa</loc>', $sitemap);
+        $this->assertStringNotContainsString('casa-lima', $sitemap);
+
+        $this->get('http://casas.roodos.pe/sitemap.xml')->assertOk()->assertSee('https://casas.roodos.pe/sitemaps/casas-1.xml');
+        $this->get('http://casas.roodos.pe/sitemaps/casas-1.xml')->assertOk();
     }
 }

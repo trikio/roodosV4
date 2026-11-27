@@ -17,6 +17,7 @@ class InternalLinksTest extends TestCase
         $this->manticore = Mockery::mock(ManticoreSearchService::class);
         $this->manticore->shouldReceive('similarCarLandings')->andReturn([])->byDefault();
         $this->manticore->shouldReceive('carLandingTitles')->andReturn([])->byDefault();
+        $this->manticore->shouldReceive('carMatchSample')->andReturn(null)->byDefault();
         $this->manticore->shouldReceive('existingCarLandingSlugs')->andReturn([])->byDefault();
         $this->app->instance(ManticoreSearchService::class, $this->manticore);
     }
@@ -116,7 +117,7 @@ class InternalLinksTest extends TestCase
 
         $this->get('http://autos.roodos.pe/marca/toyota')
             ->assertOk()
-            ->assertSee('<title>Toyota usados en venta en Perú | Roodos Autos</title>', false)
+            ->assertSee('<title>Toyota usados en venta en Perú | Roodos</title>', false)
             ->assertSee('<h1 class="text-3xl font-bold text-gray-900">Toyota usados en venta</h1>', false)
             ->assertSee('<meta name="description" content="50 Toyota usados en venta en Perú. Modelos: RAV4 y Hilux. En Lima y Arequipa. Compara precio, año y kilometraje.">', false);
     }
@@ -134,7 +135,7 @@ class InternalLinksTest extends TestCase
 
         $this->get('http://autos.roodos.pe/modelo/toyota-rav4')
             ->assertOk()
-            ->assertSee('<title>Toyota RAV4 usados en venta en Perú | Roodos Autos</title>', false)
+            ->assertSee('<title>Toyota RAV4 usados en venta en Perú | Roodos</title>', false)
             ->assertSee('<h1 class="text-3xl font-bold text-gray-900">Toyota RAV4 usados en venta</h1>', false)
             // A model page does not list "models" (it would only repeat itself).
             ->assertSee('<meta name="description" content="50 Toyota RAV4 usados en venta en Perú. En Lima. Compara precio, año y kilometraje.">', false);

@@ -82,7 +82,7 @@
 
 @section('page_title', $pageTitle)
 @if(!empty($slugData['html_title']))
-@section('html_title', $slugData['html_title'])
+@section('html_title', $slugData['html_title'] . ' | Roodos')
 @endif
 @section('meta_description', $metaDescription)
 @section('robots_content', $robotsContent)

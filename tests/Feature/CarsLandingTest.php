@@ -17,6 +17,7 @@ class CarsLandingTest extends TestCase
         $this->manticore = Mockery::mock(ManticoreSearchService::class);
         $this->app->instance(ManticoreSearchService::class, $this->manticore);
         $this->manticore->shouldReceive('similarCarLandings')->andReturn([])->byDefault();
+        $this->manticore->shouldReceive('carMatchSample')->andReturn(null)->byDefault();
         config(['services.landings.widening' => true]);
     }
 
@@ -35,6 +36,56 @@ class CarsLandingTest extends TestCase
 
         $this->assertCanonical($response, '/venta-autos-usados-volkswagen-escarabajo-lima-los-olivos');
         $response->assertDontSee('mostramos resultados similares');
+    }
+
+    public function test_landing_title_and_description_give_the_figures_of_its_cars(): void
+    {
+        config(['services.landings.widening' => false]);
+        $this->givenLanding($this->landing([
+            'slug' => 'venta-autos-usados-chevrolet-camaro-quito',
+            'title' => 'venta Autos usados Chevrolet Camaro Quito',
+            'content' => json_encode(['breadcrumb' => ['make' => 'chevrolet', 'model' => 'chevrolet-camaro']]),
+        ]));
+        $rows = array_map(fn ($i) => ['price' => (string) (20000 + $i * 1000), 'year_int' => (string) (2010 + $i)], range(0, 9));
+        $this->manticore->shouldReceive('carMatchSample')->once()->with('car_pe', 'chevrolet camaro quito', [])->andReturn(['total' => 16, 'rows' => $rows]);
+        $this->expectSearch(fn ($o) => true);
+
+        // Peru mixes soles and dollars: no prices, the years instead.
+        $this->get('http://autos.roodos.pe/venta-autos-usados-chevrolet-camaro-quito')
+            ->assertOk()
+            ->assertSee('<title>Autos usados Chevrolet Camaro Quito: 16 avisos, años 2010–2019 | Roodos</title>', false)
+            ->assertSee('16 avisos de Autos usados Chevrolet Camaro Quito, años 2010 a 2019.', false);
+    }
+
+    public function test_text_landing_lists_only_cars_with_every_word_when_there_are_enough(): void
+    {
+        config(['services.landings.widening' => false]);
+        $this->givenLanding($this->landing(['slug' => 'grand-suzuki-nomade', 'title' => 'Grand Suzuki Nomade', 'id_car_make' => 167]));
+        $this->manticore->shouldReceive('carMatchSample')->andReturn(['total' => 44, 'rows' => []]);
+        $this->expectSearch(fn ($o) => $o['q'] === 'grand suzuki nomade' && $o['match_all'] === true && $o['make'] === '');
+
+        $response = $this->get('http://autos.roodos.pe/grand-suzuki-nomade');
+
+        $this->assertCanonical($response, '/grand-suzuki-nomade');
+    }
+
+    public function test_text_landing_with_few_exact_cars_lists_its_model_ranked_by_its_title(): void
+    {
+        config(['services.landings.widening' => false]);
+        $this->givenLanding($this->landing([
+            'slug' => 'venta-autos-usados-chevrolet-camaro-quito',
+            'title' => 'venta Autos usados Chevrolet Camaro Quito',
+            'content' => json_encode(['breadcrumb' => ['make' => 'chevrolet', 'model' => 'chevrolet-camaro']]),
+            'id_car_make' => 35, 'id_car_model' => 267, 'id_state' => 89, 'id_city' => 29027,
+        ]));
+        $this->manticore->shouldReceive('carMatchSample')->andReturn(['total' => 3, 'rows' => []]);
+        $this->manticore->shouldReceive('countCars')->with('car_pe', ['make' => 35, 'model' => 267])->andReturn(16);
+        $this->expectSearch(fn ($o) => $o['q'] === 'venta Autos usados Chevrolet Camaro Quito' && $o['match_all'] === false
+            && $o['make'] === 35 && $o['model'] === 267 && $o['state'] === '' && $o['city'] === '');
+
+        $response = $this->get('http://autos.roodos.pe/venta-autos-usados-chevrolet-camaro-quito');
+
+        $this->assertCanonical($response, '/venta-autos-usados-chevrolet-camaro-quito');
     }
 
     private function landing(array $attributes = []): array

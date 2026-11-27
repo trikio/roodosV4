@@ -172,6 +172,10 @@ SOURCES += [
            "0 5 * * 4", vertical="casas", timeout_hours=2, full_crawl=True),
     spider("mercadolibre_departamentos_renta_mexico", "mx", "ML Inmuebles deptos renta MX",
            ["departamento.mercadolibre.com.mx"], "0 5 * * 5", vertical="casas", timeout_hours=2, full_crawl=True),
+    # Casa Ecuador (27-11-2026): ~740 avisos de todo Ecuador desde la API REST de WordPress, completa en
+    # 8 páginas. robots.txt y términos lo permiten; aprobada por el usuario el 27-11-2026.
+    spider("casas_casaecuador_ec", "ec", "Casa Ecuador", ["casaecuador.net"], "40 2 * * 1",
+           vertical="casas", timeout_hours=1, full_crawl=True),
 ]
 
 BY_ID = {source.id: source for source in SOURCES}

@@ -15,7 +15,7 @@
             <p class="text-sm font-semibold tracking-[0.18em] text-slate-500 mb-4">ERROR 410</p>
             <h1 class="text-4xl font-bold mb-4">{{ $pageTitle }}</h1>
             <p class="text-slate-600 mb-8">
-                Esta página fue retirada. Puedes seguir buscando autos desde el inicio.
+                Esta página fue retirada. Puedes seguir buscando desde el inicio.
             </p>
             <a
                 href="/"

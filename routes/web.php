@@ -107,6 +107,8 @@ Route::domain('casas.roodos.{country}')->group(function () use ($infoPages, $con
     Route::get('/casa/{id}', [HousesController::class, 'show'])->name('houses.show');
 
     Route::get('/robots.txt', [SitemapController::class, 'housesRobots']);
+    Route::get('/sitemap.xml', [SitemapController::class, 'housesIndex'])->name('houses.sitemap');
+    Route::get('/sitemaps/{file}', [SitemapController::class, 'housesShow'])->where('file', 'casas-[0-9]+\.xml');
 
     // Páginas informativas
     foreach ($infoPages as $slug => $view) {

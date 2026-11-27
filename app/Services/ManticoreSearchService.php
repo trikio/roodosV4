@@ -56,7 +56,7 @@ class ManticoreSearchService
                 ->select('*')
                 ->from($searchIndex);
 
-            $this->applyQuorumMatch($query, $columns, $searchQuery);
+            $this->applyCarTextMatch($query, $columns, $searchQuery, $options);
 
             $query = $this->applyCarFilters($query, $options);
             $query->limit(((int)$page - 1) * self::RESULTS_PER_PAGE, self::RESULTS_PER_PAGE);
@@ -123,6 +123,32 @@ class ManticoreSearchService
             return (int) ($result[0]['total'] ?? 0);
         } catch (Exception $e) {
             throw new Exception("Error counting cars: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * The cars a landing is about (every word of $terms, plus $filters): their total and the price
+     * and year of up to $limit of them. Null when the index cannot answer: the landing then keeps
+     * its plain snippet.
+     *
+     * @return array{total: int, rows: array<int, array{price: string, year_int: string}>}|null
+     */
+    public function carMatchSample($searchIndex, string $terms, array $filters, int $limit = 1000): ?array
+    {
+        try {
+            $total = $this->countCars($searchIndex, ['q' => $terms] + $filters, true);
+            $query = (new SphinxQL($this->connection))
+                ->select('price', 'year_int')
+                ->from($searchIndex);
+            if (trim($terms) !== '') {
+                $query->match(self::CAR_MATCH_COLUMNS, $terms);
+            }
+            $this->applyCarFilters($query, $filters);
+            $rows = $query->limit(0, $limit)->option('max_matches', $limit)->execute()->fetchAllAssoc();
+
+            return ['total' => $total, 'rows' => $rows];
+        } catch (Exception $e) {
+            return null;
         }
     }
 
@@ -466,6 +492,72 @@ class ManticoreSearchService
         }
     }
 
+    /**
+     * Ads of the same operation and type in one place ($field: id_city or id_state), closest in
+     * price first.
+     */
+    public function similarHouses($searchIndex, int $excludeId, int $operationId, int $typeId, string $field, int $placeId, int $price, int $minPrice = 1, int $maxPrice = 0, int $limit = 24): array
+    {
+        if ($operationId <= 0 || $typeId <= 0 || $placeId <= 0 || !in_array($field, ['id_city', 'id_state'], true)) {
+            return [];
+        }
+
+        try {
+            return (new SphinxQL($this->connection))
+                ->select('*', SphinxQL::expr('ABS(BIGINT(price) - ' . max(0, $price) . ') AS price_diff'))
+                ->from($searchIndex)
+                ->where('id_house_operation', $operationId)
+                ->where('id_house_type', $typeId)
+                ->where($field, $placeId)
+                ->where('id', '!=', $excludeId)
+                ->where('price', 'BETWEEN', [max(1, $minPrice), $maxPrice > 0 ? $maxPrice : 4294967295])
+                // A development posted 100 times (same price and m²) comes back once.
+                ->groupBy('price')
+                ->groupBy('size')
+                ->orderBy('price_diff', 'ASC')
+                ->limit(0, $limit)
+                ->execute()
+                ->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Price and size of up to $limit ads of the same operation and type in one place, to work out
+     * medians: Manticore has no median and the averages are ruined by a few absurd ads.
+     *
+     * @return array<int, array{price: int, size: int}>
+     */
+    public function housePriceSample($searchIndex, int $operationId, int $typeId, string $field, int $placeId, int $limit = 1000): array
+    {
+        // $field '' is the whole country (a country-level landing).
+        $wholeCountry = $field === '';
+        if ($operationId <= 0 || $typeId <= 0 || (!$wholeCountry && ($placeId <= 0 || !in_array($field, ['id_city', 'id_state'], true)))) {
+            return [];
+        }
+
+        try {
+            $query = (new SphinxQL($this->connection))
+                ->select('price', 'size')
+                ->from($searchIndex)
+                ->where('id_house_operation', $operationId)
+                ->where('id_house_type', $typeId);
+            if (!$wholeCountry) {
+                $query->where($field, $placeId);
+            }
+
+            return $query
+                ->where('price', '>', 0)
+                ->limit(0, $limit)
+                ->option('max_matches', $limit)
+                ->execute()
+                ->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
     public function getLandingBySlug(string $countryCode, string $slug): ?array
     {
         $indexName = 'car_landings_' . $countryCode;
@@ -671,26 +763,124 @@ class ManticoreSearchService
         } while (count($rows) === $batchSize);
     }
 
-    public function getHouseLandingBySlug(string $countryCode, string $slug): ?array
+    /**
+     * Ads per operation + type, also per region ($level 'state') or city ('city'), only groups with
+     * at least $minAds: [{id_house_operation, house_operation_name, id_house_type, house_type_name,
+     * id_state, state_name, id_city, city_name, total}]. The names come from any ad of the group.
+     */
+    public function houseCountsByPlace($searchIndex, string $level, int $minAds): array
     {
-        $indexName = 'house_landings_' . $countryCode;
+        $limit = 100000;
+        $query = (new SphinxQL($this->connection))
+            ->select(
+                'id_house_operation', 'house_operation_name', 'id_house_type', 'house_type_name',
+                'id_state', 'state_name', 'id_city', 'city_name', SphinxQL::expr('COUNT(*) AS total')
+            )
+            ->from($searchIndex)
+            ->where('id_house_operation', '>', 0)
+            ->where('id_house_type', '>', 0)
+            ->groupBy('id_house_operation')
+            ->groupBy('id_house_type');
+
+        if ($level === 'state' || $level === 'city') {
+            $field = $level === 'state' ? 'id_state' : 'id_city';
+            $query->where($field, '>', 0)->groupBy($field);
+        }
+
+        return $query
+            ->having('total', '>=', $minAds)
+            ->limit(0, $limit)
+            ->option('max_matches', $limit)
+            ->execute()
+            ->fetchAllAssoc();
+    }
+
+    /**
+     * House landings whose attributes match $where ([field, operator, value] triples), oldest
+     * first. Empty when the index is missing.
+     */
+    public function houseLandings(string $countryCode, array $where, int $limit = 100): array
+    {
+        $allowed = ['id', 'id_house_operation', 'id_house_type', 'id_state', 'id_city'];
 
         try {
-            $result = (new SphinxQL($this->connection))
-                ->select('*')
-                ->from($indexName)
-                ->where('slug', $slug)
-                ->limit(0, 1)
-                ->execute();
-
-            if (empty($result)) {
-                return null;
+            $query = (new SphinxQL($this->connection))
+                ->select('id', 'slug', 'title', 'content', 'id_house_operation', 'id_house_type', 'id_state', 'id_city')
+                ->from('house_landings_' . $countryCode);
+            foreach ($where as [$field, $operator, $value]) {
+                if (!in_array($field, $allowed, true)) {
+                    throw new Exception("Atributo no permitido: {$field}");
+                }
+                $query->where($field, $operator, $value);
             }
 
-            return $result[0];
+            return $query
+                ->orderBy('id', 'ASC')
+                ->limit(0, $limit)
+                ->option('max_matches', max(1000, $limit))
+                ->execute()
+                ->fetchAllAssoc();
         } catch (Exception $e) {
-            return null;
+            return [];
         }
+    }
+
+    /**
+     * Which of these slugs are active house landings. Empty when the index is missing.
+     *
+     * @param  string[]  $slugs
+     * @return string[]
+     */
+    public function existingHouseLandingSlugs(string $countryCode, array $slugs): array
+    {
+        $slugs = array_values(array_unique(array_filter($slugs, fn ($slug) => $slug !== '')));
+        if ($slugs === []) {
+            return [];
+        }
+
+        try {
+            $rows = (new SphinxQL($this->connection))
+                ->select('slug')
+                ->from('house_landings_' . $countryCode)
+                ->where('slug', 'IN', $slugs)
+                ->limit(0, count($slugs))
+                ->execute()
+                ->fetchAllAssoc();
+
+            return array_column($rows, 'slug');
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    public function iterateHouseLandings(string $countryCode, int $batchSize = 20000): \Generator
+    {
+        $lastId = 0;
+
+        do {
+            $rows = $this->houseLandings($countryCode, [['id', '>', $lastId]], $batchSize);
+            foreach ($rows as $row) {
+                $lastId = (int) $row['id'];
+                yield $row;
+            }
+        } while (count($rows) === $batchSize);
+    }
+
+    /**
+     * The active landing with this slug, or null. A Manticore error is thrown, not read as
+     * "no landing": the caller answers 410 to a missing one, and an outage must not do that.
+     */
+    public function getHouseLandingBySlug(string $countryCode, string $slug): ?array
+    {
+        $result = (new SphinxQL($this->connection))
+            ->select('*')
+            ->from('house_landings_' . $countryCode)
+            ->where('slug', $slug)
+            ->limit(0, 1)
+            ->execute()
+            ->fetchAllAssoc();
+
+        return $result[0] ?? null;
     }
 
     protected function enqueueFacet($query, $searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias)
@@ -698,7 +888,7 @@ class ManticoreSearchService
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
             ->from($searchIndex);
 
-        $this->applyQuorumMatch($query, $columns, $searchQuery);
+        $this->applyCarTextMatch($query, $columns, $searchQuery, $options);
 
         $query = $this->applyCarFilters($query, $options);
         $query->groupBy($idField)
@@ -713,7 +903,7 @@ class ManticoreSearchService
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
             ->from($searchIndex);
 
-        $this->applyQuorumMatch($query, $columns, $searchQuery);
+        $this->applyCarTextMatch($query, $columns, $searchQuery, $options);
 
         $query = $this->applyHouseFilters($query, $options);
         $query->groupBy($idField)
@@ -746,6 +936,19 @@ class ManticoreSearchService
      * (quorum operator). User input is escaped so characters like " or @
      * cannot break or alter the full-text expression.
      */
+    /**
+     * Cars match at least one word of the query; with $options['match_all'] (a landing whose every
+     * word has enough cars), every word.
+     */
+    protected function applyCarTextMatch(SphinxQL $query, array $columns, ?string $searchQuery, array $options): SphinxQL
+    {
+        if (!empty($options['match_all']) && trim((string) $searchQuery) !== '') {
+            return $query->match($columns, trim((string) $searchQuery));
+        }
+
+        return $this->applyQuorumMatch($query, $columns, $searchQuery);
+    }
+
     protected function applyQuorumMatch(SphinxQL $query, array $columns, ?string $searchQuery): SphinxQL
     {
         $searchQuery = trim((string) $searchQuery);

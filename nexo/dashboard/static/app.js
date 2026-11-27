@@ -1,5 +1,22 @@
 const fmt = new Intl.NumberFormat("en-US");
 
+// Autos | Casas: las mismas secciones filtradas por vertical; se elige con #autos o #casas.
+function vertical() {
+  return location.hash === "#casas" ? "casas" : "autos";
+}
+
+function api(path) {
+  return `${path}${path.includes("?") ? "&" : "?"}vertical=${vertical()}`;
+}
+
+function applyVertical() {
+  const v = vertical();
+  document.body.dataset.vertical = v;
+  for (const a of document.querySelectorAll(".tabs a")) a.classList.toggle("active", a.dataset.vertical === v);
+  text("total-label", v === "casas" ? "Total casas activas" : "Total autos");
+  text("sources-title", v === "casas" ? "Fuentes de casas" : "Fuentes de autos");
+}
+
 function byId(id) {
   return document.getElementById(id);
 }
@@ -33,7 +50,7 @@ function currentStep(steps) {
 }
 
 async function loadStatus() {
-  const res = await fetch("/api/status", { cache: "no-store" });
+  const res = await fetch(api("/api/status"), { cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
 
@@ -44,12 +61,16 @@ async function loadStatus() {
   text("stale-7d", num(data.summary.stale_7d));
   text("max-updated", data.summary.max_updated);
 
+  if (data.vertical !== "autos") {
+    text("current-step", "-");
+  } else {
   const pill = byId("service-pill");
   pill.textContent = data.service.active ? "Running" : data.service.active_label || "Stopped";
   pill.className = `pill ${data.service.active ? "ok" : "bad"}`;
   text("main-pid", data.service.main_pid || "-");
   text("started-at", data.service.started_at || "-");
   text("current-step", currentStep(data.steps));
+  }
 
   const countries = byId("countries");
   countries.replaceChildren();
@@ -92,7 +113,7 @@ const OUTCOME_LABELS = { ok: "ok", empty: "sin avisos", drop: "caída", failed: 
 const COUNTRY_NAMES = { cl: "Chile", mx: "México", pe: "Perú", ec: "Ecuador" };
 
 async function loadCountries() {
-  const res = await fetch("/api/countries", { cache: "no-store" });
+  const res = await fetch(api("/api/countries"), { cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
 
@@ -108,12 +129,14 @@ async function loadCountries() {
       { value: num(c.new_24h), className: "num" },
       { value: num(c.seen_24h), className: "num" },
       { value: num(c.seen_7d), className: "num" },
+      { value: num(c.landings), className: "num casas-only" },
+      { value: num(c.generated), className: "num casas-only" },
     ]));
   }
 }
 
 async function loadNexo() {
-  const res = await fetch("/api/nexo", { cache: "no-store" });
+  const res = await fetch(api("/api/nexo"), { cache: "no-store" });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
 
@@ -166,14 +189,40 @@ async function loadNexo() {
   const candidates = byId("nexo-candidates");
   candidates.replaceChildren();
   for (const c of data.candidates) {
-    candidates.appendChild(row([
+    const tr = row([
       { value: c.host },
       { value: c.country.toUpperCase() },
       { value: `${c.score}/7`, className: "num" },
-      { value: c.status },
+      { value: CANDIDATE_STATUS[c.status] || c.status },
       { value: c.first_seen },
-    ]));
+    ]);
+    tr.title = c.url;
+    const actions = document.createElement("td");
+    actions.className = "casas-only";
+    if (c.status === "review") {
+      actions.append(candidateButton("Adaptar", c.host, "adapt"), " ", candidateButton("Descartar", c.host, "reject"));
+    }
+    tr.appendChild(actions);
+    candidates.appendChild(tr);
   }
+  if (!data.candidates.length) candidates.textContent = "Sin candidatas todavía (la búsqueda corre a las 9:30).";
+}
+
+const CANDIDATE_STATUS = {
+  new: "por probar", review: "por revisar", adapting: "adaptando", manual: "spider propio",
+  dealer: "automotora", blocked: "robots.txt lo prohíbe",
+};
+
+function candidateButton(label, host, action) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = label;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    await fetch(`/api/candidates/${encodeURIComponent(host)}/${action}`, { method: "POST" });
+    await loadNexo();
+  });
+  return btn;
 }
 
 const DEALER_STATUS = { review: "por aprobar", active: "activa", paused: "en pausa" };
@@ -247,21 +296,19 @@ async function startRefresh() {
   }
 }
 
-byId("reload").addEventListener("click", loadStatus);
+function loadAll() {
+  applyVertical();
+  loadStatus().catch((err) => text("generated-at", `Dashboard error: ${err.message}`));
+  loadCountries().catch((err) => text("countries-total", `Error: ${err.message}`));
+  loadNexo().catch((err) => text("nexo-summary", `Error: ${err.message}`));
+  if (vertical() === "autos") loadDealers().catch((err) => text("dealers-summary", `Error: ${err.message}`));
+}
+
+window.addEventListener("hashchange", loadAll);
+byId("reload").addEventListener("click", loadAll);
 byId("refresh-now").addEventListener("click", startRefresh);
 
-loadStatus().catch((err) => {
-  text("generated-at", `Dashboard error: ${err.message}`);
-});
-loadCountries().catch((err) => {
-  text("countries-total", `Error: ${err.message}`);
-});
-loadNexo().catch((err) => {
-  text("nexo-summary", `Error: ${err.message}`);
-});
-loadDealers().catch((err) => {
-  text("dealers-summary", `Error: ${err.message}`);
-});
+loadAll();
 setInterval(() => loadStatus().catch(() => {}), 15000);
 setInterval(() => loadNexo().catch(() => {}), 60000);
 setInterval(() => loadCountries().catch(() => {}), 60000);

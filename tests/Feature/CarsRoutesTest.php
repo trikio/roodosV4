@@ -22,6 +22,7 @@ class CarsRoutesTest extends TestCase
     {
         $mock = Mockery::mock(ManticoreSearchService::class);
         $mock->shouldReceive('similarCarLandings')->andReturn([])->byDefault();
+        $mock->shouldReceive('carMatchSample')->andReturn(null)->byDefault();
         $mock->shouldReceive('carLandingTitles')->andReturn([])->byDefault();
         $this->app->instance(ManticoreSearchService::class, $mock);
 

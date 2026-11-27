@@ -3,8 +3,6 @@
 @php
     $pageTitle = number_format($totalHouses ?? 0, 0, ',', '.') . ' Casas';
     $countryCode = strtoupper((string) ($country ?? request()->route('country') ?? 'CL'));
-    $homeLocations = config('countries.houses_home.locations.' . $countryCode, config('countries.houses_home.locations.CL', []));
-    $homePopularSearches = config('countries.houses_home.popular_searches.' . $countryCode, config('countries.houses_home.popular_searches.CL', []));
 @endphp
 
 @section('page_title', $pageTitle)
@@ -42,11 +40,18 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Búsquedas Populares</h2>
     <div class="flex flex-wrap gap-3">
-        @foreach($homePopularSearches as $popularSearch)
-        <a href="/{{ $popularSearch['slug'] }}" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">
-            {{ $popularSearch['label'] }}
+        {{-- Landings with an exact search when the country has them; the curated list otherwise. --}}
+        @forelse($popularLandings ?? [] as $link)
+        <a href="{{ $link['url'] }}" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">
+            {{ $link['title'] }}
+        </a>
+        @empty
+        @foreach($curatedLinks ?? [] as $link)
+        <a href="{{ $link['url'] }}" class="px-4 py-2 bg-white border border-gray-300 rounded-full hover:border-[#008bea] hover:text-[#008bea] transition">
+            {{ $link['label'] }}
         </a>
         @endforeach
+        @endforelse
     </div>
 </div>
 
@@ -55,9 +60,9 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Buscar por Tipo</h2>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            @foreach(['Casa', 'Departamento', 'Villa', 'Terreno'] as $type)
-            <a href="/{{ strtolower($type) }}" class="bg-white p-4 rounded-lg border border-gray-200 hover:border-[#008bea] hover:shadow-md transition text-center">
-                <p class="font-medium text-gray-900">{{ $type }}</p>
+            @foreach($typeLinks ?? [] as $link)
+            <a href="{{ $link['url'] }}" class="bg-white p-4 rounded-lg border border-gray-200 hover:border-[#008bea] hover:shadow-md transition text-center">
+                <p class="font-medium text-gray-900">{{ $link['label'] }}</p>
             </a>
             @endforeach
         </div>
@@ -68,8 +73,8 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h2 class="text-2xl font-bold text-gray-900 mb-6">Buscar por Ubicación</h2>
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        @foreach($homeLocations as $city)
-        <a href="/casa-{{ \Illuminate\Support\Str::slug($city) }}" class="text-[#008bea] hover:underline">{{ $city }}</a>
+        @foreach($locationLinks ?? [] as $link)
+        <a href="{{ $link['url'] }}" class="text-[#008bea] hover:underline">{{ $link['label'] }}</a>
         @endforeach
     </div>
 </div>
@@ -79,8 +84,8 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6">Búsquedas Recientes Populares</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            @foreach($homePopularSearches as $popularSearch)
-            <a href="/{{ $popularSearch['slug'] }}" class="text-[#008bea] hover:underline">{{ $popularSearch['label'] }}</a>
+            @foreach($curatedLinks ?? [] as $link)
+            <a href="{{ $link['url'] }}" class="text-[#008bea] hover:underline">{{ $link['label'] }}</a>
             @endforeach
         </div>
     </div>
