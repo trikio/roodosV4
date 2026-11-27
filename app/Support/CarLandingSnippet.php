@@ -121,7 +121,7 @@ class CarLandingSnippet
     {
         $closing = 'Compara precios de automotoras y particulares y contacta directo al vendedor en Roodos.';
         if ($stats === null) {
-            return "{$name}: {$closing}";
+            return "{$name}: " . lcfirst($closing);
         }
 
         $text = self::count($stats['total']) . ' de ' . $name;
