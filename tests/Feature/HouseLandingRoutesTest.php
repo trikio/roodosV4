@@ -31,6 +31,8 @@ class HouseLandingRoutesTest extends TestCase
 
         $this->get('http://casas.roodos.mx/departamentos-en-venta-en-miguel-hidalgo')
             ->assertOk()
+            ->assertSee('<title>Departamentos en venta en Miguel Hidalgo - Roodos Casas', false)
+            ->assertSee('<meta name="robots" content="index,follow">', false)
             ->assertSee('Búsquedas relacionadas')
             ->assertSee('href="http://casas.roodos.mx/departamentos-en-venta-en-ciudad-de-mexico"', false)
             ->assertDontSee('hover:underline">Departamentos en venta en Miguel Hidalgo</a>', false);
@@ -80,5 +82,15 @@ class HouseLandingRoutesTest extends TestCase
     public function test_robots_declares_the_house_sitemap(): void
     {
         $this->get('http://casas.roodos.mx/robots.txt')->assertOk()->assertSee('Sitemap: https://casas.roodos.mx/sitemap.xml');
+    }
+
+    public function test_a_landing_without_ads_is_kept_out_of_the_index(): void
+    {
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('getHouseLandingBySlug')->andReturn(['id' => 87, 'slug' => 'venta-casas-lima', 'title' => 'Venta Casas Lima', 'content' => '']);
+        $manticore->shouldReceive('houseSearch')->andReturn($this->emptyResult());
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+
+        $this->get('http://casas.roodos.pe/venta-casas-lima')->assertOk()->assertSee('<meta name="robots" content="noindex,follow">', false);
     }
 }

@@ -845,9 +845,10 @@ class ManticoreSearchService
             ->from('house_landings_' . $countryCode)
             ->where('slug', $slug)
             ->limit(0, 1)
-            ->execute();
+            ->execute()
+            ->fetchAllAssoc();
 
-        return empty($result) ? null : $result[0];
+        return $result[0] ?? null;
     }
 
     protected function enqueueFacet($query, $searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias)

@@ -22,7 +22,7 @@
             $pageTitle = 'Roodos - Marketplace de Autos';
         }
         // Pages with their own full title (the guides' meta title) skip the site suffix.
-        $htmlTitle = trim($__env->yieldContent('html_title')) ?: $pageTitle . ' - Roodos Autos ' . $countryName;
+        $htmlTitle = trim($__env->yieldContent('html_title')) ?: $pageTitle . ' - Roodos ' . ucfirst($marketplaceType) . ' ' . $countryName;
 
         $metaDescription = trim($__env->yieldContent('meta_description'));
         if ($metaDescription === '') {

@@ -25,7 +25,9 @@
     if ($adsKeyword === '') {
         $adsKeyword = trim((string) request('q', ''));
     }
-    $isCleanLanding = isset($slugData) && trim((string) request()->getQueryString()) === '';
+    // A landing with no ads (Peru and Ecuador until they have a house source) is an empty page: kept
+    // out of Google until ads come back.
+    $isCleanLanding = isset($slugData) && trim((string) request()->getQueryString()) === '' && $houses->total() > 0;
     $robotsContent = $isCleanLanding ? 'index,follow' : 'noindex,follow';
     $currentOrder = request('order');
     if (empty($currentOrder)) {

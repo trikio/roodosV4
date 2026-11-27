@@ -71,15 +71,16 @@ CREATE TABLE IF NOT EXISTS nexo.image_checks (
   KEY idx_image_checks (checked_at, source_id)
 );
 
--- Sitios de autos encontrados en internet que todavía no son fuente.
+-- Sitios de autos y de casas encontrados en internet que todavía no son fuente.
 CREATE TABLE IF NOT EXISTS nexo.candidates (
   id          BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
   host        VARCHAR(190) NOT NULL UNIQUE,
   country     VARCHAR(3)   NOT NULL,
+  vertical    VARCHAR(10)  NOT NULL DEFAULT 'autos',  -- autos | casas
   url         VARCHAR(500) NOT NULL,
   score       INT          NOT NULL,
   query       VARCHAR(200) NOT NULL,
-  status      VARCHAR(12)  NOT NULL DEFAULT 'new',  -- new | adapting | review | approved | rejected
+  status      VARCHAR(12)  NOT NULL DEFAULT 'new',  -- new | adapting | review | approved | rejected | blocked (robots.txt)
   notes       TEXT         NULL,
   first_seen  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

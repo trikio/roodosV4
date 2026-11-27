@@ -24,7 +24,7 @@ def probe(limit=PROBE_PER_DAY):
     conn = db.connect()
     rows = db.all(
         conn,
-        "SELECT host, country FROM nexo.candidates WHERE status='new' ORDER BY score DESC, first_seen LIMIT %s",
+        "SELECT host, country FROM nexo.candidates WHERE status='new' AND vertical='autos' ORDER BY score DESC, first_seen LIMIT %s",
         (limit,),
     )
     # De a un sitio: en una pasada conjunta un sitio grande se lleva todo el tiempo de la prueba.
@@ -74,7 +74,7 @@ def review():
     rows = db.all(conn, "SELECT * FROM nexo.dealer_sites WHERE status='review' ORDER BY country, test_items DESC")
     manual = db.all(
         conn,
-        "SELECT host, country FROM nexo.candidates WHERE status='manual' AND updated_at >= NOW() - INTERVAL 7 DAY "
+        "SELECT host, country FROM nexo.candidates WHERE status='manual' AND vertical='autos' AND updated_at >= NOW() - INTERVAL 7 DAY "
         "ORDER BY score DESC LIMIT 15",
     )
     conn.close()
