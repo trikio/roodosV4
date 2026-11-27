@@ -531,17 +531,23 @@ class ManticoreSearchService
      */
     public function housePriceSample($searchIndex, int $operationId, int $typeId, string $field, int $placeId, int $limit = 1000): array
     {
-        if ($operationId <= 0 || $typeId <= 0 || $placeId <= 0 || !in_array($field, ['id_city', 'id_state'], true)) {
+        // $field '' is the whole country (a country-level landing).
+        $wholeCountry = $field === '';
+        if ($operationId <= 0 || $typeId <= 0 || (!$wholeCountry && ($placeId <= 0 || !in_array($field, ['id_city', 'id_state'], true)))) {
             return [];
         }
 
         try {
-            return (new SphinxQL($this->connection))
+            $query = (new SphinxQL($this->connection))
                 ->select('price', 'size')
                 ->from($searchIndex)
                 ->where('id_house_operation', $operationId)
-                ->where('id_house_type', $typeId)
-                ->where($field, $placeId)
+                ->where('id_house_type', $typeId);
+            if (!$wholeCountry) {
+                $query->where($field, $placeId);
+            }
+
+            return $query
                 ->where('price', '>', 0)
                 ->limit(0, $limit)
                 ->option('max_matches', $limit)

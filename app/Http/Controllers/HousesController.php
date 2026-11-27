@@ -7,6 +7,7 @@ use App\Services\ManticoreSearchService;
 use App\Support\HouseLandings;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use App\Support\CappedPaginator;
 use App\Support\HousePriceStats;
@@ -128,6 +129,20 @@ class HousesController extends Controller
             (int) $filters['city'],
             (int) ($landing['id'] ?? 0)
         ) : [];
+
+        // Landings made from the inventory get their area's prices: in the page and in the snippet.
+        if ($filters) {
+            $field = $filters['city'] !== '' ? 'id_city' : ($filters['state'] !== '' ? 'id_state' : '');
+            $placeId = (int) ($filters['city'] ?: $filters['state'] ?: 0);
+            $slugData['stats'] = Cache::remember(
+                "house-landing-stats:{$countryCode}:{$slug}",
+                21600,
+                fn () => HousePriceStats::from($this->manticore->housePriceSample(
+                    $this->getHousesIndexName($countryCode), $filters['operation'], $filters['type'], $field, $placeId
+                ))
+            );
+            $slugData['generated'] = true;
+        }
 
         return $this->renderResults($request, $slugData, $type, $countryCode, $filters, $landingLinks);
     }

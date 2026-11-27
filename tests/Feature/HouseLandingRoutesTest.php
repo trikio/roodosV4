@@ -27,11 +27,16 @@ class HouseLandingRoutesTest extends TestCase
             ['id' => 12, 'slug' => 'departamentos-en-venta-en-ciudad-de-mexico', 'title' => 'Departamentos en venta en Ciudad de México', 'content' => '{"generated":{"operation":1,"type":2,"state":9}}', 'id_house_operation' => 1, 'id_house_type' => 2, 'id_state' => 9, 'id_city' => 0],
             ['id' => 30, 'slug' => 'departamentos-en-venta-en-miguel-hidalgo', 'title' => 'Departamentos en venta en Miguel Hidalgo', 'content' => '{"generated":{"operation":1,"type":2,"city":15}}', 'id_house_operation' => 1, 'id_house_type' => 2, 'id_state' => 9, 'id_city' => 15],
         ]);
+        $rows = array_map(fn ($i) => ['price' => (string) (5000000 + $i * 100000), 'size' => (string) (80 + $i)], range(0, 19));
+        $manticore->shouldReceive('housePriceSample')->once()->with('house_mx', 1, 2, 'id_city', 15)->andReturn($rows);
         $this->app->instance(ManticoreSearchService::class, $manticore);
 
         $this->get('http://casas.roodos.mx/departamentos-en-venta-en-miguel-hidalgo')
             ->assertOk()
-            ->assertSee('<title>Departamentos en venta en Miguel Hidalgo - Roodos Casas', false)
+            ->assertSee('<title>Departamentos en venta en Miguel Hidalgo: 3 avisos | Roodos</title>', false)
+            ->assertSee('content="3 departamentos en venta en Miguel Hidalgo. Precio mediano $5.950.000; $', false)
+            ->assertSee('superficie mediana 90 m²', false)
+            ->assertSee('data-landing-stats', false)
             ->assertSee('<meta name="robots" content="index,follow">', false)
             ->assertSee('Búsquedas relacionadas')
             ->assertSee('href="http://casas.roodos.mx/departamentos-en-venta-en-ciudad-de-mexico"', false)

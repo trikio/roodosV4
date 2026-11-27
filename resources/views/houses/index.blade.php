@@ -11,7 +11,12 @@
     }
     $currencySymbol = config('countries.currency.' . $countryCodeForCurrency, '$');
     $metaDescription = $pageTitle;
-    if (isset($slugData)) {
+    $htmlTitle = null;
+    $landingStats = $slugData['stats'] ?? null;
+    if (!empty($slugData['generated'])) {
+        $htmlTitle = \App\Support\HouseLandings::snippetTitle($pageTitle, $houses->total()) . ' | Roodos';
+        $metaDescription = \App\Support\HouseLandings::snippetDescription($pageTitle, $houses->total(), $landingStats, $currencySymbol);
+    } elseif (isset($slugData)) {
         $sampleTitles = $houses->take(3)->pluck('title')->filter()->implode(', ');
         $metaDescription = $houses->total() . ' anuncios para ' . $pageTitle . '.';
         if ($sampleTitles !== '') {
@@ -41,6 +46,9 @@
 
 @section('page_title', $pageTitle)
 @section('meta_description', $metaDescription)
+@if($htmlTitle)
+@section('html_title', $htmlTitle)
+@endif
 @section('robots_content', $robotsContent)
 @if(isset($slugData))
 @section('canonical_url', url()->current())
@@ -95,7 +103,7 @@
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <h1 class="text-3xl font-bold text-gray-900">{{ $pageTitle }}</h1>
-                    <p class="text-gray-600 mt-1">{{ $houses->total() }} resultados encontrados</p>
+                    <p class="text-gray-600 mt-1">{{ number_format($houses->total(), 0, ',', '.') }} resultados encontrados</p>
                 </div>
                 <div class="hidden lg:block">
                     <select name="order" class="sort-order-select px-4 py-2 border border-gray-300 rounded-lg text-gray-700">
@@ -107,6 +115,32 @@
                     </select>
                 </div>
             </div>
+
+            @if($landingStats && !request()->getQueryString())
+            @php
+                $landingMoney = fn ($amount) => $currencySymbol . ' ' . number_format($amount, 0, ',', '.');
+            @endphp
+            <div class="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3" data-landing-stats>
+                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                    <p class="text-sm text-gray-500">Precio mediano</p>
+                    <p class="text-xl font-bold text-gray-900">{{ $landingMoney($landingStats['price']) }}</p>
+                </div>
+                @if($landingStats['per_m2'] && $landingStats['size'] && $landingStats['price'] >= $landingStats['size'])
+                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                    <p class="text-sm text-gray-500">Precio por m²</p>
+                    <p class="text-xl font-bold text-gray-900">{{ $landingMoney($landingStats['per_m2']['median']) }}</p>
+                    <p class="text-xs text-gray-500">La mitad entre {{ $landingMoney($landingStats['per_m2']['low']) }} y {{ $landingMoney($landingStats['per_m2']['high']) }}</p>
+                </div>
+                @endif
+                @if($landingStats['size'])
+                <div class="bg-white border border-gray-200 rounded-lg p-4">
+                    <p class="text-sm text-gray-500">Superficie mediana</p>
+                    <p class="text-xl font-bold text-gray-900">{{ number_format($landingStats['size'], 0, ',', '.') }} m²</p>
+                </div>
+                @endif
+            </div>
+            @endif
+
 
             <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 mb-8">
                 <div>

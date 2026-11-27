@@ -56,4 +56,37 @@ class HouseLandings
             'city' => (int) ($generated['city'] ?? 0) ?: '',
         ];
     }
+
+    /**
+     * Search result title of a landing made from the inventory: "Departamentos en venta en Miguel
+     * Hidalgo: 3.095 avisos".
+     */
+    public static function snippetTitle(string $title, int $total): string
+    {
+        return $total > 0 ? $title . ': ' . number_format($total, 0, ',', '.') . ($total === 1 ? ' aviso' : ' avisos') : $title;
+    }
+
+    /**
+     * "3.095 departamentos en venta en Miguel Hidalgo. Precio mediano $8.500.000; $95.000 por m²
+     * (la mitad entre $70.000 y $120.000); superficie mediana 110 m². ..."
+     * Per m² only when prices are larger than sizes (Chile's UF prices are not).
+     */
+    public static function snippetDescription(string $title, int $total, ?array $stats, string $currency): string
+    {
+        $money = fn (int $amount) => trim($currency) . number_format($amount, 0, ',', '.');
+        $text = $total > 0 ? number_format($total, 0, ',', '.') . ' ' . mb_strtolower(mb_substr($title, 0, 1)) . mb_substr($title, 1) . '.' : $title . '.';
+        if ($stats !== null) {
+            $text .= ' Precio mediano ' . $money($stats['price']);
+            if ($stats['per_m2'] !== null && $stats['size'] !== null && $stats['price'] >= $stats['size']) {
+                $text .= '; ' . $money($stats['per_m2']['median']) . ' por m² (la mitad entre ' . $money($stats['per_m2']['low'])
+                    . ' y ' . $money($stats['per_m2']['high']) . ')';
+            }
+            if ($stats['size'] !== null) {
+                $text .= '; superficie mediana ' . number_format($stats['size'], 0, ',', '.') . ' m²';
+            }
+            $text .= '.';
+        }
+
+        return $text . ' Compara avisos de inmobiliarias y particulares en Roodos.';
+    }
 }
