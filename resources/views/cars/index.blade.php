@@ -31,7 +31,27 @@
     }
     $currencySymbol = config('countries.currency.' . $countryCodeForCurrency, '$');
     $metaDescription = $pageTitle;
-    if (isset($slugData)) {
+    $heading = $slugData['heading'] ?? $pageTitle;
+    if (!empty($slugData['catalog'])) {
+        // Make and model pages: what the visitor finds there (how many, which models, where).
+        $topNames = fn ($facet, $skip) => collect($facet)->sortByDesc('total')->pluck('name')
+            ->reject(fn ($name) => in_array(mb_strtolower($name), $skip, true))->take(4)->values()->all();
+        $joinNames = fn (array $names) => count($names) > 1
+            ? implode(', ', array_slice($names, 0, -1)) . ' y ' . end($names)
+            : ($names[0] ?? '');
+        $name = mb_strtolower($pageTitle);
+        $metaDescription = $cars->total() . ' ' . $pageTitle . ' usados en venta'
+            . (!empty($slugData['country_name']) ? ' en ' . $slugData['country_name'] : '') . '.';
+        $modelNames = isset($linkModels) ? $topNames($models, [$name]) : [];
+        if ($modelNames !== []) {
+            $metaDescription .= ' Modelos: ' . $joinNames($modelNames) . '.';
+        }
+        $placeNames = $topNames($locations, []);
+        if ($placeNames !== []) {
+            $metaDescription .= ' En ' . $joinNames(array_slice($placeNames, 0, 3)) . '.';
+        }
+        $metaDescription .= ' Compara precio, año y kilometraje.';
+    } elseif (isset($slugData)) {
         $metaDescription = $slugData['meta_description'] ?? '';
         if ($metaDescription === '') {
             $sampleTitles = $cars->getCollection()->pluck('title')->filter()->unique()->take(3)->implode(', ');
@@ -61,6 +81,9 @@
 @endphp
 
 @section('page_title', $pageTitle)
+@if(!empty($slugData['html_title']))
+@section('html_title', $slugData['html_title'])
+@endif
 @section('meta_description', $metaDescription)
 @section('robots_content', $robotsContent)
 @if(isset($slugData))
@@ -129,7 +152,7 @@
             <!-- Header Section -->
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <h1 class="text-3xl font-bold text-gray-900">{{ $pageTitle }}</h1>
+                    <h1 class="text-3xl font-bold text-gray-900">{{ $heading }}</h1>
                     <p class="text-gray-600 mt-1">{{ $cars->total() }} resultados encontrados</p>
                     @if(!empty($slugData['widened']))
                         <p class="text-sm text-gray-500 mt-1">Hay pocos anuncios con esos criterios; mostramos resultados similares.</p>

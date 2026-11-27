@@ -21,12 +21,12 @@ class InternalLinksTest extends TestCase
         $this->app->instance(ManticoreSearchService::class, $this->manticore);
     }
 
-    private function searchResult(array $models = []): array
+    private function searchResult(array $models = [], array $states = []): array
     {
         return [
             'items' => [],
             'info' => [['Variable_name' => 'total_found', 'Value' => '50']],
-            'make' => [], 'model' => $models, 'state' => [], 'city' => [],
+            'make' => [], 'model' => $models, 'state' => $states, 'city' => [],
             'fuel' => [], 'transmission' => [], 'body' => [],
         ];
     }
@@ -99,6 +99,45 @@ class InternalLinksTest extends TestCase
             ->assertSee('href="http://autos.roodos.pe/marca/toyota"', false)
             ->assertSee('Búsquedas de Toyota RAV4')
             ->assertSee('href="http://autos.roodos.pe/venta-autos-usados-toyota-rav4-huancayo"', false);
+    }
+
+    public function test_make_page_title_and_description_describe_its_ads(): void
+    {
+        $this->manticore->shouldReceive('getCarMakeBySlug')->with('toyota')->andReturn(['id' => '5', 'name' => 'Toyota', 'slug' => 'toyota']);
+        $this->manticore->shouldReceive('carSearch')->andReturn($this->searchResult([
+            ['id_car_model' => '71', 'name' => 'Hilux', 'total' => '20'],
+            ['id_car_model' => '70', 'name' => 'RAV4', 'total' => '30'],
+        ], [
+            ['id_state' => '1', 'name' => 'Lima', 'total' => '40'],
+            ['id_state' => '2', 'name' => 'Arequipa', 'total' => '10'],
+        ]));
+        $this->manticore->shouldReceive('carModelsByIds')->andReturn([]);
+        $this->manticore->shouldReceive('similarCarLandings')->andReturn([]);
+
+        $this->get('http://autos.roodos.pe/marca/toyota')
+            ->assertOk()
+            ->assertSee('<title>Toyota usados en venta en Perú | Roodos Autos</title>', false)
+            ->assertSee('<h1 class="text-3xl font-bold text-gray-900">Toyota usados en venta</h1>', false)
+            ->assertSee('<meta name="description" content="50 Toyota usados en venta en Perú. Modelos: RAV4 y Hilux. En Lima y Arequipa. Compara precio, año y kilometraje.">', false);
+    }
+
+    public function test_model_page_title_names_the_model_and_country(): void
+    {
+        $this->manticore->shouldReceive('getCarModelBySlug')->with('toyota-rav4')
+            ->andReturn(['id' => '70', 'id_car_make' => '5', 'make_name' => 'Toyota', 'model_name' => 'RAV4', 'make_model' => 'Toyota RAV4']);
+        $this->manticore->shouldReceive('getCarMakeById')->with(5)->andReturn(['id' => '5', 'slug' => 'toyota']);
+        $this->manticore->shouldReceive('carSearch')->andReturn($this->searchResult(
+            [['id_car_model' => '70', 'name' => 'RAV4', 'total' => '50']],
+            [['id_state' => '1', 'name' => 'Lima', 'total' => '50']],
+        ));
+        $this->manticore->shouldReceive('similarCarLandings')->andReturn([]);
+
+        $this->get('http://autos.roodos.pe/modelo/toyota-rav4')
+            ->assertOk()
+            ->assertSee('<title>Toyota RAV4 usados en venta en Perú | Roodos Autos</title>', false)
+            ->assertSee('<h1 class="text-3xl font-bold text-gray-900">Toyota RAV4 usados en venta</h1>', false)
+            // A model page does not list "models" (it would only repeat itself).
+            ->assertSee('<meta name="description" content="50 Toyota RAV4 usados en venta en Perú. En Lima. Compara precio, año y kilometraje.">', false);
     }
 
     public function test_home_links_to_the_curated_landings_that_still_exist(): void
