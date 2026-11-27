@@ -121,11 +121,27 @@ class HousesController extends Controller
             }
         }
 
-        $similar = $area
-            ? collect($this->manticore->similarHouses($searchIndex, $houseId, $operationId, $typeId, $area['field'], $area['id'], $price))
-                ->map(fn ($item) => $this->houseSummary($item))
-                ->all()
-            : [];
+        // Junk prices ($1) and the same development posted over and over are left out.
+        $similar = [];
+        if ($area) {
+            $rows = $this->manticore->similarHouses(
+                $searchIndex, $houseId, $operationId, $typeId, $area['field'], $area['id'],
+                $price > 0 ? $price : $stats['price'],
+                intdiv($stats['price'], 10), $stats['price'] * 10
+            );
+            $seen = [self::dedupeKey($house) => true];
+            foreach ($rows as $row) {
+                $key = self::dedupeKey($row);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $similar[] = $this->houseSummary($row);
+                if (count($similar) === 6) {
+                    break;
+                }
+            }
+        }
 
         $summary = $this->houseSummary($house);
         $verdict = null;
@@ -176,6 +192,16 @@ class HousesController extends Controller
             'details' => trim((string) ($item['details'] ?? '')),
             'image_url' => ($item['image'] ?? '') ?: null,
         ];
+    }
+
+    /** Same price and size, or same title: the same property (or development) posted again. */
+    private static function dedupeKey(array $item): string
+    {
+        $title = preg_replace('/[^a-z0-9]+/', '', strtolower(\Illuminate\Support\Str::ascii((string) ($item['title'] ?? ''))));
+        $price = (int) ($item['price'] ?? 0);
+        $size = (int) ($item['size'] ?? 0);
+
+        return $size > 0 ? "{$price}|{$size}" : "{$price}|{$title}";
     }
 
     /** "inmuebles.mercadolibre.com.mx" -> "mercadolibre.com.mx", "www.doomos.cl" -> "doomos.cl". */

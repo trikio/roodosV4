@@ -25,8 +25,11 @@ class HouseDetailTest extends TestCase
         $manticore->shouldReceive('getHouseById')->with('house_mx', 77)->andReturn($this->house());
         $sample = array_map(fn ($i) => ['price' => 5000000 + $i * 100000, 'size' => 100], range(0, 10));
         $manticore->shouldReceive('housePriceSample')->with('house_mx', 1, 2, 'id_city', 15)->andReturn($sample);
-        $manticore->shouldReceive('similarHouses')->with('house_mx', 77, 1, 2, 'id_city', 15, 4000000)->andReturn([
+        // Median 5.5 M: only prices between a tenth and ten times that.
+        $manticore->shouldReceive('similarHouses')->with('house_mx', 77, 1, 2, 'id_city', 15, 4000000, 550000, 55000000)->andReturn([
             $this->house(['id' => 78, 'title' => 'Depto vecino', 'price' => 4100000]),
+            $this->house(['id' => 79, 'title' => 'DEPTO VECINO preventa', 'price' => 4100000]),
+            $this->house(['id' => 80, 'title' => 'Otro depto', 'price' => 4300000, 'size' => 90]),
         ]);
         $this->app->instance(ManticoreSearchService::class, $manticore);
 
@@ -37,6 +40,8 @@ class HouseDetailTest extends TestCase
             ->assertSee('Bajo lo típico de la zona')
             ->assertSee('Ver aviso en mercadolibre.com.mx')
             ->assertSee('Depto vecino')
+            ->assertSee('Otro depto')
+            ->assertDontSee('DEPTO VECINO preventa')
             ->assertSee('/search?operation=1&amp;type=2&amp;city=15', false);
     }
 
@@ -47,7 +52,7 @@ class HouseDetailTest extends TestCase
         $manticore->shouldReceive('housePriceSample')->with('house_mx', 1, 2, 'id_city', 15)->andReturn([['price' => 1, 'size' => 50]]);
         $manticore->shouldReceive('housePriceSample')->with('house_mx', 1, 2, 'id_state', 9)
             ->andReturn(array_fill(0, 12, ['price' => 4000000, 'size' => 100]));
-        $manticore->shouldReceive('similarHouses')->with('house_mx', 77, 1, 2, 'id_state', 9, 4000000)->andReturn([]);
+        $manticore->shouldReceive('similarHouses')->with('house_mx', 77, 1, 2, 'id_state', 9, 4000000, 400000, 40000000)->andReturn([]);
         $this->app->instance(ManticoreSearchService::class, $manticore);
 
         $this->get('http://casas.roodos.mx/casa/77')
@@ -62,7 +67,7 @@ class HouseDetailTest extends TestCase
         $manticore->shouldReceive('getHouseById')->andReturn($this->house([
             'id_house_operation' => 0, 'id_house_type' => 0, 'id_state' => 0, 'id_city' => 0,
             'house_operation_name' => '', 'house_type_name' => '', 'state_name' => '', 'city_name' => '',
-            'url' => 'https://www.doomos.cl/de/1031655_las-palmeras.html',
+            'url' => 'https://www.doomos.cl/de/1031655_las-palmeras.html', 'price' => 22, 'size' => 4000,
         ]));
         $manticore->shouldNotReceive('housePriceSample');
         $manticore->shouldNotReceive('similarHouses');
@@ -71,6 +76,7 @@ class HouseDetailTest extends TestCase
         $this->get('http://casas.roodos.cl/casa/77')
             ->assertOk()
             ->assertSee('Ver aviso en doomos.cl')
+            ->assertDontSee('Precio por m²')
             ->assertDontSee('Precios de');
     }
 

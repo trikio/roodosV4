@@ -22,7 +22,8 @@
         'Dormitorios' => $house->rooms ?: null,
         'Baños' => $house->bath ?: null,
         'Ubicación' => $place,
-        'Precio por m²' => $house->price > 0 && \App\Support\HousePriceStats::validSize($house->size)
+        // Chilean ads in UF ("22") would give $0 per m².
+        'Precio por m²' => $house->price >= $house->size && \App\Support\HousePriceStats::validSize($house->size)
             ? $money((int) round($house->price / $house->size)) : null,
     ], fn ($value) => filled($value));
 

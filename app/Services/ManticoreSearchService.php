@@ -470,7 +470,7 @@ class ManticoreSearchService
      * Ads of the same operation and type in one place ($field: id_city or id_state), closest in
      * price first.
      */
-    public function similarHouses($searchIndex, int $excludeId, int $operationId, int $typeId, string $field, int $placeId, int $price, int $limit = 6): array
+    public function similarHouses($searchIndex, int $excludeId, int $operationId, int $typeId, string $field, int $placeId, int $price, int $minPrice = 1, int $maxPrice = 0, int $limit = 24): array
     {
         if ($operationId <= 0 || $typeId <= 0 || $placeId <= 0 || !in_array($field, ['id_city', 'id_state'], true)) {
             return [];
@@ -484,7 +484,7 @@ class ManticoreSearchService
                 ->where('id_house_type', $typeId)
                 ->where($field, $placeId)
                 ->where('id', '!=', $excludeId)
-                ->where('price', '>', 0)
+                ->where('price', 'BETWEEN', [max(1, $minPrice), $maxPrice > 0 ? $maxPrice : 4294967295])
                 ->orderBy('price_diff', 'ASC')
                 ->limit(0, $limit)
                 ->execute()
