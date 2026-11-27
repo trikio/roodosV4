@@ -56,7 +56,7 @@ class ManticoreSearchService
                 ->select('*')
                 ->from($searchIndex);
 
-            $this->applyQuorumMatch($query, $columns, $searchQuery);
+            $this->applyCarTextMatch($query, $columns, $searchQuery, $options);
 
             $query = $this->applyCarFilters($query, $options);
             $query->limit(((int)$page - 1) * self::RESULTS_PER_PAGE, self::RESULTS_PER_PAGE);
@@ -888,7 +888,7 @@ class ManticoreSearchService
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
             ->from($searchIndex);
 
-        $this->applyQuorumMatch($query, $columns, $searchQuery);
+        $this->applyCarTextMatch($query, $columns, $searchQuery, $options);
 
         $query = $this->applyCarFilters($query, $options);
         $query->groupBy($idField)
@@ -903,7 +903,7 @@ class ManticoreSearchService
         $query->select($idField . ', ' . $nameField . ' as ' . $alias . ', COUNT(*) as total')
             ->from($searchIndex);
 
-        $this->applyQuorumMatch($query, $columns, $searchQuery);
+        $this->applyCarTextMatch($query, $columns, $searchQuery, $options);
 
         $query = $this->applyHouseFilters($query, $options);
         $query->groupBy($idField)
@@ -936,6 +936,19 @@ class ManticoreSearchService
      * (quorum operator). User input is escaped so characters like " or @
      * cannot break or alter the full-text expression.
      */
+    /**
+     * Cars match at least one word of the query; with $options['match_all'] (a landing whose every
+     * word has enough cars), every word.
+     */
+    protected function applyCarTextMatch(SphinxQL $query, array $columns, ?string $searchQuery, array $options): SphinxQL
+    {
+        if (!empty($options['match_all']) && trim((string) $searchQuery) !== '') {
+            return $query->match($columns, trim((string) $searchQuery));
+        }
+
+        return $this->applyQuorumMatch($query, $columns, $searchQuery);
+    }
+
     protected function applyQuorumMatch(SphinxQL $query, array $columns, ?string $searchQuery): SphinxQL
     {
         $searchQuery = trim((string) $searchQuery);
