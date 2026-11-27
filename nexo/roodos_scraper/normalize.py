@@ -90,7 +90,10 @@ STATE_ALIASES = {
     "mx": {"cdmx": "09", "ciudad de mexico": "09", "df": "09", "distrito federal": "09", "edomex": "15",
            "estado de mexico": "15", "mexico": "15", "coahuila": "07", "michoacan": "16", "queretaro": "22",
            "veracruz": "30", "nuevo leon": "19"},
-    "ec": {"cotopaxi": "07", "santo domingo de los tsachilas": None, "santa elena": None},
+    # Santa Elena y Santo Domingo de los Tsáchilas son provincias desde 2007; el catálogo (GeoNames viejo)
+    # tiene sus ciudades en Guayas y Pichincha, de donde salieron. Sin esto, "Salinas | region:santa elena"
+    # caía en la Salinas de Bolívar.
+    "ec": {"cotopaxi": "07", "santo domingo de los tsachilas": "18", "santa elena": "10"},
     "pe": {"lima metropolitana": "15", "lima provincias": "15", "callao": "07"},
 }
 
