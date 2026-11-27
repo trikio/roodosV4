@@ -485,6 +485,9 @@ class ManticoreSearchService
                 ->where($field, $placeId)
                 ->where('id', '!=', $excludeId)
                 ->where('price', 'BETWEEN', [max(1, $minPrice), $maxPrice > 0 ? $maxPrice : 4294967295])
+                // A development posted 100 times (same price and m²) comes back once.
+                ->groupBy('price')
+                ->groupBy('size')
                 ->orderBy('price_diff', 'ASC')
                 ->limit(0, $limit)
                 ->execute()
