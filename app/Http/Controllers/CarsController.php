@@ -105,7 +105,7 @@ class CarsController extends Controller
             'slugData' => [
                 'original' => $slug,
                 'title' => $makeName,
-            ],
+            ] + $this->catalogSeo($makeName, $this->resolveCountryCode($request, $country)),
             'searchQuery' => '',
             'linkModels' => true,
             'landingLinks' => [
@@ -153,7 +153,7 @@ class CarsController extends Controller
                         'url' => null,
                     ],
                 ],
-            ],
+            ] + $this->catalogSeo($modelTitle, $this->resolveCountryCode($request, $country)),
             'searchQuery' => '',
             'landingLinks' => [
                 'title' => 'Búsquedas de ' . $modelTitle,
@@ -614,6 +614,24 @@ class CarsController extends Controller
     private function getCarsIndexName(string $countryCode): string
     {
         return 'car_' . strtolower($countryCode);
+    }
+
+    /**
+     * Make and model pages: title and H1 in the shape of the landings that get clicks ("<name>
+     * usados en venta en <país>"), instead of the bare name. The view builds the description from
+     * the results (models, regions).
+     */
+    private function catalogSeo(string $name, string $countryCode): array
+    {
+        $countryName = config('countries.display_names.' . strtoupper($countryCode), '');
+        $heading = $name . ' usados en venta';
+
+        return [
+            'catalog' => true,
+            'heading' => $heading,
+            'html_title' => $heading . ($countryName !== '' ? ' en ' . $countryName : ''),
+            'country_name' => $countryName,
+        ];
     }
 
     private function renderCarsIndex(Request $request, ?string $country = null, array $overrides = [], array $viewData = [])

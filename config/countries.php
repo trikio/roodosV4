@@ -8,6 +8,13 @@ return [
         'MX' => 'Mexico',
         'LAB' => 'Laboratorio',
     ],
+    // With accents, for text read by people (titles and descriptions of make and model pages).
+    'display_names' => [
+        'EC' => 'Ecuador',
+        'CL' => 'Chile',
+        'PE' => 'Perú',
+        'MX' => 'México',
+    ],
     'currency' => [
         'EC' => '$',
         'CL' => '$',
