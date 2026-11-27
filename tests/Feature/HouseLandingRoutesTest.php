@@ -47,4 +47,38 @@ class HouseLandingRoutesTest extends TestCase
 
         $this->get('http://casas.roodos.mx/arriendo-casas-leon')->assertOk()->assertDontSee('Búsquedas relacionadas');
     }
+
+    public function test_a_path_that_is_not_an_active_landing_returns_410_without_searching(): void
+    {
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('getHouseLandingBySlug')->with('mx', 'casa-ciudad-inventada')->andReturn(null);
+        $manticore->shouldNotReceive('houseSearch');
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+
+        $this->get('http://casas.roodos.mx/casa-ciudad-inventada')->assertStatus(410);
+    }
+
+    public function test_home_links_existing_landings_and_searches_for_the_rest(): void
+    {
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('houseSearch')->andReturn($this->emptyResult(120));
+        $manticore->shouldReceive('houseLandings')->andReturn([]);
+        $manticore->shouldReceive('existingHouseLandingSlugs')->once()
+            ->with('ec', Mockery::on(fn ($slugs) => in_array('casa', $slugs, true) && in_array('casa-quito', $slugs, true)))
+            ->andReturn(['casa', 'casa-guayaquil']);
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+
+        $this->get('http://casas.roodos.ec/')
+            ->assertOk()
+            ->assertSee('href="http://casas.roodos.ec/casa"', false)
+            ->assertSee('href="http://casas.roodos.ec/casa-guayaquil"', false)
+            ->assertSee('href="http://casas.roodos.ec/search?q=Departamento"', false)
+            ->assertSee('href="http://casas.roodos.ec/search?q=Casas%20en%20Quito"', false)
+            ->assertDontSee('href="/casa-quito"', false);
+    }
+
+    public function test_robots_declares_the_house_sitemap(): void
+    {
+        $this->get('http://casas.roodos.mx/robots.txt')->assertOk()->assertSee('Sitemap: https://casas.roodos.mx/sitemap.xml');
+    }
 }

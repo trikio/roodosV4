@@ -41,9 +41,29 @@ class SitemapController extends Controller
         return $this->robotsResponse('Sitemap: ' . Sitemap::baseUrl(strtolower($country)) . "/sitemap.xml\n");
     }
 
-    public function housesRobots()
+    public function housesRobots(string $country)
     {
-        return $this->robotsResponse('');
+        return $this->robotsResponse('Sitemap: ' . Sitemap::baseUrl(strtolower($country), 'casas') . "/sitemap.xml\n");
+    }
+
+    /** House landings made from the inventory (casas-N.xml); they need no cleanup first. */
+    public function housesIndex(string $country)
+    {
+        $country = strtolower($country);
+        $files = glob(Sitemap::directory($country) . '/casas-*.xml') ?: [];
+        natsort($files);
+
+        $urls = array_map(fn ($file) => Sitemap::baseUrl($country, 'casas') . '/sitemaps/' . basename($file), array_values($files));
+
+        return response(Sitemap::index($urls), 200, ['Content-Type' => 'application/xml']);
+    }
+
+    public function housesShow(string $country, string $file)
+    {
+        $path = Sitemap::directory(strtolower($country)) . '/' . $file;
+        abort_unless(is_file($path), 404);
+
+        return response()->file($path, ['Content-Type' => 'application/xml']);
     }
 
     private function robotsResponse(string $sitemapLine)

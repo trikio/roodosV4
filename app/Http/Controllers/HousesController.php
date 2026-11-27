@@ -7,6 +7,7 @@ use App\Services\ManticoreSearchService;
 use App\Support\HouseLandings;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use App\Support\CappedPaginator;
 use App\Support\HousePriceStats;
 use Illuminate\Support\Facades\Log;
@@ -61,8 +62,36 @@ class HousesController extends Controller
 
         $country = $countryCode;
         $popularLandings = $this->links->popular($countryCode);
+        [$typeLinks, $locationLinks, $curatedLinks] = $this->homeLinks($countryCode);
 
-        return view('houses.home', compact('type', 'country', 'totalHouses', 'popularLandings'));
+        return view('houses.home', compact('type', 'country', 'totalHouses', 'popularLandings', 'typeLinks', 'locationLinks', 'curatedLinks'));
+    }
+
+    /**
+     * The home's fixed lists (types, cities, curated searches) point to their landing when the
+     * country has it, and to a search otherwise: a path that is not a landing answers 410.
+     *
+     * @return array{0: array, 1: array, 2: array} each a list of ['label' => ..., 'url' => ...]
+     */
+    private function homeLinks(string $countryCode): array
+    {
+        $code = strtoupper($countryCode);
+        $config = fn (string $key) => config("countries.houses_home.{$key}.{$code}", config("countries.houses_home.{$key}.CL", []));
+
+        $types = array_map(fn ($type) => ['label' => $type, 'slug' => Str::slug($type), 'q' => $type], ['Casa', 'Departamento', 'Villa', 'Terreno']);
+        $locations = array_map(fn ($city) => ['label' => $city, 'slug' => 'casa-' . Str::slug($city), 'q' => 'Casas en ' . $city], $config('locations'));
+        $curated = array_map(fn ($search) => ['label' => $search['label'], 'slug' => $search['slug'], 'q' => $search['label']], $config('popular_searches'));
+
+        $existing = array_flip($this->manticore->existingHouseLandingSlugs(
+            $countryCode,
+            array_column([...$types, ...$locations, ...$curated], 'slug')
+        ));
+        $resolve = fn (array $items) => array_map(fn ($item) => [
+            'label' => $item['label'],
+            'url' => isset($existing[$item['slug']]) ? url('/' . $item['slug']) : url('/search') . '?q=' . rawurlencode($item['q']),
+        ], $items);
+
+        return [$resolve($types), $resolve($locations), $resolve($curated)];
     }
 
     public function index(Request $request)
@@ -78,9 +107,15 @@ class HousesController extends Controller
         $landing = $this->manticore->getHouseLandingBySlug($countryCode, (string) $slug);
         $searchQuery = trim((string) ($landing['title'] ?? ''));
 
+        // Any other path used to answer 200 with a search made from its words, and got indexed:
+        // a landing that is not active is gone for good.
+        if ($searchQuery === '') {
+            abort(410);
+        }
+
         $slugData = [
             'original' => $slug,
-            'title' => $searchQuery !== '' ? $searchQuery : ucwords(str_replace('-', ' ', (string) $slug)),
+            'title' => $searchQuery,
         ];
 
         // Landings created from the inventory list exactly their operation, type and place.

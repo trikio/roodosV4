@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\ManticoreSearchService;
+use App\Support\HouseLandings;
 use App\Support\Sitemap;
 use Illuminate\Console\Command;
 
@@ -14,11 +15,11 @@ class GenerateSitemaps extends Command
 
     /**
      * Created by hand once the landings:clean SQL is applied and reindexed. Until then the
-     * index still holds every legacy landing, and a sitemap would ask Google to crawl them.
+     * index still holds every legacy car landing, and a sitemap would ask Google to crawl them.
      */
     public const CLEANUP_MARKER = '.limpieza-aplicada';
 
-    protected $description = 'Escribe los sitemaps de landings activas (sin redirect) de cada país en storage/app/sitemaps.';
+    protected $description = 'Escribe los sitemaps de landings de autos activas (sin redirect) y de landings de casas creadas desde el inventario de cada país en storage/app/sitemaps.';
 
     private const SITEMAP_SIZE = 50000;
 
@@ -42,41 +43,65 @@ class GenerateSitemaps extends Command
             }
 
             if (!$this->option('force') && !is_file($directory . '/' . self::CLEANUP_MARKER)) {
-                $this->warn("[{$countryCode}] Omitido: falta {$directory}/" . self::CLEANUP_MARKER . ' (crearlo después de aplicar la limpieza de landings).');
-                continue;
+                $this->warn("[{$countryCode}] Autos omitido: falta {$directory}/" . self::CLEANUP_MARKER . ' (crearlo después de aplicar la limpieza de landings).');
+            } else {
+                $urls = (function () use ($manticore, $countryCode) {
+                    foreach ($manticore->iterateCarLandings($countryCode) as $row) {
+                        if (trim((string) $row['redirect']) === '') {
+                            yield Sitemap::landingUrl($countryCode, (string) $row['slug']);
+                        }
+                    }
+                })();
+                [$total, $files] = $this->write($directory, 'landings', $urls);
+                $this->info("[{$countryCode}] Autos: {$total} landings en {$files} sitemap(s).");
             }
 
-            // Written aside and swapped in, so the served sitemap is never half written.
-            $files = 0;
-            $total = 0;
-            $urls = [];
-            $flush = function () use (&$urls, &$files, $directory) {
-                file_put_contents($directory . '/landings-' . (++$files) . '.xml.tmp', Sitemap::urlset($urls));
-                $urls = [];
-            };
-
-            foreach ($manticore->iterateCarLandings($countryCode) as $row) {
-                if (trim((string) $row['redirect']) !== '') {
-                    continue;
+            // Only the house landings made from the inventory: their search is exact and has ads.
+            $urls = (function () use ($manticore, $countryCode) {
+                foreach ($manticore->iterateHouseLandings($countryCode) as $row) {
+                    if (HouseLandings::generatedFilters($row['content'] ?? null) !== null) {
+                        yield Sitemap::landingUrl($countryCode, (string) $row['slug'], 'casas');
+                    }
                 }
-                $urls[] = Sitemap::landingUrl($countryCode, (string) $row['slug']);
-                $total++;
-                if (count($urls) === self::SITEMAP_SIZE) {
-                    $flush();
-                }
-            }
-            if ($urls !== []) {
-                $flush();
-            }
-
-            array_map('unlink', glob($directory . '/landings-*.xml') ?: []);
-            foreach (glob($directory . '/landings-*.xml.tmp') ?: [] as $temporary) {
-                rename($temporary, substr($temporary, 0, -4));
-            }
-
-            $this->info("[{$countryCode}] {$total} landings en {$files} sitemap(s).");
+            })();
+            [$total, $files] = $this->write($directory, 'casas', $urls);
+            $this->info("[{$countryCode}] Casas: {$total} landings en {$files} sitemap(s).");
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Writes {$prefix}-N.xml aside and swaps them in, so a served sitemap is never half written.
+     *
+     * @return array{0: int, 1: int} URLs and files written
+     */
+    private function write(string $directory, string $prefix, iterable $urls): array
+    {
+        $files = 0;
+        $total = 0;
+        $chunk = [];
+        $flush = function () use (&$chunk, &$files, $directory, $prefix) {
+            file_put_contents($directory . '/' . $prefix . '-' . (++$files) . '.xml.tmp', Sitemap::urlset($chunk));
+            $chunk = [];
+        };
+
+        foreach ($urls as $url) {
+            $chunk[] = $url;
+            $total++;
+            if (count($chunk) === self::SITEMAP_SIZE) {
+                $flush();
+            }
+        }
+        if ($chunk !== []) {
+            $flush();
+        }
+
+        array_map('unlink', glob($directory . '/' . $prefix . '-*.xml') ?: []);
+        foreach (glob($directory . '/' . $prefix . '-*.xml.tmp') ?: [] as $temporary) {
+            rename($temporary, substr($temporary, 0, -4));
+        }
+
+        return [$total, $files];
     }
 }

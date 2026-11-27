@@ -793,6 +793,34 @@ class ManticoreSearchService
         }
     }
 
+    /**
+     * Which of these slugs are active house landings. Empty when the index is missing.
+     *
+     * @param  string[]  $slugs
+     * @return string[]
+     */
+    public function existingHouseLandingSlugs(string $countryCode, array $slugs): array
+    {
+        $slugs = array_values(array_unique(array_filter($slugs, fn ($slug) => $slug !== '')));
+        if ($slugs === []) {
+            return [];
+        }
+
+        try {
+            $rows = (new SphinxQL($this->connection))
+                ->select('slug')
+                ->from('house_landings_' . $countryCode)
+                ->where('slug', 'IN', $slugs)
+                ->limit(0, count($slugs))
+                ->execute()
+                ->fetchAllAssoc();
+
+            return array_column($rows, 'slug');
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
     public function iterateHouseLandings(string $countryCode, int $batchSize = 20000): \Generator
     {
         $lastId = 0;
@@ -806,26 +834,20 @@ class ManticoreSearchService
         } while (count($rows) === $batchSize);
     }
 
+    /**
+     * The active landing with this slug, or null. A Manticore error is thrown, not read as
+     * "no landing": the caller answers 410 to a missing one, and an outage must not do that.
+     */
     public function getHouseLandingBySlug(string $countryCode, string $slug): ?array
     {
-        $indexName = 'house_landings_' . $countryCode;
+        $result = (new SphinxQL($this->connection))
+            ->select('*')
+            ->from('house_landings_' . $countryCode)
+            ->where('slug', $slug)
+            ->limit(0, 1)
+            ->execute();
 
-        try {
-            $result = (new SphinxQL($this->connection))
-                ->select('*')
-                ->from($indexName)
-                ->where('slug', $slug)
-                ->limit(0, 1)
-                ->execute();
-
-            if (empty($result)) {
-                return null;
-            }
-
-            return $result[0];
-        } catch (Exception $e) {
-            return null;
-        }
+        return empty($result) ? null : $result[0];
     }
 
     protected function enqueueFacet($query, $searchIndex, $columns, $searchQuery, $options, $idField, $nameField, $alias)

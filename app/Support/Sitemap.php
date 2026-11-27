@@ -4,7 +4,8 @@ namespace App\Support;
 
 /**
  * XML for the per-country sitemaps, stored under storage/app/sitemaps/{país}/ and served on
- * autos.roodos.{país}/sitemap.xml.
+ * autos.roodos.{país}/sitemap.xml (landings-N.xml, removed-N.xml) and casas.roodos.{país}/sitemap.xml
+ * (casas-N.xml).
  */
 class Sitemap
 {
@@ -13,16 +14,17 @@ class Sitemap
         return storage_path('app/sitemaps/' . $countryCode);
     }
 
-    public static function baseUrl(string $countryCode): string
+    /** $vertical is the subdomain: "autos" or "casas". */
+    public static function baseUrl(string $countryCode, string $vertical = 'autos'): string
     {
-        return 'https://autos.roodos.' . $countryCode;
+        return 'https://' . $vertical . '.roodos.' . $countryCode;
     }
 
-    public static function landingUrl(string $countryCode, string $slug): string
+    public static function landingUrl(string $countryCode, string $slug, string $vertical = 'autos'): string
     {
         $path = implode('/', array_map('rawurlencode', explode('/', ltrim($slug, '/'))));
 
-        return self::baseUrl($countryCode) . '/' . $path;
+        return self::baseUrl($countryCode, $vertical) . '/' . $path;
     }
 
     public static function urlset(array $urls): string
