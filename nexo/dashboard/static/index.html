@@ -3,17 +3,21 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Roodos Autos Ops</title>
+    <title>Roodos Ops</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
     <header class="topbar">
       <div>
-        <h1>Roodos Autos Ops</h1>
+        <h1>Roodos Ops</h1>
+        <nav class="tabs" aria-label="Vertical">
+          <a href="#autos" data-vertical="autos">Autos</a>
+          <a href="#casas" data-vertical="casas">Casas</a>
+        </nav>
         <p id="generated-at">Loading...</p>
       </div>
       <div class="actions">
-        <button id="refresh-now" type="button" title="Start emergency refresh">Run</button>
+        <button id="refresh-now" class="autos-only" type="button" title="Start emergency refresh">Run</button>
         <button id="reload" type="button" title="Reload dashboard">Reload</button>
       </div>
     </header>
@@ -21,7 +25,7 @@
     <main>
       <section class="metrics" aria-label="Summary metrics">
         <article>
-          <span>Total autos</span>
+          <span id="total-label">Total autos</span>
           <strong id="total">-</strong>
         </article>
         <article>
@@ -52,6 +56,8 @@
                 <th>Nuevos 24h</th>
                 <th>Vistos 24h</th>
                 <th>Activos vistos en 7 días</th>
+                <th class="casas-only">Landings</th>
+                <th class="casas-only">Desde el inventario</th>
               </tr>
             </thead>
             <tbody id="countries-active"></tbody>
@@ -61,7 +67,7 @@
 
       <section class="panel">
         <div class="panel-title">
-          <h2>Fuentes de autos</h2>
+          <h2 id="sources-title">Fuentes de autos</h2>
           <span id="nexo-summary" class="muted">-</span>
         </div>
         <div class="table-wrap">
@@ -84,7 +90,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel autos-only">
         <div class="panel-title">
           <h2>Automotoras</h2>
           <span id="dealers-summary" class="muted">-</span>
@@ -128,6 +134,7 @@
                   <th>Puntaje</th>
                   <th>Estado</th>
                   <th>Encontrada</th>
+                  <th class="casas-only"></th>
                 </tr>
               </thead>
               <tbody id="nexo-candidates"></tbody>
@@ -136,7 +143,7 @@
         </div>
       </section>
 
-      <section class="status-row">
+      <section class="status-row autos-only">
         <div class="panel service-panel">
           <div class="panel-title">
             <h2>Refresh Service</h2>
@@ -204,7 +211,7 @@
         </div>
       </section>
 
-      <section class="grid lower">
+      <section class="grid lower autos-only">
         <div class="panel">
           <div class="panel-title">
             <h2>Run Steps</h2>
