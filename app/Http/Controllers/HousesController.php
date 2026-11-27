@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\HouseLandingLinks;
 use App\Services\ManticoreSearchService;
+use App\Support\HouseLandings;
 use Exception;
 use Illuminate\Http\Request;
 use App\Support\CappedPaginator;
@@ -13,7 +15,7 @@ class HousesController extends Controller
 {
     protected ManticoreSearchService $manticore;
 
-    public function __construct(ManticoreSearchService $manticore)
+    public function __construct(ManticoreSearchService $manticore, private HouseLandingLinks $links)
     {
         $this->manticore = $manticore;
     }
@@ -58,7 +60,9 @@ class HousesController extends Controller
         $totalHouses = $this->extractTotalFromMeta($results['info'] ?? []);
 
         $country = $countryCode;
-        return view('houses.home', compact('type', 'country', 'totalHouses'));
+        $popularLandings = $this->links->popular($countryCode);
+
+        return view('houses.home', compact('type', 'country', 'totalHouses', 'popularLandings'));
     }
 
     public function index(Request $request)
@@ -79,7 +83,18 @@ class HousesController extends Controller
             'title' => $searchQuery !== '' ? $searchQuery : ucwords(str_replace('-', ' ', (string) $slug)),
         ];
 
-        return $this->renderResults($request, $slugData, $type, $countryCode);
+        // Landings created from the inventory list exactly their operation, type and place.
+        $filters = HouseLandings::generatedFilters($landing['content'] ?? null);
+        $landingLinks = $filters ? $this->links->forSearch(
+            $countryCode,
+            $filters['operation'],
+            $filters['type'],
+            (int) ($landing['id_state'] ?? 0),
+            (int) $filters['city'],
+            (int) ($landing['id'] ?? 0)
+        ) : [];
+
+        return $this->renderResults($request, $slugData, $type, $countryCode, $filters, $landingLinks);
     }
 
     public function show($country = null, $id = null)
@@ -154,9 +169,14 @@ class HousesController extends Controller
             }
         }
 
-        $searchUrl = $area
+        // Its landing when there is one (indexable, and what Google should find); else the search.
+        $stateId = (int) ($house['id_state'] ?? 0);
+        $cityId = (int) ($house['id_city'] ?? 0);
+        $landing = $this->links->landingFor($countryCode, $operationId, $typeId, $stateId, $cityId);
+        $searchUrl = $landing['url'] ?? ($area
             ? url('/search') . '?' . http_build_query(['operation' => $operationId, 'type' => $typeId, $area['param'] => $area['id']])
-            : null;
+            : null);
+        $landingLinks = $this->links->forSearch($countryCode, $operationId, $typeId, $stateId, $cityId, (int) ($landing['id'] ?? 0));
 
         return response()
             ->view('houses.show', [
@@ -170,6 +190,8 @@ class HousesController extends Controller
                 'verdict' => $verdict,
                 'similar' => $similar,
                 'searchUrl' => $searchUrl,
+                'landingLinks' => $landingLinks,
+                'landing' => $landing,
             ])
             // Listing data copied from the sources and short-lived: kept out of the index, but its
             // links are followed.
@@ -213,7 +235,7 @@ class HousesController extends Controller
         return $host !== '' ? $host : 'fuente externa';
     }
 
-    private function renderResults(Request $request, ?array $slugData = null, ?string $type = null, ?string $countryCode = null)
+    private function renderResults(Request $request, ?array $slugData = null, ?string $type = null, ?string $countryCode = null, ?array $fixedFilters = null, array $landingLinks = [])
     {
         $countryCode = $countryCode ?: $this->resolveCountryCode($request);
         $searchIndex = $this->getHousesIndexName($countryCode);
@@ -233,6 +255,10 @@ class HousesController extends Controller
             'max_size' => $request->get('max_size', ''),
             'order' => $this->normalizeOrder($request),
         ];
+        if ($fixedFilters) {
+            // The visitor's own filters still narrow it down; the landing's cannot be undone.
+            $options = array_merge($options, array_filter($fixedFilters, fn ($value) => $value !== ''), ['q' => '']);
+        }
 
         abort_if(CappedPaginator::beyondCap($options['page']), 410);
 
@@ -300,7 +326,8 @@ class HousesController extends Controller
             'searchQuery',
             'slugData',
             'type',
-            'country'
+            'country',
+            'landingLinks'
         ));
     }
 

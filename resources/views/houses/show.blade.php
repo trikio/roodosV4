@@ -35,7 +35,8 @@
 
     $breadcrumbItems = array_values(array_filter([
         ['label' => 'Inicio', 'url' => url('/')],
-        $area ? ['label' => ucfirst($kind) . ' en ' . $area['name'], 'url' => $searchUrl] : null,
+        $landing ? ['label' => $landing['title'], 'url' => $landing['url']]
+            : ($area ? ['label' => ucfirst($kind) . ' en ' . $area['name'], 'url' => $searchUrl] : null),
         ['label' => $house->title, 'url' => null],
     ]));
 
@@ -164,7 +165,7 @@
                     </p>
                 @endif
                 @if($searchUrl)
-                    <a href="{{ $searchUrl }}" class="inline-block mt-4 text-sm text-[#008bea] hover:underline">Ver más {{ $kind }} en {{ $area['name'] }}</a>
+                    <a href="{{ $searchUrl }}" class="inline-block mt-4 text-sm text-[#008bea] hover:underline">{{ $landing ? 'Ver ' . mb_strtolower($landing['title']) : 'Ver más ' . $kind . ' en ' . $area['name'] }}</a>
                 @endif
             </section>
             @endif
@@ -209,6 +210,17 @@
                         </a>
                     @endforeach
                 </div>
+            </section>
+            @endif
+
+            @if(count($landingLinks) > 0)
+            <section class="bg-white rounded-lg shadow p-5 sm:p-6">
+                <h2 class="text-lg font-bold text-gray-900 mb-3">Búsquedas relacionadas</h2>
+                <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                    @foreach($landingLinks as $link)
+                        <li><a href="{{ $link['url'] }}" class="text-sm text-[#008bea] hover:underline">{{ $link['title'] }}</a></li>
+                    @endforeach
+                </ul>
             </section>
             @endif
         </div>

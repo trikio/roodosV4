@@ -206,6 +206,17 @@
                         {{ $houses->onEachSide(0)->appends(request()->query())->links('vendor.pagination.tailwind') }}
                     </div>
                     @endif
+
+                    @if(!empty($landingLinks))
+                    <section class="mt-10">
+                        <h2 class="text-lg font-bold text-gray-900 mb-3">Búsquedas relacionadas</h2>
+                        <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                            @foreach($landingLinks as $link)
+                            <li><a href="{{ $link['url'] }}" class="text-sm text-[#008bea] hover:underline">{{ $link['title'] }}</a></li>
+                            @endforeach
+                        </ul>
+                    </section>
+                    @endif
                 </div>
 
                 <div class="hidden lg:block">

@@ -731,6 +731,81 @@ class ManticoreSearchService
         } while (count($rows) === $batchSize);
     }
 
+    /**
+     * Ads per operation + type, also per region ($level 'state') or city ('city'), only groups with
+     * at least $minAds: [{id_house_operation, house_operation_name, id_house_type, house_type_name,
+     * id_state, state_name, id_city, city_name, total}]. The names come from any ad of the group.
+     */
+    public function houseCountsByPlace($searchIndex, string $level, int $minAds): array
+    {
+        $limit = 100000;
+        $query = (new SphinxQL($this->connection))
+            ->select(
+                'id_house_operation', 'house_operation_name', 'id_house_type', 'house_type_name',
+                'id_state', 'state_name', 'id_city', 'city_name', SphinxQL::expr('COUNT(*) AS total')
+            )
+            ->from($searchIndex)
+            ->where('id_house_operation', '>', 0)
+            ->where('id_house_type', '>', 0)
+            ->groupBy('id_house_operation')
+            ->groupBy('id_house_type');
+
+        if ($level === 'state' || $level === 'city') {
+            $field = $level === 'state' ? 'id_state' : 'id_city';
+            $query->where($field, '>', 0)->groupBy($field);
+        }
+
+        return $query
+            ->having('total', '>=', $minAds)
+            ->limit(0, $limit)
+            ->option('max_matches', $limit)
+            ->execute()
+            ->fetchAllAssoc();
+    }
+
+    /**
+     * House landings whose attributes match $where ([field, operator, value] triples), oldest
+     * first. Empty when the index is missing.
+     */
+    public function houseLandings(string $countryCode, array $where, int $limit = 100): array
+    {
+        $allowed = ['id', 'id_house_operation', 'id_house_type', 'id_state', 'id_city'];
+
+        try {
+            $query = (new SphinxQL($this->connection))
+                ->select('id', 'slug', 'title', 'content', 'id_house_operation', 'id_house_type', 'id_state', 'id_city')
+                ->from('house_landings_' . $countryCode);
+            foreach ($where as [$field, $operator, $value]) {
+                if (!in_array($field, $allowed, true)) {
+                    throw new Exception("Atributo no permitido: {$field}");
+                }
+                $query->where($field, $operator, $value);
+            }
+
+            return $query
+                ->orderBy('id', 'ASC')
+                ->limit(0, $limit)
+                ->option('max_matches', max(1000, $limit))
+                ->execute()
+                ->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    public function iterateHouseLandings(string $countryCode, int $batchSize = 20000): \Generator
+    {
+        $lastId = 0;
+
+        do {
+            $rows = $this->houseLandings($countryCode, [['id', '>', $lastId]], $batchSize);
+            foreach ($rows as $row) {
+                $lastId = (int) $row['id'];
+                yield $row;
+            }
+        } while (count($rows) === $batchSize);
+    }
+
     public function getHouseLandingBySlug(string $countryCode, string $slug): ?array
     {
         $indexName = 'house_landings_' . $countryCode;

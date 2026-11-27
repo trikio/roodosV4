@@ -17,6 +17,7 @@ class LandingNames
         'Región de Magallanes y de la Antártica Chilena' => 'Magallanes',
         'Distrito Federal' => 'Ciudad de México',
         'Estado de México' => 'Estado de México',
+        'Estado de Veracruz-Llave' => 'Veracruz',
         'Provincia Constitucional del Callao' => 'Callao',
     ];
 
