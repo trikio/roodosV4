@@ -1,36 +1,130 @@
 #!/usr/bin/env python3
+"""Casas de Chile desde el feed Trovit de Doomos (https://www.doomos.cl/feeds/trovit.xml, ~34.000 avisos).
+
+Cada aviso trae operación (`type`: "For Sale", "Land For Rent"...), tipo (`property_type`), región y
+comuna, y se guardan con esos ids. La ubicación la resuelve el mismo normalizador que los scrapers.
+
+Precio: `price` viene en pesos. Cuando falta (la mitad del feed), Doomos pone el precio en UF al final
+del título ("Venta Departamento Santiago ... UF 2850"); se convierte a pesos con la UF del día que
+publica el SII, porque la web muestra todos los precios de Chile en pesos. Si no hay valor de UF, el
+aviso queda sin precio, nunca con los UF como si fueran pesos.
+"""
+import json
 import os
 import random
 import re
+import sys
 import unicodedata
-from typing import Optional, Tuple, List, Dict
+from datetime import date
+from pathlib import Path
+from typing import Optional, List, Dict
 
 import mysql.connector
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from roodos_scraper.normalize import Normalizer  # noqa: E402
+
 FEED_URL = "https://www.doomos.cl/feeds/trovit.xml"
+UF_URL = "https://www.sii.cl/valores_y_fechas/uf/uf{year}.htm"
+UF_CACHE = Path(__file__).resolve().parent.parent / "logs" / "uf_value.json"
+MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+          "octubre", "noviembre", "diciembre"]
+
+# house_type de roodos por `property_type` del feed.
+TYPES = {"departamento": 2, "casa": 1, "parcela": 5, "terreno": 3, "oficina": 6, "local comercial": 4,
+         "bodega": 9, "casa comercial": 4, "galpon": 7, "negocio": 4, "loft": 15, "quinta": 19, "almacen": 9}
+# Si `property_type` falta o es otro, el tipo que dice `type` ("Office For Rent").
+TYPE_HINTS = [("land", 3), ("office", 6), ("local", 4), ("warehouse", 9)]
 
 
-def norm(text: str) -> str:
-    if not text:
-        return ""
-    t = str(text).strip().lower()
-    t = unicodedata.normalize("NFKD", t)
+def norm(text) -> str:
+    t = unicodedata.normalize("NFKD", str(text or "").strip().lower())
     t = "".join(ch for ch in t if not unicodedata.combining(ch))
-    t = re.sub(r"[^a-z0-9]+", " ", t)
-    return " ".join(t.split())
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", t).split())
 
 
-def to_int(value) -> Optional[int]:
-    if value in (None, ""):
+def operation_id(raw: str) -> Optional[int]:
+    n = norm(raw)
+    if "sale" in n or "venta" in n:
+        return 1
+    if "rent" in n or "arriendo" in n or "alquiler" in n:
+        return 2
+    return None
+
+
+def type_id(property_type: str, raw_type: str) -> Optional[int]:
+    found = TYPES.get(norm(property_type))
+    if found:
+        return found
+    n = norm(raw_type)
+    return next((tid for word, tid in TYPE_HINTS if word in n), None)
+
+
+def number(text) -> Optional[float]:
+    """"10370.00" -> 10370.0; "1.650" (miles) -> 1650; "2,5" -> 2.5."""
+    m = re.search(r"\d[\d.,]*", str(text or ""))
+    if not m:
         return None
-    digits = "".join(ch for ch in str(value) if ch.isdigit())
-    if not digits:
+    s = m.group(0).rstrip(".,")
+    if re.fullmatch(r"\d{1,3}(\.\d{3})+(,\d+)?", s):  # 1.650 / 1.650,5
+        s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(,\d{3})+(\.\d+)?", s):  # 1,650 / 1,650.5
+        s = s.replace(",", "")
+    else:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
         return None
-    v = int(digits)
-    return v if v <= 2147483647 else None
+
+
+def small_int(text, top=50) -> Optional[int]:
+    v = number(text)
+    return int(v) if v is not None and 0 < v < top else None
+
+
+def uf_value() -> Optional[float]:
+    """UF de hoy desde la tabla anual del SII; si el SII no responde, la última guardada (máx. 7 días)."""
+    today = date.today()
+    try:
+        r = requests.get(UF_URL.format(year=today.year), timeout=30,
+                         headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/131 Safari/537.36"})
+        r.raise_for_status()
+        html = r.content.decode("latin-1")
+        block = html.split(f"id='mes_{MONTHS[today.month - 1]}'", 1)[1].split("class='meses'", 1)[0]
+        days = dict(re.findall(r"<strong>(\d+)</strong></th>\s*<td[^>]*>([\d.,]+)</td>", block))
+        value = number(days.get(str(today.day)))
+        if value and 20000 < value < 100000:
+            UF_CACHE.parent.mkdir(exist_ok=True)
+            UF_CACHE.write_text(json.dumps({"date": today.isoformat(), "uf": value}))
+            return value
+        print(f"uf: el SII no trae el valor del {today.isoformat()}")
+    except Exception as exc:
+        print(f"uf: SII falló ({exc.__class__.__name__}: {exc})")
+    try:
+        cached = json.loads(UF_CACHE.read_text())
+        if (today - date.fromisoformat(cached["date"])).days <= 7:
+            print(f"uf: uso el valor guardado del {cached['date']}")
+            return float(cached["uf"])
+    except Exception:
+        pass
+    return None
+
+
+def price_clp(feed_price: str, title: str, uf: Optional[float]) -> Optional[int]:
+    value = number(feed_price)
+    if value and value >= 1000:
+        return int(value)
+    m = re.search(r"\bUF\s*([\d.,]+)\s*$", title or "", re.I)
+    if m and uf:
+        amount = number(m.group(1))
+        if amount and amount > 0:
+            clp = int(round(amount * uf))
+            return clp if clp <= 2147483647 else None
+    return None
 
 
 def webshare_proxies(token: str, page_size: int = 100) -> List[Dict]:
@@ -85,50 +179,6 @@ def download_feed(url: str, token: str) -> str:
     raise RuntimeError("Could not download XML feed (blocked or unavailable)")
 
 
-def manticore_match_id(cur, index_name: str, text: str) -> Optional[int]:
-    qn = norm(text)
-    if not qn:
-        return None
-    # user-requested strategy: query only over @names with quorum /1
-    phrase = " ".join([w for w in qn.split() if len(w) >= 3][:16])
-    if not phrase:
-        return None
-    mq = f'@names "{phrase}"/1'
-    try:
-        cur.execute(f"SELECT id FROM {index_name} WHERE MATCH(%s) ORDER BY WEIGHT() DESC LIMIT 1", (mq,))
-        row = cur.fetchone()
-        return int(row["id"]) if row and row.get("id") is not None else None
-    except Exception:
-        return None
-
-
-def manticore_location(cur, city: str, region: str) -> Tuple[Optional[int], Optional[int]]:
-    queries = [norm(f"{city} {region}"), norm(city)]
-    for q in queries:
-        if not q:
-            continue
-        try:
-            cur.execute(
-                """
-                SELECT id, id_state
-                FROM location
-                WHERE country='cl' AND MATCH(%s)
-                ORDER BY puntaje DESC, WEIGHT() DESC
-                LIMIT 1
-                """,
-                (q,),
-            )
-            row = cur.fetchone()
-            if row:
-                return (
-                    int(row["id"]) if row.get("id") is not None else None,
-                    int(row["id_state"]) if row.get("id_state") is not None else None,
-                )
-        except Exception:
-            pass
-    return None, None
-
-
 def fix_text(s: str) -> str:
     if not s:
         return ""
@@ -148,15 +198,6 @@ def tag_text(ad, tag_name: str) -> str:
     return fix_text(t.text) if t and t.text else ""
 
 
-def operation_phrase(raw: str) -> str:
-    n = norm(raw)
-    if "for sale" in n or "sale" in n or "venta" in n:
-        return "venta"
-    if "for rent" in n or "rent" in n or "arriendo" in n or "alquiler" in n:
-        return "arriendo"
-    return n
-
-
 def first_picture(ad) -> Optional[str]:
     pics = ad.find("pictures")
     if not pics:
@@ -171,12 +212,14 @@ def first_picture(ad) -> Optional[str]:
     return txt if txt.startswith("http") else None
 
 
-def main(max_items: Optional[int] = None):
+def main(max_items: Optional[int] = None, dry_run: bool = False):
     load_dotenv()
 
     xml = download_feed(FEED_URL, os.getenv("WEBSHARE_API_TOKEN", ""))
     soup = BeautifulSoup(xml, "xml")
     ads = soup.find_all("ad")
+    uf = uf_value()
+    print(f"feed: {len(ads)} avisos; UF {uf}")
 
     db = mysql.connector.connect(
         host=os.getenv("MYSQL_HOST", "localhost"),
@@ -187,9 +230,7 @@ def main(max_items: Optional[int] = None):
         autocommit=False,
     )
     cur = db.cursor(dictionary=True)
-
-    mc = mysql.connector.connect(host="127.0.0.1", port=9306)
-    mcur = mc.cursor(dictionary=True)
+    normalizer = Normalizer(cur)
 
     sql = """
     INSERT INTO houses (
@@ -212,6 +253,7 @@ def main(max_items: Optional[int] = None):
     """
 
     inserted = updated = failed = 0
+    stats = {"operation": 0, "type": 0, "state": 0, "city": 0, "price": 0, "price_uf": 0, "size": 0}
 
     for i, ad in enumerate(ads, 1):
         if max_items and i > max_items:
@@ -224,20 +266,27 @@ def main(max_items: Optional[int] = None):
             slug = url.rstrip("/").split("/")[-1][:255]
             title = (tag_text(ad, "title") or slug or "Sin título").strip()[:250]
             details = (tag_text(ad, "content") or "").strip()[:60000] or None
-            op_txt = tag_text(ad, "type")
-            typ_txt = tag_text(ad, "property_type")
+            raw_type = tag_text(ad, "type")
             city = tag_text(ad, "city")
             region = tag_text(ad, "region")
             image = first_picture(ad)
 
-            id_op = manticore_match_id(mcur, "house_operation", operation_phrase(op_txt))
-            id_type = manticore_match_id(mcur, "house_type", typ_txt)
-            id_city, id_state = manticore_location(mcur, city, region)
+            id_op = operation_id(raw_type)
+            id_type = type_id(tag_text(ad, "property_type"), raw_type)
+            id_state, id_city = normalizer.location("cl", [city] + (["region:" + region] if region else []))
+            feed_price = tag_text(ad, "price")
+            price = price_clp(feed_price, title, uf)
+            rooms = small_int(tag_text(ad, "rooms"))
+            bath = small_int(tag_text(ad, "bathrooms"))
+            area = number(tag_text(ad, "floor_area"))
+            size = int(area) if area and 1 <= area <= 2147483647 else None
 
-            price = to_int(tag_text(ad, "price")) or to_int(title)
-            rooms = to_int(tag_text(ad, "rooms"))
-            bath = to_int(tag_text(ad, "bathrooms"))
-            size = to_int(tag_text(ad, "floor_area"))
+            for key, value in (("operation", id_op), ("type", id_type), ("state", id_state), ("city", id_city),
+                               ("price", price), ("size", size)):
+                stats[key] += value is not None
+            stats["price_uf"] += bool(price and not number(feed_price))
+            if dry_run:
+                continue
 
             cur.execute("SELECT id FROM houses WHERE id_country='CL' AND url=%s LIMIT 1", (url[:250],))
             exists = cur.fetchone() is not None
@@ -264,14 +313,15 @@ def main(max_items: Optional[int] = None):
                 print("row_error", i, e)
 
     db.commit()
-    print({"total_ads": len(ads), "inserted": inserted, "updated": updated, "failed": failed})
+    print({"total_ads": len(ads), "inserted": inserted, "updated": updated, "failed": failed, **stats})
 
-    mcur.close(); mc.close(); cur.close(); db.close()
+    cur.close(); db.close()
 
 
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--max-items", type=int, default=None)
+    p.add_argument("--dry-run", action="store_true", help="lee el feed y cuenta, sin escribir en la base")
     args = p.parse_args()
-    main(max_items=args.max_items)
+    main(max_items=args.max_items, dry_run=args.dry_run)
