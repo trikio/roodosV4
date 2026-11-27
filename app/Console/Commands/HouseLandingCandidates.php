@@ -95,7 +95,7 @@ class HouseLandingCandidates extends Command
                 $place = match ($level) {
                     'pais' => null,
                     'region' => LandingNames::place((string) $group['state_name']),
-                    'ciudad' => $this->cityPlace($group, $citiesByName, $stateSlugs),
+                    'ciudad' => $this->cityPlace($country, $group, $citiesByName, $stateSlugs),
                 };
                 if ($place === '') {
                     continue;
@@ -148,7 +148,8 @@ class HouseLandingCandidates extends Command
         return self::SUCCESS;
     }
 
-    private function cityPlace(array $group, array $citiesByName, array $stateSlugs): string
+    /** The city as its landing names it, or '' when it is no real city (see LandingNames). */
+    private function cityPlace(string $country, array $group, array $citiesByName, array $stateSlugs): string
     {
         $city = HouseLandings::city((string) $group['city_name']);
         $state = LandingNames::place((string) $group['state_name']);
@@ -156,12 +157,15 @@ class HouseLandingCandidates extends Command
         if ($slug === '') {
             return '';
         }
+        // Querétaro (the city) in Querétaro (the region): the region's landing keeps the bare name.
+        if (Str::slug($state) === $slug) {
+            return LandingNames::regionHasCityOfItsName($country, $slug) ? "la ciudad de {$city}" : '';
+        }
         if (count($citiesByName[$slug] ?? []) <= 1 && !isset($stateSlugs[$slug])) {
             return $city;
         }
 
-        // Querétaro (the city) in Querétaro (the region): the region's landing keeps the name.
-        return Str::slug($state) === $slug || $state === '' ? "{$city} (ciudad)" : "{$city}, {$state}";
+        return $state === '' ? "la ciudad de {$city}" : "{$city}, {$state}";
     }
 
     /** @return array{0: array<string, string>, 1: array<string, string>} slugs, and slugs by search terms */

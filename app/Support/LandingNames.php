@@ -21,6 +21,16 @@ class LandingNames
         'Provincia Constitucional del Callao' => 'Callao',
     ];
 
+    /**
+     * Regions with no city of their name: an ad placed in "Nayarit, Nayarit" only named its region
+     * (the location normalizer matched a village called the same), so no city landing is made.
+     */
+    private const REGIONS_WITHOUT_SUCH_CITY = [
+        'mx' => ['baja-california', 'baja-california-sur', 'chiapas', 'coahuila', 'estado-de-mexico', 'guerrero', 'hidalgo',
+            'jalisco', 'mexico', 'michoacan', 'morelos', 'nayarit', 'nuevo-leon', 'quintana-roo', 'sinaloa', 'sonora',
+            'tabasco', 'tamaulipas', 'yucatan'],
+    ];
+
     private const TRANSMISSIONS = ['automatico' => 'automático', 'manual' => 'manual'];
 
     private const FUELS = ['diesel' => 'diésel', 'hibrido' => 'híbrido', 'electrico' => 'eléctrico', 'gasolina' => 'gasolina', 'gas' => 'a gas'];
@@ -37,6 +47,12 @@ class LandingNames
         $name = preg_replace('/\s+de\s+(Ignacio de la Llave|Ocampo|Zaragoza|Arteaga)$/u', '', $name);
 
         return mb_strtoupper(mb_substr($name, 0, 1)) . mb_substr($name, 1);
+    }
+
+    /** Whether a region of this slug has a real city named like it (Querétaro does, Nayarit does not). */
+    public static function regionHasCityOfItsName(string $country, string $regionSlug): bool
+    {
+        return !in_array($regionSlug, self::REGIONS_WITHOUT_SUCH_CITY[strtolower($country)] ?? [], true);
     }
 
     public static function transmission(string $name): ?string

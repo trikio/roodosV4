@@ -37,6 +37,8 @@ class HouseLandingCandidatesCommandTest extends TestCase
             $this->group(1, 'Venta', 2, 'Departamento', 22, 'Estado de Querétaro de Arteaga', 50, 'Querétaro', 95),
             $this->group(1, 'Venta', 2, 'Departamento', 9, 'Distrito Federal', 16, 'Benito Juárez', 40),
             $this->group(2, 'Renta', 1, 'Casa', 23, 'Estado de Quintana Roo', 60, 'Benito Juárez', 12),
+            // Only the region was named: there is no city called Nayarit.
+            $this->group(1, 'Venta', 2, 'Departamento', 18, 'Estado de Nayarit', 70, 'Nayarit', 20),
         ]);
         $manticore->shouldReceive('iterateHouseLandings')->with('mx')->andReturnUsing(fn () => (function () {
             yield ['slug' => 'arriendo-casas-benito-juarez', 'title' => 'Arriendo Casas Benito Juárez, Quintana Roo'];
@@ -53,7 +55,7 @@ class HouseLandingCandidatesCommandTest extends TestCase
             ['region', 'departamentos-en-venta-en-queretaro', 'nueva'],
             ['region', 'casas-en-renta-en-quintana-roo', 'nueva'],
             ['ciudad', 'departamentos-en-venta-en-miguel-hidalgo', 'nueva'],
-            ['ciudad', 'departamentos-en-venta-en-queretaro-ciudad', 'no_acota'],
+            ['ciudad', 'departamentos-en-venta-en-la-ciudad-de-queretaro', 'no_acota'],
             ['ciudad', 'departamentos-en-venta-en-benito-juarez-ciudad-de-mexico', 'nueva'],
             // A legacy landing of the same search ("arriendo" is "renta").
             ['ciudad', 'casas-en-renta-en-benito-juarez-quintana-roo', 'existe'],
