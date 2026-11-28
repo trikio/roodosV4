@@ -133,6 +133,7 @@ class InternalLinksTest extends TestCase
             [['id_state' => '1', 'name' => 'Lima', 'total' => '50']],
         ));
         $this->manticore->shouldReceive('similarCarLandings')->andReturn([]);
+        $this->manticore->shouldReceive('carModelPricePoints')->andReturn([]);
 
         $this->get('http://autos.roodos.pe/modelo/toyota-rav4')
             ->assertOk()
