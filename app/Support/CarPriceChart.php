@@ -16,12 +16,11 @@ final class CarPriceChart
     public const MAX_DOTS = 400;
     public const MAX_GROUPS = 3;
 
-    public const WIDTH = 560;
-    public const HEIGHT = 320;
-    private const LEFT = 70;
-    private const RIGHT = 16;
-    private const TOP = 12;
-    private const BOTTOM = 36;
+    /** Drawn twice, so the labels keep a readable size on a phone and on a wide screen. */
+    public const LAYOUTS = [
+        'narrow' => ['width' => 360, 'height' => 260, 'left' => 58, 'right' => 10, 'top' => 10, 'bottom' => 30],
+        'wide' => ['width' => 760, 'height' => 340, 'left' => 72, 'right' => 16, 'top' => 12, 'bottom' => 36],
+    ];
 
     /**
      * @param array<int, array{id?: int, price: int, km: int, year: int}> $points
@@ -91,44 +90,55 @@ final class CarPriceChart
             $highlight = null;
         }
 
-        $xTicks = self::ticks(0, $kmMax);
+        // The axis ends just past the farthest ad: one car at 340 mil km left 400 mil drawn empty.
+        $xMax = $kmMax * 1.03;
+        $xTicks = array_values(array_filter(self::ticks(0, $kmMax), fn ($v) => $v <= $xMax));
         $yTicks = self::ticks(min($prices), max($prices));
-        $xMax = end($xTicks);
-        [$yMin, $yMax] = [$yTicks[0], end($yTicks)];
-        $plotW = self::WIDTH - self::LEFT - self::RIGHT;
-        $plotH = self::HEIGHT - self::TOP - self::BOTTOM;
-        $x = fn (float $km) => round(self::LEFT + $km / $xMax * $plotW, 1);
-        $y = fn (float $price) => round(self::TOP + (1 - ($price - $yMin) / max(1, $yMax - $yMin)) * $plotH, 1);
         $title = fn (array $p) => $p['year'] . ' · ' . number_format($p['km'], 0, ',', '.') . ' km · '
             . $currency . ' ' . number_format($p['price'], 0, ',', '.');
 
         // Few enough dots to keep the page light; the lines are drawn from every ad.
         $step = max(1, $total / self::MAX_DOTS);
         foreach ($groups as &$group) {
-            $trend = self::trend($group['points']);
-            $group['trend'] = count($trend) >= 3
-                ? 'M' . implode(' L', array_map(fn ($t) => $x($t[0]) . ' ' . $y($t[1]), $trend))
-                : null;
-            $dots = [];
-            foreach ($group['points'] as $i => $p) {
-                if (fmod($i, $step) < 1) {
-                    $dots[] = ['x' => $x($p['km']), 'y' => $y($p['price']), 'title' => $title($p)];
-                }
-            }
-            $group['dots'] = $dots;
-            unset($group['points']);
+            $group['trend'] = self::trend($group['points']);
+            $group['shown'] = array_values(array_filter($group['points'], fn ($i) => fmod($i, $step) < 1, ARRAY_FILTER_USE_KEY));
         }
         unset($group);
 
+        $layouts = [];
+        foreach (self::LAYOUTS as $name => $box) {
+            $layouts[$name] = self::layout($box, $groups, $xMax, $xTicks, $yTicks, $highlight, $title, $currency);
+        }
+
         return [
-            'width' => self::WIDTH,
-            'height' => self::HEIGHT,
-            'plot' => ['left' => self::LEFT, 'right' => self::WIDTH - self::RIGHT, 'top' => self::TOP, 'bottom' => self::HEIGHT - self::BOTTOM],
+            'groups' => array_map(fn ($g) => array_intersect_key($g, array_flip(['label', 'from', 'to', 'slot', 'count', 'median'])), $groups),
+            'layouts' => $layouts,
+            'total' => $total,
+        ];
+    }
+
+    private static function layout(array $box, array $groups, float $xMax, array $xTicks, array $yTicks, ?array $highlight, callable $title, string $currency): array
+    {
+        [$yMin, $yMax] = [$yTicks[0], end($yTicks)];
+        $plotW = $box['width'] - $box['left'] - $box['right'];
+        $plotH = $box['height'] - $box['top'] - $box['bottom'];
+        $x = fn (float $km) => round($box['left'] + $km / $xMax * $plotW, 1);
+        $y = fn (float $price) => round($box['top'] + (1 - ($price - $yMin) / max(1, $yMax - $yMin)) * $plotH, 1);
+
+        return [
+            'width' => $box['width'],
+            'height' => $box['height'],
+            'plot' => ['left' => $box['left'], 'right' => $box['width'] - $box['right'], 'top' => $box['top'], 'bottom' => $box['height'] - $box['bottom']],
             'x_ticks' => array_map(fn ($v) => ['x' => $x($v), 'label' => self::short($v)], $xTicks),
             'y_ticks' => array_map(fn ($v) => ['y' => $y($v), 'label' => $currency . ' ' . self::short($v)], $yTicks),
-            'groups' => $groups,
+            'series' => array_map(fn ($g) => [
+                'slot' => $g['slot'],
+                'dots' => array_map(fn ($p) => ['x' => $x($p['km']), 'y' => $y($p['price']), 'title' => $title($p)], $g['shown']),
+                'trend' => count($g['trend']) >= 3
+                    ? 'M' . implode(' L', array_map(fn ($t) => $x($t[0]) . ' ' . $y($t[1]), $g['trend']))
+                    : null,
+            ], $groups),
             'highlight' => $highlight ? ['x' => $x($highlight['km']), 'y' => $y($highlight['price']), 'title' => $title($highlight)] : null,
-            'total' => $total,
         ];
     }
 
@@ -173,11 +183,12 @@ final class CarPriceChart
     private static function trend(array $points): array
     {
         $n = count($points);
-        if ($n < 10) {
+        // At least 12 ads per stretch: with 5 the line of a range with few ads zigzagged.
+        $bins = min(7, intdiv($n, 12));
+        if ($bins < 3) {
             return [];
         }
         usort($points, fn ($a, $b) => $a['km'] <=> $b['km']);
-        $bins = min(8, intdiv($n, 5));
         $trend = [];
         for ($b = 0; $b < $bins; $b++) {
             $slice = array_slice($points, intdiv($b * $n, $bins), intdiv(($b + 1) * $n, $bins) - intdiv($b * $n, $bins));

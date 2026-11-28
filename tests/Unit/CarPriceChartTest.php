@@ -28,19 +28,21 @@ class CarPriceChartTest extends TestCase
 
     public function test_builds_groups_trends_and_highlight(): void
     {
-        $ads = array_merge($this->ads(20, 2016, 9000000), $this->ads(20, 2020, 14000000));
+        $ads = array_merge($this->ads(40, 2016, 9000000), $this->ads(40, 2020, 14000000));
         $chart = CarPriceChart::build($ads, ['id' => 99, 'price' => 10000000, 'km' => 50000, 'year' => 2018]);
 
-        $this->assertSame(40, $chart['total']);
+        $this->assertSame(80, $chart['total']);
         $this->assertSame(['2016', '2020'], array_column($chart['groups'], 'label'));
-        $this->assertNotNull($chart['groups'][0]['trend']);
-        $this->assertNotNull($chart['highlight']);
-        foreach ($chart['groups'] as $group) {
-            foreach ($group['dots'] as $dot) {
-                $this->assertGreaterThanOrEqual($chart['plot']['left'], $dot['x']);
-                $this->assertLessThanOrEqual($chart['plot']['right'], $dot['x']);
-                $this->assertGreaterThanOrEqual($chart['plot']['top'], $dot['y']);
-                $this->assertLessThanOrEqual($chart['plot']['bottom'], $dot['y']);
+        foreach ($chart['layouts'] as $layout) {
+            $this->assertNotNull($layout['series'][0]['trend']);
+            $this->assertNotNull($layout['highlight']);
+            foreach ($layout['series'] as $series) {
+                foreach ($series['dots'] as $dot) {
+                    $this->assertGreaterThanOrEqual($layout['plot']['left'], $dot['x']);
+                    $this->assertLessThanOrEqual($layout['plot']['right'], $dot['x']);
+                    $this->assertGreaterThanOrEqual($layout['plot']['top'], $dot['y']);
+                    $this->assertLessThanOrEqual($layout['plot']['bottom'], $dot['y']);
+                }
             }
         }
     }
