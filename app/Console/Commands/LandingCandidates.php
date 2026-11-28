@@ -19,7 +19,7 @@ class LandingCandidates extends Command
     protected $signature = 'landings:candidates
                             {country : Código de país (pe, cl, ec, mx, lab)}
                             {--min-ads=8 : Avisos mínimos para proponer una landing}
-                            {--kind=anio : Qué se cruza con el modelo: anio, transmision, combustible o region}
+                            {--kind=anio : Qué se cruza con el modelo: anio, transmision, combustible, region o ciudad}
                             {--min-year=2005 : Año más antiguo (solo --kind=anio)}
                             {--max-share=0.85 : Fuera de anio, no se propone si cubre más que esta parte de los avisos del modelo}
                             {--output= : Carpeta del CSV (por defecto storage/app/landings)}
@@ -61,6 +61,7 @@ class LandingCandidates extends Command
         'transmision' => ['id_transmission', 'transmission', 'transmisión'],
         'combustible' => ['id_fuel', 'fuel', 'combustible'],
         'region' => ['id_state', 'state', 'región'],
+        'ciudad' => ['id_city', 'city', 'ciudad'],
     ];
 
     public function handle(ManticoreSearchService $manticore): int
@@ -102,7 +103,7 @@ class LandingCandidates extends Command
         foreach ($groups as $group) {
             $modelId = (int) $group['id_car_model'];
             $model = $names[$modelId] ?? null;
-            $words = $this->words($kind, (string) $group['name']);
+            $words = $this->words($kind, (string) $group['name'], (string) ($group['state_name'] ?? ''));
             if ($model === null || $words === null) {
                 continue;
             }
@@ -126,6 +127,7 @@ class LandingCandidates extends Command
                     'model' => $model, 'model_id' => $modelId, 'slug' => $slug, 'title' => $title, 'kind' => $kind,
                     'filters' => [$generatedKey => (int) $group['value']],
                     'state' => $kind === 'region' ? (int) $group['value'] : 0,
+                    'city' => $kind === 'ciudad' ? (int) $group['value'] : 0,
                 ];
             }
         }
@@ -224,15 +226,18 @@ class LandingCandidates extends Command
 
     /**
      * The words a landing of this kind adds to the model ("2020", "automático", "diésel",
-     * "Santiago"), or null when the value is not one to make landings of.
+     * "Santiago", "Los Olivos"), or null when the value is not one to make landings of. A city
+     * named like its region (Lima, Arequipa, Nayarit) is left to the region's landing: same words,
+     * and in Mexico often a region an ad named twice rather than a real city.
      */
-    private function words(string $kind, string $name): ?string
+    private function words(string $kind, string $name, string $stateName = ''): ?string
     {
         $words = match ($kind) {
             'anio' => $name,
             'transmision' => LandingNames::transmission($name),
             'combustible' => LandingNames::fuel($name),
             'region' => LandingNames::place($name),
+            'ciudad' => $stateName !== '' && Str::slug($name) === Str::slug(LandingNames::place($stateName)) ? null : trim($name),
         };
 
         return $words === null || trim($words) === '' ? null : $words;
@@ -241,7 +246,8 @@ class LandingCandidates extends Command
     /**
      * "Toyota Hilux 2020 usados" at /toyota-hilux-2020 (the legacy pattern of these landings),
      * "Toyota Corolla automático usados" at /toyota-corolla-automatico-usados and "Toyota Hilux
-     * usados en Santiago" at /toyota-hilux-usados-en-santiago.
+     * usados en Santiago" at /toyota-hilux-usados-en-santiago (cities the same: "Volkswagen
+     * Escarabajo usados en Los Olivos").
      *
      * @return array{0: string, 1: string}
      */
@@ -249,7 +255,7 @@ class LandingCandidates extends Command
     {
         return match ($kind) {
             'anio' => ["{$model['name']} {$words} usados", $model['slug'] . '-' . $words],
-            'region' => ["{$model['name']} usados en {$words}", $model['slug'] . '-usados-en-' . Str::slug($words)],
+            'region', 'ciudad' => ["{$model['name']} usados en {$words}", $model['slug'] . '-usados-en-' . Str::slug($words)],
             default => ["{$model['name']} {$words} usados", $model['slug'] . '-' . Str::slug($words) . '-usados'],
         };
     }
@@ -285,7 +291,7 @@ class LandingCandidates extends Command
                 'generated' => ['make' => $model['make_id'], 'model' => $landing['model_id']] + $landing['filters'] + ['created' => $today],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             // "... usados en Santiago en Chile" would read badly.
-            $inCountry = ($landing['kind'] === 'region' ? ', ' : ' en ') . $countryName;
+            $inCountry = (in_array($landing['kind'], ['region', 'ciudad'], true) ? ', ' : ' en ') . $countryName;
 
             $values = [
                 $q($country),
@@ -298,7 +304,7 @@ class LandingCandidates extends Command
                 $model['make_id'],
                 $landing['model_id'],
                 $landing['state'],
-                0,
+                $landing['city'],
                 "''",
                 1,
             ];

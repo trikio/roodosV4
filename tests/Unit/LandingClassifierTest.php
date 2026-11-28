@@ -67,4 +67,12 @@ class LandingClassifierTest extends TestCase
         $this->assertSame($expected, LandingClassifier::breadcrumbSlugs('{"breadcrumb": [{"make": "honda"}, {"model": "honda-civic"}]}'));
         $this->assertSame(['make' => '', 'model' => ''], LandingClassifier::breadcrumbSlugs(''));
     }
+
+    public function test_a_city_landing_lists_the_cars_of_its_model_and_city(): void
+    {
+        $generated = LandingClassifier::generated('{"generated": {"make": 200, "model": 3000, "city": 501, "created": "2026-11-28"}}');
+
+        $this->assertSame(501, $generated['city']);
+        $this->assertSame(['make' => 200, 'model' => 3000, 'city' => 501], LandingClassifier::generatedFilters($generated));
+    }
 }

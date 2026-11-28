@@ -133,7 +133,7 @@ class LandingClassifier
     }
 
     /** Filters a landing created from the inventory may carry besides its model. */
-    public const GENERATED_FILTERS = ['year', 'state', 'transmission', 'fuel'];
+    public const GENERATED_FILTERS = ['year', 'state', 'city', 'transmission', 'fuel'];
 
     /**
      * Filters of a landing created from the inventory by landings:candidates, stored in its content
@@ -174,7 +174,7 @@ class LandingClassifier
             $filters['min_year'] = $generated['year'];
             $filters['max_year'] = $generated['year'];
         }
-        foreach (['state', 'transmission', 'fuel'] as $filter) {
+        foreach (['state', 'city', 'transmission', 'fuel'] as $filter) {
             if ($generated[$filter] > 0) {
                 $filters[$filter] = $generated[$filter];
             }

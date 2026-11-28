@@ -305,11 +305,12 @@ class ManticoreSearchService
     }
 
     /** Attributes landings:candidates crosses with a model, and the column with their name. */
-    public const MODEL_CROSS_ATTRIBUTES = ['id_transmission' => 'transmission_name', 'id_fuel' => 'fuel_name', 'id_state' => 'state_name'];
+    public const MODEL_CROSS_ATTRIBUTES = ['id_transmission' => 'transmission_name', 'id_fuel' => 'fuel_name', 'id_state' => 'state_name', 'id_city' => 'city_name'];
 
     /**
-     * Ads per model and value of $attribute (transmission, fuel, region) with at least $minAds,
-     * with the value's name: [{id_car_model, value, name, total}].
+     * Ads per model and value of $attribute (transmission, fuel, region, city) with at least
+     * $minAds, with the value's name: [{id_car_model, value, name, total}]. Cities also bring
+     * their region's name (state_name), to tell "Lima" the city from "Lima" the region.
      */
     public function carCountsByModelAnd($searchIndex, string $attribute, int $minAds): array
     {
@@ -317,7 +318,8 @@ class ManticoreSearchService
         $limit = 200000;
 
         return (new SphinxQL($this->connection))
-            ->select('id_car_model', SphinxQL::expr("{$attribute} AS value"), SphinxQL::expr("{$nameColumn} AS name"), SphinxQL::expr('COUNT(*) AS total'))
+            ->select('id_car_model', SphinxQL::expr("{$attribute} AS value"), SphinxQL::expr("{$nameColumn} AS name"), SphinxQL::expr('COUNT(*) AS total'),
+                ...($attribute === 'id_city' ? ['state_name'] : []))
             ->from($searchIndex)
             ->where('id_car_model', '>', 0)
             ->where($attribute, '>', 0)
