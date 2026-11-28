@@ -98,3 +98,31 @@ CREATE TABLE IF NOT EXISTS nexo.dealer_sites (
   approved_at  DATETIME     NULL,
   KEY idx_dealer_sites (country, status)
 );
+
+-- Historial de precios de los autos: una fila al entrar el aviso y otra cada vez que su precio cambia.
+-- `roodos.cars` solo guarda el último precio; esto permite graficar precios en el tiempo y mostrar bajadas.
+-- Lo llenan los triggers de abajo, así que cubre a todos los scripts que escriben en `cars`.
+CREATE TABLE IF NOT EXISTS nexo.car_prices (
+  car_id      BIGINT UNSIGNED NOT NULL,
+  price       BIGINT          NOT NULL,
+  changed_at  DATETIME        NOT NULL,
+  PRIMARY KEY (car_id, changed_at),
+  KEY idx_car_prices_date (changed_at)
+);
+
+-- Punto de partida: el precio actual de los avisos que todavía no tienen historial.
+INSERT IGNORE INTO nexo.car_prices (car_id, price, changed_at)
+SELECT c.id, c.price, COALESCE(c.updated, c.created, NOW())
+FROM roodos.cars c
+WHERE c.price > 0 AND NOT EXISTS (SELECT 1 FROM nexo.car_prices p WHERE p.car_id = c.id);
+
+DROP TRIGGER IF EXISTS roodos.cars_price_insert;
+CREATE TRIGGER roodos.cars_price_insert AFTER INSERT ON roodos.cars FOR EACH ROW
+  INSERT IGNORE INTO nexo.car_prices (car_id, price, changed_at)
+  SELECT NEW.id, NEW.price, NOW() FROM DUAL WHERE NEW.price > 0;
+
+DROP TRIGGER IF EXISTS roodos.cars_price_update;
+CREATE TRIGGER roodos.cars_price_update AFTER UPDATE ON roodos.cars FOR EACH ROW
+  INSERT INTO nexo.car_prices (car_id, price, changed_at)
+  SELECT NEW.id, NEW.price, NOW() FROM DUAL WHERE NEW.price > 0 AND NOT (NEW.price <=> OLD.price)
+  ON DUPLICATE KEY UPDATE price = VALUES(price);
