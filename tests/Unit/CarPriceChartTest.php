@@ -62,6 +62,14 @@ class CarPriceChartTest extends TestCase
         $this->assertNull(CarPriceChart::build($this->ads(10, 2019, 9000000)));
     }
 
+    public function test_typical_price_never_rises_with_km(): void
+    {
+        $this->assertSame(
+            [[1000, 20], [5000, 17], [9000, 16], [14000, 16], [20000, 16], [30000, 15]],
+            CarPriceChart::neverRising([[1000, 20], [5000, 17], [9000, 15], [14000, 16], [20000, 17], [30000, 15]])
+        );
+    }
+
     public function test_short_labels(): void
     {
         $this->assertSame('12,5 M', CarPriceChart::short(12500000));

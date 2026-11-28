@@ -195,7 +195,37 @@ final class CarPriceChart
             $trend[] = [self::median(array_column($slice, 'km')), self::median(array_column($slice, 'price'))];
         }
 
-        return $trend;
+        return self::neverRising($trend);
+    }
+
+    /**
+     * Within a year range more km never costs more: a stretch dearer than the one before is averaged
+     * with it (pool adjacent violators). A range mixing new 2026 cars with 2024 ones zigzagged at low km.
+     *
+     * @param array<int, array{0: int, 1: int}> $trend [km, price] sorted by km
+     */
+    public static function neverRising(array $trend): array
+    {
+        $blocks = []; // [price sum, stretches]
+        foreach ($trend as [, $price]) {
+            $blocks[] = [$price, 1];
+            while (count($blocks) > 1) {
+                [$sum, $count] = $blocks[count($blocks) - 1];
+                [$prevSum, $prevCount] = $blocks[count($blocks) - 2];
+                if ($sum / $count <= $prevSum / $prevCount) {
+                    break;
+                }
+                array_pop($blocks);
+                $blocks[count($blocks) - 1] = [$prevSum + $sum, $prevCount + $count];
+            }
+        }
+
+        $prices = [];
+        foreach ($blocks as [$sum, $count]) {
+            array_push($prices, ...array_fill(0, $count, (int) round($sum / $count)));
+        }
+
+        return array_map(fn ($point, $price) => [$point[0], $price], $trend, $prices);
     }
 
     private static function withoutOutliers(array $points): array
