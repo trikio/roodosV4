@@ -103,4 +103,42 @@ class LandingCandidatesCommandTest extends TestCase
         $this->assertSame(1, substr_count($sql, 'INSERT INTO car_landings'));
         $this->assertStringContainsString('"generated":{"make":176,"model":2000,"transmission":2,', $sql);
     }
+
+    public function test_city_candidates_follow_the_landings_that_get_clicks(): void
+    {
+        $output = sys_get_temp_dir() . '/landings-candidates-city-test';
+        array_map('unlink', glob($output . '/*') ?: []);
+
+        $manticore = Mockery::mock(ManticoreSearchService::class);
+        $manticore->shouldReceive('carCountsByModel')->with('car_pe')->andReturn([3000 => 60]);
+        $manticore->shouldReceive('carCountsByModelAnd')->with('car_pe', 'id_city', 8)->andReturn([
+            ['id_car_model' => '3000', 'value' => '501', 'name' => 'Los Olivos', 'state_name' => 'Lima', 'total' => '12'],
+            // Lima the city is the region's landing ("... usados en Lima"), not a second one.
+            ['id_car_model' => '3000', 'value' => '500', 'name' => 'Lima', 'state_name' => 'Lima', 'total' => '30'],
+            ['id_car_model' => '3000', 'value' => '502', 'name' => 'Miraflores', 'state_name' => 'Lima', 'total' => '9'],
+        ]);
+        $manticore->shouldReceive('carModelsByIds')->andReturn([
+            ['id' => '3000', 'slug' => 'volkswagen-escarabajo', 'model_name' => 'Escarabajo', 'id_car_make' => '200'],
+        ]);
+        $manticore->shouldReceive('getCarMakeById')->with(200)->andReturn(['id' => 200, 'name' => 'Volkswagen', 'slug' => 'volkswagen']);
+        $manticore->shouldReceive('iterateCarLandings')->with('pe')->andReturnUsing(fn () => (function () {
+            // The legacy landing of Miraflores already covers that search.
+            yield ['slug' => 'venta-autos-usados-volkswagen-escarabajo-miraflores', 'title' => 'venta Autos usados Volkswagen Escarabajo Miraflores', 'redirect' => ''];
+        })());
+        $this->app->instance(ManticoreSearchService::class, $manticore);
+
+        $this->artisan('landings:candidates', ['country' => 'pe', '--kind' => 'ciudad', '--output' => $output, '--sql' => true])->assertSuccessful();
+
+        $rows = array_map(fn ($row) => [$row[2], $row[4], $row[5], $row[6]], array_slice(array_map('str_getcsv', file(glob($output . '/landings_candidates_pe_ciudad_*.csv')[0], FILE_IGNORE_NEW_LINES)), 1));
+        $this->assertSame([
+            ['Los Olivos', 'volkswagen-escarabajo-usados-en-los-olivos', 'Volkswagen Escarabajo usados en Los Olivos', 'nueva'],
+            ['Miraflores', 'volkswagen-escarabajo-usados-en-miraflores', 'Volkswagen Escarabajo usados en Miraflores', 'existe'],
+        ], $rows);
+
+        $sql = file_get_contents(glob($output . '/landings_candidates_pe_ciudad_*.sql')[0]);
+        $this->assertSame(1, substr_count($sql, 'INSERT INTO car_landings'));
+        $this->assertStringContainsString("'Volkswagen Escarabajo usados en Los Olivos, Perú'", $sql);
+        $this->assertStringContainsString('"generated":{"make":200,"model":3000,"city":501,"created":"' . date('Y-m-d') . '"}', $sql);
+        $this->assertStringContainsString(', 200, 3000, 0, 501, \'\', 1)', $sql);
+    }
 }
