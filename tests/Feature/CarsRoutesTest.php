@@ -180,6 +180,10 @@ class CarsRoutesTest extends TestCase
             ->andReturn([$this->carRow(45982, 13990, ['title' => '2009 Toyota Hilux'])]);
         $manticore->shouldReceive('carModelPriceStats')->with('car_ec', 1842, 2007)
             ->andReturn(['total' => 11, 'avg' => 17000, 'min' => 8900, 'max' => 19900]);
+        $manticore->shouldReceive('carModelPricePoints')->with('car_ec', 1842)->andReturn(array_map(
+            fn ($i) => ['id' => 50000 + $i, 'price' => 20000 - $i * 300, 'km' => $i * 9000, 'year' => 2005 + $i % 5],
+            range(1, 20)
+        ));
 
         // Model + city and model by id; the make level falls back to its name (no make landings by id).
         $manticore->shouldReceive('carLandingsByIds')->with('ec', ['id_car_model' => 1842, 'id_city' => 12], 150)
@@ -208,6 +212,8 @@ class CarsRoutesTest extends TestCase
             ->assertSee('$ 14.900')
             ->assertSee('Bajo el promedio')
             ->assertSee('Según 11 avisos')
+            ->assertSee('Precio de Toyota Hilux según kilometraje')
+            ->assertSee('Este auto: 2007', false)
             ->assertSee('href="/auto/45982"', false)
             ->assertSee('href="http://autos.roodos.ec/modelo/toyota-hilux"', false)
             ->assertSee('href="http://autos.roodos.ec/marca/toyota"', false)
@@ -226,6 +232,7 @@ class CarsRoutesTest extends TestCase
         $manticore->shouldReceive('carModelsByIds')->never();
         $manticore->shouldReceive('similarCars')->andReturn([]);
         $manticore->shouldReceive('carModelPriceStats')->andReturn(null);
+        $manticore->shouldReceive('carModelPricePoints')->andReturn([]);
 
         $this->get('http://autos.roodos.ec/auto/1')
             ->assertOk()

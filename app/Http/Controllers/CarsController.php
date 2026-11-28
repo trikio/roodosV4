@@ -7,6 +7,7 @@ use App\Support\CappedPaginator;
 use Illuminate\Support\Str;
 use App\Services\LandingLinks;
 use App\Services\ManticoreSearchService;
+use App\Support\CarPriceChart;
 use App\Support\CarLandingSnippet;
 use App\Support\LandingClassifier;
 use Illuminate\Support\Facades\Cache;
@@ -159,7 +160,22 @@ class CarsController extends Controller
                 'title' => 'Búsquedas de ' . $modelTitle,
                 'links' => $this->links->forName($this->resolveCountryCode($request, $country), $modelTitle),
             ],
+            'priceChart' => $this->priceChart($this->resolveCountryCode($request, $country), (int) $model['id']),
+            'priceChartTitle' => 'Precio de ' . $modelTitle . ' según kilometraje',
         ]);
+    }
+
+    /** Price-by-km chart of a model (see CarPriceChart); the ads are kept 6 hours. */
+    private function priceChart(string $countryCode, int $modelId, ?array $highlight = null): ?array
+    {
+        if ($modelId <= 0) {
+            return null;
+        }
+        $index = $this->getCarsIndexName($countryCode);
+        $points = Cache::remember("car-price-points:v1:{$index}:{$modelId}", 21600,
+            fn () => $this->manticore->carModelPricePoints($index, $modelId));
+
+        return CarPriceChart::build($points, $highlight, config('countries.currency.' . strtoupper($countryCode), '$'));
     }
 
     public function landing(Request $request, $country = null, $slug = null)
@@ -574,6 +590,12 @@ class CarsController extends Controller
                 ]),
                 'priceStats' => $priceStats,
                 'yearSpan' => $year > 0 ? [$year - 2, $year + 2] : null,
+                'priceChart' => $this->priceChart($countryCode, $modelId, [
+                    'id' => $carId,
+                    'price' => $price,
+                    'km' => (int) ($car['km'] ?? 0),
+                    'year' => $year,
+                ]),
             ])
             // Listing data copied from the sources and short-lived: kept out of the index, but its
             // links to landings are followed.

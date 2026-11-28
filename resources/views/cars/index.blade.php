@@ -264,6 +264,15 @@
                         </div>
                     </div>
                     </a>
+                    {{-- Precio según kilometraje del modelo: después de unos resultados, solo en la primera página --}}
+                    @if(!empty($priceChart) && $cars->currentPage() === 1 && ($loop->index === 4 || ($loop->last && $loop->count < 5)))
+                        <div class="mb-4">
+                            @include('cars._price_chart', [
+                                'chartTitle' => $priceChartTitle ?? 'Precio según kilometraje',
+                                'money' => fn (int $value) => $currencySymbol . ' ' . number_format($value, 0, ',', '.'),
+                            ])
+                        </div>
+                    @endif
                     @empty
                     <div class="py-12 text-center">
                         <p class="text-gray-600 text-lg">No hay autos que coincidan con tus filtros.</p>

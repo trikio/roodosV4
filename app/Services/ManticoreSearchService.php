@@ -198,6 +198,41 @@ class ManticoreSearchService
     }
 
     /**
+     * Price, km and year of a model's ads, for the price-by-km chart. Ads without them are left out.
+     *
+     * @return array<int, array{id: int, price: int, km: int, year: int}>
+     */
+    public function carModelPricePoints($searchIndex, int $modelId, int $limit = 1000): array
+    {
+        if ($modelId <= 0) {
+            return [];
+        }
+
+        try {
+            $rows = (new SphinxQL($this->connection))
+                ->select('id', 'price', 'km', 'year_int')
+                ->from($searchIndex)
+                ->where('id_car_model', $modelId)
+                ->where('price', '>', 0)
+                ->where('km', '>', 0)
+                ->where('year_int', '>', 0)
+                ->limit(0, $limit)
+                ->option('max_matches', $limit)
+                ->execute()
+                ->fetchAllAssoc();
+        } catch (Exception $e) {
+            return [];
+        }
+
+        return array_map(fn ($row) => [
+            'id' => (int) $row['id'],
+            'price' => (int) $row['price'],
+            'km' => (int) $row['km'],
+            'year' => (int) $row['year_int'],
+        ], $rows);
+    }
+
+    /**
      * Price summary of a model within ±$yearSpan years, or null when unavailable.
      *
      * @return array{total: int, avg: int, min: int, max: int}|null

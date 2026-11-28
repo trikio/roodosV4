@@ -90,6 +90,7 @@ class InternalLinksTest extends TestCase
         $this->manticore->shouldReceive('getCarModelBySlug')->with('toyota-rav4')
             ->andReturn(['id' => '70', 'id_car_make' => '5', 'make_name' => 'Toyota', 'model_name' => 'RAV4', 'make_model' => 'Toyota RAV4']);
         $this->manticore->shouldReceive('getCarMakeById')->with(5)->andReturn(['id' => '5', 'slug' => 'toyota']);
+        $this->manticore->shouldReceive('carModelPricePoints')->with('car_pe', 70)->andReturn([]);
         $this->manticore->shouldReceive('carSearch')->andReturn($this->searchResult());
         $this->manticore->shouldReceive('similarCarLandings')
             ->withArgs(fn ($cc, $terms, $all) => $terms === 'toyota rav4' && $all)

@@ -146,6 +146,10 @@
             </section>
             @endif
 
+            @if($priceChart)
+                @include('cars._price_chart', ['chartTitle' => 'Precio de ' . $makeModel . ' según kilometraje'])
+            @endif
+
             @if($detailSlot)
             <div class="min-h-[100px]">
                 <ins
